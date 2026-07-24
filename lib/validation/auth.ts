@@ -2,6 +2,7 @@
 // valid email / password / name looks like, used by both the server actions and
 // the Credentials provider's authorize().
 import { z } from "zod";
+import { isValidCountryCode } from "@/lib/data/countries";
 
 export const loginSchema = z.object({
   email: z.email({ error: "Enter a valid email address." }),
@@ -15,6 +16,13 @@ export const signupSchema = z.object({
     .string()
     .min(8, { error: "Password must be at least 8 characters." })
     .max(200),
+  countryOfOrigin: z
+    .string()
+    .trim()
+    .refine((c) => c === "" || isValidCountryCode(c), {
+      error: "Choose a country from the list.",
+    })
+    .optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

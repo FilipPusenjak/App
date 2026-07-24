@@ -62,8 +62,9 @@ export async function signupAction(
   const name = String(formData.get("name") ?? "");
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const countryOfOrigin = String(formData.get("countryOfOrigin") ?? "");
 
-  const parsed = signupSchema.safeParse({ name, email, password });
+  const parsed = signupSchema.safeParse({ name, email, password, countryOfOrigin });
   if (!parsed.success) {
     return {
       fieldErrors: fieldErrorsFrom(parsed.error.issues),
@@ -84,7 +85,12 @@ export async function signupAction(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.user.create({
-    data: { name: parsed.data.name, email: normalizedEmail, passwordHash },
+    data: {
+      name: parsed.data.name,
+      email: normalizedEmail,
+      passwordHash,
+      countryOfOrigin: parsed.data.countryOfOrigin || null,
+    },
   });
 
   // Log the new user straight in.

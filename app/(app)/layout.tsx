@@ -17,9 +17,19 @@ export default async function AppLayout({
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-black/10 dark:border-white/15">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-3">
-          <Link href="/dashboard" className="text-sm font-semibold">
-            Application Profile Evaluator
-          </Link>
+          <div className="flex items-center gap-5">
+            <Link href="/dashboard" className="text-sm font-semibold">
+              Application Profile Evaluator
+            </Link>
+            <nav className="flex items-center gap-4 text-sm text-zinc-500">
+              <Link href="/dashboard" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Dashboard
+              </Link>
+              <Link href="/profile" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Profile
+              </Link>
+            </nav>
+          </div>
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-zinc-500 sm:inline">
               {user.email}

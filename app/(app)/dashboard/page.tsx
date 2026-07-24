@@ -13,9 +13,18 @@ export default async function DashboardPage() {
         You&apos;re signed in. This is your private dashboard.
       </p>
 
+      <div className="mt-6 flex flex-wrap gap-3">
+        <a
+          href="/profile"
+          className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        >
+          Build your profile
+        </a>
+      </div>
+
       <div className="mt-6 rounded-lg border border-black/10 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
-        Next up (Milestone 3): building your profile — grades, test scores, and
-        resume items — right here.
+        Add your grades, test scores, and resume items on the Profile page. Next
+        up (Milestone 4): your target schools and career goal.
       </div>
     </div>
   );
