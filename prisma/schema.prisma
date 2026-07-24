@@ -1,0 +1,120 @@
+// Prisma schema — Student Application Profile Evaluator
+// Local dev runs on SQLite; the schema is written so a Postgres swap is small.
+//
+// SQLite limitations you should know about:
+//   - Prisma on SQLite has NO native `enum` and NO `Json` scalar.
+//   - So every "enum" field below is a plain `String`. Its allowed values are
+//     defined once, authoritatively, in lib/validation (Zod) — that is the single
+//     source of truth the app validates against.
+//   - AI evaluation output (added in Milestone 5) is stored as a serialized JSON
+//     String for the same reason.
+//   - On Postgres these become real `enum` / `Json` columns via a small migration.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// Auth / account
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  name            String?
+  countryOfOrigin String? // home country (ISO code); affects domestic vs international status
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // One profile per user for now. Relaxing this to many (e.g. a counselor with
+  // several students) later is additive and won't break existing data.
+  profile Profile?
+}
+
+// ---------------------------------------------------------------------------
+// The student's application profile
+// ---------------------------------------------------------------------------
+
+model Profile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gradeLevel    String? // e.g. "Grade 11", "Year 12"
+  curriculum    String? // Zod enum: pre_ib | ib | ap | a_levels | gcse | other
+  gpa           Float?
+  gpaScale      String? // "4.0", "45" (IB), "letter", ...
+  intendedMajor String?
+  careerGoal    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  resumeItems   ResumeItem[]
+  testScores    TestScore[]
+  targetSchools TargetSchool[]
+  // evaluations Evaluation[]  // <-- added in Milestone 5 (AI evaluation)
+}
+
+model ResumeItem {
+  id            String    @id @default(cuid())
+  profileId     String
+  profile       Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // Zod enum: coursework | extracurricular | leadership | award | research |
+  //           work | volunteering | project | certification
+  type          String
+  title         String
+  description   String?
+  org           String?
+  startDate     DateTime?
+  endDate       DateTime?
+  hoursPerWeek  Float?
+  evidenceNotes String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([profileId])
+}
+
+model TestScore {
+  id        String    @id @default(cuid())
+  profileId String
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // Zod enum: sat | act | ap | ib_subject | ib_total | predicted_grade |
+  //           ucat | gcse | ielts | toefl | other
+  kind      String
+  label     String // "AP Biology", "Mathematics HL", "SAT Total"
+  score     String // string on purpose so "1500", "7", and "A*" all fit one column
+  maxScore  String?
+  predicted Boolean   @default(false) // subject-level predicted grades are first-class (UK depth)
+  takenOn   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([profileId])
+}
+
+// ---------------------------------------------------------------------------
+// Targets — where the student is applying
+// ---------------------------------------------------------------------------
+
+model TargetSchool {
+  id             String   @id @default(cuid())
+  profileId      String
+  profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name           String
+  // FIRST-CLASS rubric driver: the evaluation branches on this per school.
+  // Zod enum: US | UK  (registry is extensible — add CA/EU/AU later, no schema change)
+  country        String
+  course         String? // specific course/major at this school (matters most for UK)
+  classification String // Zod enum: reach | match | safety
+  priority       Int?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([profileId])
+}
