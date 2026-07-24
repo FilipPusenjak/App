@@ -20,11 +20,18 @@ export default async function DashboardPage() {
         >
           Build your profile
         </a>
+        <a
+          href="/targets"
+          className="inline-flex items-center rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          Set your targets
+        </a>
       </div>
 
       <div className="mt-6 rounded-lg border border-black/10 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
-        Add your grades, test scores, and resume items on the Profile page. Next
-        up (Milestone 4): your target schools and career goal.
+        Add your grades, test scores, and resume items on the Profile page, and
+        the universities you&apos;re aiming at under Targets. Next up (Milestone
+        5): AI evaluation of your profile against those targets.
       </div>
     </div>
   );

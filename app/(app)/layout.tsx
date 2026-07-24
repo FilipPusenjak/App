@@ -28,6 +28,9 @@ export default async function AppLayout({
               <Link href="/profile" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Profile
               </Link>
+              <Link href="/targets" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Targets
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

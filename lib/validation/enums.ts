@@ -47,6 +47,15 @@ export const RESUME_ITEM_TYPE_LABELS: Record<ResumeItemType, string> = {
   certification: "Certification",
 };
 
+export const CLASSIFICATIONS = ["reach", "match", "safety"] as const;
+export const classificationSchema = z.enum(CLASSIFICATIONS);
+export type Classification = (typeof CLASSIFICATIONS)[number];
+export const CLASSIFICATION_LABELS: Record<Classification, string> = {
+  reach: "Reach",
+  match: "Match",
+  safety: "Safety",
+};
+
 export const TEST_SCORE_KINDS = [
   "sat",
   "act",

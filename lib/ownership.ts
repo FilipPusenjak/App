@@ -54,3 +54,27 @@ export async function requireOwnedTestScore(scoreId: string) {
   if (!score) throw new Error("Test score not found");
   return score;
 }
+
+/** All target schools for the current user's profile. */
+export async function getOwnedTargets() {
+  const profile = await getOrCreateProfile();
+  return prisma.targetSchool.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/** A target school owned by the current user, or null. */
+export async function findOwnedTargetSchool(id: string) {
+  const userId = await requireUserId();
+  return prisma.targetSchool.findFirst({
+    where: { id, profile: { userId } },
+  });
+}
+
+/** Assert ownership of a target school before mutating/deleting it. */
+export async function requireOwnedTargetSchool(id: string) {
+  const target = await findOwnedTargetSchool(id);
+  if (!target) throw new Error("Target school not found");
+  return target;
+}
