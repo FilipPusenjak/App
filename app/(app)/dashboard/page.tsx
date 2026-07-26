@@ -26,12 +26,18 @@ export default async function DashboardPage() {
         >
           Set your targets
         </a>
+        <a
+          href="/evaluations"
+          className="inline-flex items-center rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          Evaluate my profile
+        </a>
       </div>
 
       <div className="mt-6 rounded-lg border border-black/10 bg-zinc-50 p-4 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
-        Add your grades, test scores, and resume items on the Profile page, and
-        the universities you&apos;re aiming at under Targets. Next up (Milestone
-        5): AI evaluation of your profile against those targets.
+        Build your profile, add the universities you&apos;re aiming at, then run
+        an evaluation for an honest read on how your profile fits each one —
+        judged by that country&apos;s admissions rubric.
       </div>
     </div>
   );

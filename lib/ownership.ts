@@ -26,6 +26,7 @@ export async function getProfileWithRelations() {
     include: {
       testScores: { orderBy: { createdAt: "asc" } },
       resumeItems: { orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] },
+      targetSchools: { orderBy: { createdAt: "asc" } },
     },
   });
 }
@@ -77,4 +78,21 @@ export async function requireOwnedTargetSchool(id: string) {
   const target = await findOwnedTargetSchool(id);
   if (!target) throw new Error("Target school not found");
   return target;
+}
+
+/** The current user's evaluations, newest first (list/history view). */
+export async function getOwnedEvaluations() {
+  const profile = await getOrCreateProfile();
+  return prisma.evaluation.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** A single evaluation owned by the current user, or null. */
+export async function findOwnedEvaluation(id: string) {
+  const userId = await requireUserId();
+  return prisma.evaluation.findFirst({
+    where: { id, profile: { userId } },
+  });
 }

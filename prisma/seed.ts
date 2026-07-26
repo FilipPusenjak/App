@@ -114,7 +114,7 @@ async function main() {
               // UK — course-specific depth
               {
                 name: "University of Cambridge",
-                country: "UK",
+                country: "GB",
                 course: "Computer Science (Tripos)",
                 classification: "reach",
                 priority: 2,
@@ -122,7 +122,7 @@ async function main() {
               },
               {
                 name: "Imperial College London",
-                country: "UK",
+                country: "GB",
                 course: "Computing (MEng)",
                 classification: "match",
                 priority: 4,

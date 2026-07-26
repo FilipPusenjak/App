@@ -57,7 +57,7 @@ model Profile {
   resumeItems   ResumeItem[]
   testScores    TestScore[]
   targetSchools TargetSchool[]
-  // evaluations Evaluation[]  // <-- added in Milestone 5 (AI evaluation)
+  evaluations   Evaluation[]
 }
 
 model ResumeItem {
@@ -101,13 +101,45 @@ model TestScore {
 // Targets — where the student is applying
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// AI evaluations — immutable, timestamped snapshots
+// ---------------------------------------------------------------------------
+
+model Evaluation {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // Zod enum: pending | completed | failed
+  status String @default("pending")
+
+  model         String? // AI model id that produced this (e.g. claude-opus-5)
+  promptVersion String? // which /lib/prompts template version was used
+  isSample      Boolean @default(false) // true = generated without an API key; NOT real AI output
+
+  // SQLite has no Json column, so these are serialized JSON strings.
+  // inputSnapshotJson freezes the profile as it was at evaluation time, so
+  // history stays faithful even after the profile is edited.
+  inputSnapshotJson String?
+  // resultJson is an EvaluationResult, Zod-validated before it is ever stored.
+  resultJson        String?
+
+  overallScore Int? // 0-100 headline, denormalized for the progress chart
+  error        String? // populated when status = failed
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  @@index([profileId])
+}
+
 model TargetSchool {
   id             String   @id @default(cuid())
   profileId      String
   profile        Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   name           String
   // FIRST-CLASS rubric driver: the evaluation branches on this per school.
-  // Zod enum: US | UK  (registry is extensible — add CA/EU/AU later, no schema change)
+  // ISO 3166-1 alpha-2 (US, GB, ...). lib/rubrics maps it to an admissions
+  // rubric; the registry is extensible — add CA/AU later, no schema change.
   country        String
   course         String? // specific course/major at this school (matters most for UK)
   classification String // Zod enum: reach | match | safety

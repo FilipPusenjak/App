@@ -1,0 +1,251 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { findOwnedEvaluation } from "@/lib/ownership";
+import { parseStoredResult } from "@/lib/validation/evaluation";
+import { getRubric } from "@/lib/rubrics";
+
+function ScoreRing({ score, label }: { score: number; label: string }) {
+  const tone =
+    score >= 75
+      ? "text-green-600 dark:text-green-400"
+      : score >= 50
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-rose-600 dark:text-rose-400";
+  return (
+    <div className="text-center">
+      <div className={`text-4xl font-semibold tabular-nums ${tone}`}>
+        {Math.round(score)}
+        <span className="text-lg text-zinc-400">/100</span>
+      </div>
+      <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function Card({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      {subtitle && <p className="mb-3 mt-0.5 text-sm text-zinc-500">{subtitle}</p>}
+      <div className={subtitle ? "" : "mt-3"}>{children}</div>
+    </section>
+  );
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  minor: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
+  moderate:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  significant:
+    "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+};
+
+export default async function EvaluationPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const evaluation = await findOwnedEvaluation(id);
+  if (!evaluation) notFound();
+
+  const result = parseStoredResult(evaluation.resultJson);
+
+  return (
+    <div className="space-y-6">
+      <Link
+        href="/evaluations"
+        className="text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+      >
+        ← Back to evaluations
+      </Link>
+
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Evaluation</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          {evaluation.createdAt.toLocaleString("en-US", {
+            dateStyle: "long",
+            timeStyle: "short",
+          })}
+          {evaluation.model ? ` · ${evaluation.model}` : ""}
+          {evaluation.promptVersion ? ` · ${evaluation.promptVersion}` : ""}
+        </p>
+      </div>
+
+      {evaluation.isSample && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          <strong>This is a sample, not an AI evaluation.</strong> No Anthropic
+          API key is configured, so the app produced placeholder output to show
+          the feature working end to end. Add <code>ANTHROPIC_API_KEY</code> to{" "}
+          <code>.env.local</code>, restart the server, and run again for a real
+          assessment.
+        </div>
+      )}
+
+      {evaluation.status === "failed" && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+          <strong>This evaluation failed.</strong> {evaluation.error}
+        </div>
+      )}
+
+      {!result ? (
+        <p className="text-sm text-zinc-500">
+          No result was stored for this evaluation.
+        </p>
+      ) : (
+        <>
+          <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+            <div className="flex flex-wrap items-center gap-8">
+              <ScoreRing score={result.overallScore} label="Overall" />
+              <ScoreRing
+                score={result.narrativeCoherence.score}
+                label="Narrative"
+              />
+              <div className="min-w-64 flex-1">
+                <p className="font-medium">{result.headline}</p>
+                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                  {result.summary}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <Card
+            title="Fit by target school"
+            subtitle="Each school is judged by its own country's admissions rubric — not a single blended score."
+          >
+            <ul className="space-y-3">
+              {result.schoolFits.map((fit, i) => {
+                const rubric = getRubric(
+                  fit.country === "United Kingdom" ? "GB" : fit.country,
+                );
+                return (
+                  <li
+                    key={`${fit.schoolName}-${i}`}
+                    className="rounded-lg border border-black/10 p-4 dark:border-white/15"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="font-medium">
+                        {fit.schoolName}{" "}
+                        <span className="font-normal text-zinc-500">
+                          · {fit.course}
+                        </span>
+                      </h3>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {Math.round(fit.fitScore)}/100
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {fit.country} · rubric: {fit.rubricUsed}
+                      {rubric.id !== fit.rubricUsed ? "" : ` (${rubric.name})`}
+                    </p>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      {fit.assessment}
+                    </p>
+                    {fit.keyRisks.length > 0 && (
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+                        {fit.keyRisks.map((r, j) => (
+                          <li key={j}>{r}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <Card title="Strengths">
+              <ul className="space-y-3">
+                {result.strengths.map((s, i) => (
+                  <li key={i}>
+                    <p className="text-sm font-medium">{s.title}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {s.detail}
+                    </p>
+                    {s.relevantTo.length > 0 && (
+                      <p className="mt-1 text-xs text-zinc-400">
+                        Relevant to: {s.relevantTo.join(", ")}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+
+            <Card title="Weaknesses">
+              <ul className="space-y-3">
+                {result.weaknesses.map((w, i) => (
+                  <li key={i}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium">{w.title}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          SEVERITY_STYLES[w.severity] ?? ""
+                        }`}
+                      >
+                        {w.severity}
+                      </span>
+                    </div>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {w.detail}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          </div>
+
+          <Card
+            title="Gaps"
+            subtitle="What's missing given your stated targets."
+          >
+            <ul className="space-y-3">
+              {result.gaps.map((g, i) => (
+                <li key={i}>
+                  <p className="text-sm font-medium">{g.title}</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {g.detail}
+                  </p>
+                  {g.appliesTo.length > 0 && (
+                    <p className="mt-1 text-xs text-zinc-400">
+                      Applies to: {g.appliesTo.join(", ")}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card
+            title="Verify these yourself"
+            subtitle="The model was told never to assert admissions requirements or statistics it isn't sure of. Anything uncertain lands here — check each on the university's official course page."
+          >
+            <ul className="list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+              {result.verifyThese.map((v, i) => (
+                <li key={i}>{v}</li>
+              ))}
+            </ul>
+          </Card>
+
+          <p className="text-xs text-zinc-400">
+            AI-generated assessment. It can be wrong, and it does not decide
+            admissions. Always confirm requirements with the universities
+            themselves.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
