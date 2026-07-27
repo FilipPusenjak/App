@@ -31,6 +31,18 @@ export function hasCountryRubric(countryCode: string | null | undefined) {
   return Boolean(countryCode && REGISTRY[countryCode.toUpperCase()]);
 }
 
+const ALL_RUBRICS = [usRubric, ukRubric, genericRubric];
+
+/**
+ * Look a rubric up by its id. Stored results record the rubric id that produced
+ * them, so this is the correct way to resolve a rubric when rendering a saved
+ * evaluation — the country there is a display name, not a code.
+ */
+export function getRubricById(id: string | null | undefined): Rubric | null {
+  if (!id) return null;
+  return ALL_RUBRICS.find((r) => r.id === id) ?? null;
+}
+
 /** The distinct rubrics needed for a set of target countries, deduped. */
 export function rubricsForCountries(countryCodes: string[]): Rubric[] {
   const seen = new Map<string, Rubric>();

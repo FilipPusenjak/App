@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { findOwnedEvaluation } from "@/lib/ownership";
 import { parseStoredResult } from "@/lib/validation/evaluation";
-import { getRubric } from "@/lib/rubrics";
+import { getRubricById } from "@/lib/rubrics";
 
 function ScoreRing({ score, label }: { score: number; label: string }) {
   const tone =
@@ -126,9 +126,9 @@ export default async function EvaluationPage({
           >
             <ul className="space-y-3">
               {result.schoolFits.map((fit, i) => {
-                const rubric = getRubric(
-                  fit.country === "United Kingdom" ? "GB" : fit.country,
-                );
+                // Resolve by the recorded rubric id — fit.country is a display
+                // name, not a code, so it can't be used for the lookup.
+                const rubric = getRubricById(fit.rubricUsed);
                 return (
                   <li
                     key={`${fit.schoolName}-${i}`}
@@ -146,8 +146,8 @@ export default async function EvaluationPage({
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      {fit.country} · rubric: {fit.rubricUsed}
-                      {rubric.id !== fit.rubricUsed ? "" : ` (${rubric.name})`}
+                      {fit.country} · rubric:{" "}
+                      {rubric ? rubric.name : fit.rubricUsed}
                     </p>
                     <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                       {fit.assessment}
