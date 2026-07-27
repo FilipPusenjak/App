@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
+import { isEmailAllowedToSignUp } from "@/lib/signup-access";
 import { loginSchema, signupSchema } from "@/lib/validation/auth";
 
 // Shape returned to the client forms (via useActionState). `undefined` = no
@@ -73,6 +74,17 @@ export async function signupAction(
   }
 
   const normalizedEmail = parsed.data.email.toLowerCase();
+
+  // Gate registration before touching the database. On a deployed instance this
+  // is what stops strangers creating accounts that spend your API credits.
+  if (!isEmailAllowedToSignUp(normalizedEmail)) {
+    return {
+      error:
+        "This address isn't on the invite list for this instance. Ask the owner to add it.",
+      values: { name, email },
+    };
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: normalizedEmail },
   });

@@ -1,14 +1,15 @@
 // Prisma schema — Student Application Profile Evaluator
-// Local dev runs on SQLite; the schema is written so a Postgres swap is small.
 //
-// SQLite limitations you should know about:
-//   - Prisma on SQLite has NO native `enum` and NO `Json` scalar.
-//   - So every "enum" field below is a plain `String`. Its allowed values are
-//     defined once, authoritatively, in lib/validation (Zod) — that is the single
-//     source of truth the app validates against.
-//   - AI evaluation output (added in Milestone 5) is stored as a serialized JSON
-//     String for the same reason.
-//   - On Postgres these become real `enum` / `Json` columns via a small migration.
+// Runs on PostgreSQL in both development and production. Using the same engine
+// in both places avoids the class of bug where something works locally and then
+// fails in production.
+//
+// The "enum" fields below are plain `String` columns, and structured AI output
+// is a serialized JSON `String`. Their allowed values and shape are defined
+// once, authoritatively, in lib/validation (Zod), which every write is checked
+// against. Converting them to native Postgres `enum` / `jsonb` columns is
+// possible but deliberately not done — Zod is already the enforcement point,
+// and plain columns keep migrations simple.
 
 generator client {
   provider = "prisma-client"
@@ -16,7 +17,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ---------------------------------------------------------------------------
@@ -117,9 +118,8 @@ model Evaluation {
   promptVersion String? // which /lib/prompts template version was used
   isSample      Boolean @default(false) // true = generated without an API key; NOT real AI output
 
-  // SQLite has no Json column, so these are serialized JSON strings.
-  // inputSnapshotJson freezes the profile as it was at evaluation time, so
-  // history stays faithful even after the profile is edited.
+  // Serialized JSON. inputSnapshotJson freezes the profile as it was at
+  // evaluation time, so history stays faithful even after the profile is edited.
   inputSnapshotJson String?
   // resultJson is an EvaluationResult, Zod-validated before it is ever stored.
   resultJson        String?
