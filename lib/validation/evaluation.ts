@@ -49,6 +49,50 @@ const gapSchema = z.object({
   appliesTo: z.array(z.string()),
 });
 
+/** How much an individual resume item actually helps. "negligible" exists so
+ *  the model has an honest option for filler — it is instructed to use it. */
+export const HELPFULNESS_LEVELS = [
+  "high",
+  "moderate",
+  "low",
+  "negligible",
+] as const;
+export const helpfulnessSchema = z.enum(HELPFULNESS_LEVELS);
+export type Helpfulness = (typeof HELPFULNESS_LEVELS)[number];
+
+export const EFFORT_LEVELS = ["low", "medium", "high"] as const;
+export const effortSchema = z.enum(EFFORT_LEVELS);
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+export const IMPACT_LEVELS = ["low", "medium", "high"] as const;
+export const impactSchema = z.enum(IMPACT_LEVELS);
+export type ImpactLevel = (typeof IMPACT_LEVELS)[number];
+
+const itemAssessmentSchema = z.object({
+  /** Matches EvaluationSnapshot.resumeItems[].ref, e.g. "R1". */
+  itemRef: z.string(),
+  /** Echoed back so the UI degrades gracefully if a ref can't be resolved. */
+  itemTitle: z.string(),
+  helpfulness: helpfulnessSchema,
+  /** Why it helps or doesn't — honest, not encouraging. */
+  verdict: z.string(),
+  /** Concrete, doable step that would make this specific item stronger. */
+  howToStrengthen: z.string(),
+  /** Which targets it actually helps — keeps the US/UK asymmetry visible
+   *  at the level of individual activities. */
+  bestFor: z.array(z.string()),
+});
+
+const actionSchema = z.object({
+  title: z.string(),
+  detail: z.string(),
+  effort: effortSchema,
+  impact: impactSchema,
+  /** Rough window, e.g. "this month", "before applications". */
+  timeframe: z.string(),
+  appliesTo: z.array(z.string()),
+});
+
 export const evaluationResultSchema = z.object({
   /** 0-100 overall. Deliberately calibrated, not flattering. */
   overallScore: z.number(),
@@ -63,6 +107,10 @@ export const evaluationResultSchema = z.object({
     assessment: z.string(),
   }),
   schoolFits: z.array(schoolFitSchema),
+  /** One entry per resume item — the model is told to assess every one. */
+  itemAssessments: z.array(itemAssessmentSchema),
+  /** Prioritized: array order IS the priority, highest first. */
+  actions: z.array(actionSchema),
   gaps: z.array(gapSchema),
   /**
    * Things the model was NOT confident about. The prompt requires anything
@@ -72,17 +120,35 @@ export const evaluationResultSchema = z.object({
   verifyThese: z.array(z.string()),
 });
 
+/**
+ * Lenient schema for READING stored rows.
+ *
+ * Evaluations saved before Milestone 6 have no itemAssessments or actions.
+ * Requiring them here would make every older evaluation fail to parse and
+ * render as blank, so they default to empty when absent. New AI output is still
+ * validated against the strict schema above, which requires them.
+ */
+export const storedEvaluationResultSchema = evaluationResultSchema.extend({
+  itemAssessments: z.array(itemAssessmentSchema).optional().default([]),
+  actions: z.array(actionSchema).optional().default([]),
+});
+
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;
+export type StoredEvaluationResult = z.infer<typeof storedEvaluationResultSchema>;
 export type SchoolFit = z.infer<typeof schoolFitSchema>;
 export type Strength = z.infer<typeof strengthSchema>;
 export type Weakness = z.infer<typeof weaknessSchema>;
 export type Gap = z.infer<typeof gapSchema>;
+export type ItemAssessment = z.infer<typeof itemAssessmentSchema>;
+export type Action = z.infer<typeof actionSchema>;
 
 /** Parse a stored resultJson string back into a validated result, or null. */
-export function parseStoredResult(json: string | null): EvaluationResult | null {
+export function parseStoredResult(
+  json: string | null,
+): StoredEvaluationResult | null {
   if (!json) return null;
   try {
-    const parsed = evaluationResultSchema.safeParse(JSON.parse(json));
+    const parsed = storedEvaluationResultSchema.safeParse(JSON.parse(json));
     return parsed.success ? parsed.data : null;
   } catch {
     return null;

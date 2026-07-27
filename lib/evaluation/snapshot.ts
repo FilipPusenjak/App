@@ -33,6 +33,13 @@ export type EvaluationSnapshot = {
     predicted: boolean;
   }[];
   resumeItems: {
+    /** Short stable handle ("R1", "R2") the model uses to key its per-item
+     *  assessments. Deliberately short: far harder for a model to mangle than
+     *  a cuid, and the ordering is fixed by this snapshot. */
+    ref: string;
+    /** The real ResumeItem id, so a saved evaluation can still link to the
+     *  live item when it still exists. */
+    id: string;
     type: string;
     title: string;
     org: string | null;
@@ -68,6 +75,7 @@ type ProfileLike = {
     predicted: boolean;
   }[];
   resumeItems: {
+    id: string;
     type: string;
     title: string;
     org: string | null;
@@ -116,7 +124,9 @@ export function buildSnapshot(
       maxScore: s.maxScore,
       predicted: s.predicted,
     })),
-    resumeItems: profile.resumeItems.map((i) => ({
+    resumeItems: profile.resumeItems.map((i, index) => ({
+      ref: `R${index + 1}`,
+      id: i.id,
       type:
         label(RESUME_ITEM_TYPE_LABELS, i.type as ResumeItemType) ?? i.type,
       title: i.title,

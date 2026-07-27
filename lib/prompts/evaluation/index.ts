@@ -1,10 +1,12 @@
 // The currently-active evaluation prompt.
 //
-// To iterate on rubric quality: add v2.ts, then change these re-exports. Old
-// evaluations keep the promptVersion string that produced them, so results from
-// different prompt versions stay distinguishable in the history view.
+// v2 adds per-item assessments and the prioritized action list. v1 is kept for
+// reference and attribution — evaluations it produced record "evaluation/v1",
+// so results from different prompt versions stay distinguishable in history.
+//
+// To iterate: add v3.ts and change these re-exports.
 export {
   SYSTEM_PROMPT,
   buildUserPrompt,
   PROMPT_VERSION,
-} from "./v1";
+} from "./v2";

@@ -67,6 +67,36 @@ export function buildSampleResult(
         "SAMPLE OUTPUT — narrative coherence was not assessed. A real evaluation examines whether your coursework, activities, and stated goals tell one credible story.",
     },
     schoolFits,
+    itemAssessments: snapshot.resumeItems.map((item) => ({
+      itemRef: item.ref,
+      itemTitle: item.title,
+      helpfulness: "moderate" as const,
+      verdict:
+        "SAMPLE OUTPUT — this item was not assessed. A real evaluation judges how much it actually helps, and says so plainly when the answer is 'not much'.",
+      howToStrengthen:
+        "Configure an API key to get a concrete, specific suggestion for this item.",
+      bestFor: ["all"],
+    })),
+    actions: [
+      {
+        title: "Add your Anthropic API key",
+        detail:
+          "Put ANTHROPIC_API_KEY in .env.local and restart the dev server. Until then this app produces samples instead of real evaluations.",
+        effort: "low" as const,
+        impact: "high" as const,
+        timeframe: "now",
+        appliesTo: ["all"],
+      },
+      {
+        title: "Re-run the evaluation",
+        detail:
+          "With a key configured, run the evaluation again to get a prioritized action list based on your actual profile and targets.",
+        effort: "low" as const,
+        impact: "high" as const,
+        timeframe: "now",
+        appliesTo: ["all"],
+      },
+    ],
     gaps: [
       {
         title: "Real evaluation not yet run",

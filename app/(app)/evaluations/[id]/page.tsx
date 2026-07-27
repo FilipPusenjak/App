@@ -42,6 +42,29 @@ function Card({
   );
 }
 
+const HELPFULNESS_STYLES: Record<string, string> = {
+  high: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+  moderate:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  low: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300",
+  negligible:
+    "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+};
+
+// Effort reads "cheaper is better"; impact reads "bigger is better".
+const EFFORT_STYLES: Record<string, string> = {
+  low: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+  medium:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  high: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+};
+const IMPACT_STYLES: Record<string, string> = {
+  low: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
+  medium:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  high: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+};
+
 const SEVERITY_STYLES: Record<string, string> = {
   minor: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
   moderate:
@@ -206,6 +229,93 @@ export default async function EvaluationPage({
               </ul>
             </Card>
           </div>
+
+          {result.actions.length > 0 && (
+            <Card
+              title="Do these next"
+              subtitle="Prioritized — most valuable first. Effort is what it costs you; impact is what it's worth."
+            >
+              <ol className="space-y-3">
+                {result.actions.map((a, i) => (
+                  <li
+                    key={i}
+                    className="rounded-lg border border-black/10 p-4 dark:border-white/15"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-semibold text-white dark:bg-white dark:text-zinc-900">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{a.title}</p>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${EFFORT_STYLES[a.effort] ?? ""}`}
+                          >
+                            {a.effort} effort
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${IMPACT_STYLES[a.impact] ?? ""}`}
+                          >
+                            {a.impact} impact
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                          {a.detail}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          {a.timeframe}
+                          {a.appliesTo.length > 0
+                            ? ` · ${a.appliesTo.join(", ")}`
+                            : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Card>
+          )}
+
+          {result.itemAssessments.length > 0 && (
+            <Card
+              title="Every resume item, judged"
+              subtitle="How much each item actually helps — and what would make it stronger. An item can matter for one country's targets and not another's."
+            >
+              <ul className="space-y-3">
+                {result.itemAssessments.map((item, i) => (
+                  <li
+                    key={`${item.itemRef}-${i}`}
+                    className="rounded-lg border border-black/10 p-4 dark:border-white/15"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium">{item.itemTitle}</h3>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${HELPFULNESS_STYLES[item.helpfulness] ?? ""}`}
+                      >
+                        {item.helpfulness === "negligible"
+                          ? "negligible help"
+                          : `${item.helpfulness} help`}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                      {item.verdict}
+                    </p>
+                    <p className="mt-2 text-sm">
+                      <span className="font-medium">To strengthen: </span>
+                      <span className="text-zinc-600 dark:text-zinc-400">
+                        {item.howToStrengthen}
+                      </span>
+                    </p>
+                    {item.bestFor.length > 0 && (
+                      <p className="mt-1 text-xs text-zinc-400">
+                        Helps most: {item.bestFor.join(", ")}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
           <Card
             title="Gaps"
