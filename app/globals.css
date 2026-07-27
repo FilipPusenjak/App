@@ -23,3 +23,62 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* ---------------------------------------------------------------------------
+   Chart tokens (score trend)
+
+   One validated series hue, used for every trend panel — each panel plots a
+   single series, so identity comes from the panel's title rather than colour,
+   and no categorical palette is needed. Both steps were validated against the
+   surfaces they actually sit on (lightness band, chroma floor, contrast >= 3:1).
+   The dark step is chosen for the dark surface, not a flip of the light one.
+   Grid and axis text stay recessive so the data is the most prominent thing.
+--------------------------------------------------------------------------- */
+.score-trend {
+  --series-1: #2a78d6;
+  --series-1-fill: rgba(42, 120, 214, 0.16);
+  --chart-grid: rgba(0, 0, 0, 0.08);
+  --chart-axis-text: #52525b;
+  --chart-surface: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .score-trend {
+    --series-1: #3987e5;
+    --series-1-fill: rgba(57, 135, 229, 0.2);
+    --chart-grid: rgba(255, 255, 255, 0.12);
+    --chart-axis-text: #a1a1aa;
+    --chart-surface: #141413;
+  }
+}
+
+:root[data-theme="dark"] .score-trend {
+  --series-1: #3987e5;
+  --series-1-fill: rgba(57, 135, 229, 0.2);
+  --chart-grid: rgba(255, 255, 255, 0.12);
+  --chart-axis-text: #a1a1aa;
+  --chart-surface: #141413;
+}
+
+.score-trend .trend-line {
+  stroke: var(--series-1);
+}
+.score-trend .trend-marker {
+  fill: var(--series-1);
+  stroke: var(--chart-surface);
+}
+.score-trend .trend-grid {
+  stroke: var(--chart-grid);
+}
+.score-trend .trend-crosshair {
+  stroke: var(--chart-grid);
+}
+.score-trend .trend-axis-text {
+  fill: var(--chart-axis-text);
+}
+.score-trend .trend-fill-top {
+  stop-color: var(--series-1-fill);
+}
+.score-trend .trend-fill-bottom {
+  stop-color: transparent;
+}
