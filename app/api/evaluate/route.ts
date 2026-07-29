@@ -45,11 +45,8 @@ export async function POST() {
   }
 
   // 3. Load the profile — ownership-scoped by the session, not by any input.
+  // `user` already carries countryOfOrigin and is deduplicated per request.
   const profile = await getProfileWithRelations();
-  const dbUser = await prisma.user.findUniqueOrThrow({
-    where: { id: user.id },
-    select: { countryOfOrigin: true },
-  });
 
   if (profile.targetSchools.length === 0) {
     return NextResponse.json(
@@ -70,7 +67,7 @@ export async function POST() {
     );
   }
 
-  const snapshot = buildSnapshot(profile, dbUser.countryOfOrigin);
+  const snapshot = buildSnapshot(profile, user.countryOfOrigin ?? null);
   const client = getAnthropicClient();
   const isSample = client === null;
 

@@ -4,6 +4,7 @@
 // these. Every query is scoped by the *authenticated* user's id (from the
 // session), never a client-supplied id. This is how "filter by the current user"
 // can't be forgotten: the callers never see a userId to pass or omit.
+import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
@@ -11,25 +12,47 @@ import { requireUserId } from "@/lib/session";
  * The current user's profile, creating it on first access. (Signup creates only
  * a User; the Profile is materialized the first time they open their profile.)
  */
-export async function getOrCreateProfile() {
+export const getOrCreateProfile = cache(async () => {
   const userId = await requireUserId();
   const existing = await prisma.profile.findUnique({ where: { userId } });
   if (existing) return existing;
   return prisma.profile.create({ data: { userId } });
-}
+});
 
-/** The current user's full profile with its children, for rendering the page. */
-export async function getProfileWithRelations() {
-  const profile = await getOrCreateProfile();
-  return prisma.profile.findUniqueOrThrow({
-    where: { id: profile.id },
+/**
+ * The current user's full profile with its children, for rendering the page.
+ *
+ * Fetches by userId in a single query rather than looking the profile up and
+ * then fetching it again by id — that second round trip cost nothing against a
+ * local database and is very noticeable against a hosted one. The create path
+ * runs only on a user's first ever visit.
+ *
+ * The include is written out at both call sites on purpose: hoisting it to a
+ * shared constant loses Prisma's type inference for the returned relations.
+ */
+export const getProfileWithRelations = cache(async () => {
+  const userId = await requireUserId();
+
+  const existing = await prisma.profile.findUnique({
+    where: { userId },
     include: {
       testScores: { orderBy: { createdAt: "asc" } },
       resumeItems: { orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] },
       targetSchools: { orderBy: { createdAt: "asc" } },
     },
   });
-}
+  if (existing) return existing;
+
+  await getOrCreateProfile();
+  return prisma.profile.findUniqueOrThrow({
+    where: { userId },
+    include: {
+      testScores: { orderBy: { createdAt: "asc" } },
+      resumeItems: { orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] },
+      targetSchools: { orderBy: { createdAt: "asc" } },
+    },
+  });
+});
 
 /** A resume item owned by the current user, or null. */
 export async function findOwnedResumeItem(itemId: string) {

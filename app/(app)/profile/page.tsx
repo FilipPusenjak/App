@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { prisma } from "@/lib/db";
-import { requireUserId } from "@/lib/session";
+import { getCurrentDbUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import {
   RESUME_ITEM_TYPE_LABELS,
@@ -31,13 +30,11 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 export default async function ProfilePage() {
-  const userId = await requireUserId();
+  // getCurrentDbUser already carries countryOfOrigin and is deduplicated per
+  // request, so this needs no separate user query.
   const [profile, user] = await Promise.all([
     getProfileWithRelations(),
-    prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { countryOfOrigin: true },
-    }),
+    getCurrentDbUser(),
   ]);
 
   return (
@@ -60,12 +57,12 @@ export default async function ProfilePage() {
             gpaScale: profile.gpaScale,
             intendedMajor: profile.intendedMajor,
             careerGoal: profile.careerGoal,
-            countryOfOrigin: user.countryOfOrigin,
+            countryOfOrigin: user?.countryOfOrigin ?? null,
           }}
         />
-        {user.countryOfOrigin && (
+        {user?.countryOfOrigin && (
           <p className="mt-3 text-xs text-zinc-400">
-            Country of origin: {countryName(user.countryOfOrigin)}
+            Country of origin: {countryName(user?.countryOfOrigin)}
           </p>
         )}
       </Card>
