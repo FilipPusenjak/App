@@ -26,6 +26,9 @@ export function buildSampleResult(
       course: t.course ?? "Not specified",
       rubricUsed: rubric.id,
       fitScore: 50,
+      classification: "match" as const,
+      classificationReason:
+        "SAMPLE OUTPUT — a real evaluation classifies each target as reach, match, or safety from your actual profile.",
       assessment: isUk
         ? `SAMPLE OUTPUT — not a real assessment. A real evaluation would judge this target under the ${rubric.name} rubric, which weighs depth in ${t.course ?? "the specific course"} and predicted grades far above unrelated activities.`
         : `SAMPLE OUTPUT — not a real assessment. A real evaluation would judge this target under the ${rubric.name} rubric, which weighs the whole profile: academic rigor in context, a distinctive strength, and how coherently the pieces fit together.`,
@@ -37,6 +40,9 @@ export function buildSampleResult(
 
   return {
     overallScore: 50,
+    gradeRelativeScore: 50,
+    gradeContext:
+      "SAMPLE OUTPUT — a real evaluation gives you two scores: readiness for your named targets today, and how you compare to other students at your stage. Those are usually very different numbers, especially in earlier years.",
     headline:
       "SAMPLE EVALUATION — this is placeholder output, not an AI assessment of your profile.",
     summary:

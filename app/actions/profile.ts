@@ -61,6 +61,8 @@ export async function updateProfileAction(
 ): Promise<FormResult> {
   const parsed = profileSchema.safeParse({
     gradeLevel: optText(fd, "gradeLevel"),
+    schoolName: optText(fd, "schoolName"),
+    schoolContext: optText(fd, "schoolContext"),
     curriculum: optText(fd, "curriculum"),
     gpa: optNumber(fd, "gpa"),
     gpaScale: optText(fd, "gpaScale"),
@@ -81,6 +83,8 @@ export async function updateProfileAction(
     where: { id: profile.id },
     data: {
       gradeLevel: d.gradeLevel ?? null,
+      schoolName: d.schoolName ?? null,
+      schoolContext: d.schoolContext ?? null,
       curriculum: d.curriculum ?? null,
       gpa: d.gpa ?? null,
       gpaScale: d.gpaScale ?? null,

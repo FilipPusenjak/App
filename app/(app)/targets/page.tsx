@@ -1,21 +1,9 @@
 import Link from "next/link";
 import { getOrCreateProfile, getOwnedTargets } from "@/lib/ownership";
-import {
-  CLASSIFICATION_LABELS,
-  type Classification,
-} from "@/lib/validation/enums";
 import { countryName } from "@/lib/data/countries";
 import { deleteTargetAction } from "@/app/actions/target";
 import { SubmitButton } from "@/components/ui/submit-button";
 
-const CLASSIFICATION_STYLES: Record<Classification, string> = {
-  reach:
-    "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-  match:
-    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-  safety:
-    "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
-};
 
 export default async function TargetsPage() {
   const [profile, targets] = await Promise.all([
@@ -64,7 +52,9 @@ export default async function TargetsPage() {
           <div>
             <h2 className="text-lg font-semibold">Target schools</h2>
             <p className="text-sm text-zinc-500">
-              Tag each with a country and reach / match / safety.
+              Add the country and the specific course. Whether each one is a
+              reach, match, or safety is decided by the evaluation from your
+              actual profile — not something you tag yourself.
             </p>
           </div>
           <Link
@@ -78,7 +68,6 @@ export default async function TargetsPage() {
         {targets.length > 0 ? (
           <ul className="space-y-3">
             {targets.map((t) => {
-              const cls = t.classification as Classification;
               return (
                 <li
                   key={t.id}
@@ -88,13 +77,6 @@ export default async function TargetsPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-medium">{t.name}</h3>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            CLASSIFICATION_STYLES[cls] ?? ""
-                          }`}
-                        >
-                          {CLASSIFICATION_LABELS[cls] ?? t.classification}
-                        </span>
                         {t.priority != null && (
                           <span className="text-xs text-zinc-400">
                             priority {t.priority}

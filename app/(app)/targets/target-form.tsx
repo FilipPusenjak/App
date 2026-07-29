@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import type { FormResult } from "@/app/actions/profile";
-import { CLASSIFICATIONS, CLASSIFICATION_LABELS } from "@/lib/validation/enums";
 import { COUNTRIES } from "@/lib/data/countries";
 import { Field, Input, Textarea, Select, FormError } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -12,7 +11,6 @@ export type TargetFormValues = {
   name: string;
   country: string;
   course: string;
-  classification: string;
   priority: string;
   notes: string;
 };
@@ -21,7 +19,6 @@ const empty: TargetFormValues = {
   name: "",
   country: "US",
   course: "",
-  classification: "match",
   priority: "",
   notes: "",
 };
@@ -84,23 +81,6 @@ export function TargetForm({
           />
         </Field>
 
-        <Field
-          label="Classification"
-          htmlFor="classification"
-          error={fe.classification}
-        >
-          <Select
-            id="classification"
-            name="classification"
-            defaultValue={values.classification}
-          >
-            {CLASSIFICATIONS.map((c) => (
-              <option key={c} value={c}>
-                {CLASSIFICATION_LABELS[c]}
-              </option>
-            ))}
-          </Select>
-        </Field>
 
         <Field
           label="Priority"

@@ -37,7 +37,6 @@ function parseTarget(fd: FormData) {
     name: text(fd, "name"),
     country: text(fd, "country"),
     course: optText(fd, "course"),
-    classification: text(fd, "classification"),
     priority: optNumber(fd, "priority"),
     notes: optText(fd, "notes"),
   });
@@ -60,7 +59,6 @@ export async function createTargetAction(
       name: d.name,
       country: d.country,
       course: d.course ?? null,
-      classification: d.classification,
       priority: d.priority ?? null,
       notes: d.notes ?? null,
     },
@@ -89,7 +87,6 @@ export async function updateTargetAction(
       name: d.name,
       country: d.country,
       course: d.course ?? null,
-      classification: d.classification,
       priority: d.priority ?? null,
       notes: d.notes ?? null,
     },

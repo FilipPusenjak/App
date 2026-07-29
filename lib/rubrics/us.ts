@@ -47,9 +47,23 @@ export const usRubric: Rubric = {
     {
       key: "breadth",
       label: "Breadth of engagement",
+      weight: "high",
+      description:
+        "Genuine range beyond the main academic focus. Valued in its own right here — unlike in UK admissions. Reward duration and progression, not a long list of shallow memberships. Breadth is NOT filler in this system: holistic review is explicitly interested in the whole person, and a profile that is strong in one subject and empty everywhere else is a weaker holistic application than one with real range.",
+    },
+    {
+      key: "sustained_commitment",
+      label: "Sustained commitment outside the academic focus",
+      weight: "high",
+      description:
+        "Multi-year dedication to something demanding that is NOT the intended major — a sport, an instrument, climbing, dance, martial arts, theatre, an art form. This is genuinely valued in US holistic review: it evidences discipline, resilience, and the ability to improve at something hard over years, which is exactly what admissions officers read activity lists for. Judge it on duration, progression, and level reached. It is usually not a 'spike' unless the level is high (state, national, competitive), but it is never worthless and must not be dismissed as irrelevant merely because it is unrelated to the intended course.",
+    },
+    {
+      key: "personal_qualities",
+      label: "Personal qualities the profile evidences",
       weight: "moderate",
       description:
-        "Genuine range beyond the main focus, including sustained commitment over time. Valued here — unlike in UK admissions. Reward duration and progression, not a long list of shallow memberships.",
+        "What the pattern of activities demonstrates about the person: perseverance, initiative, curiosity, care for others, willingness to do unglamorous work. US applications are read by people looking for a person, not a subject specialist. Draw this from the evidence rather than asserting it.",
     },
     {
       key: "service_community",
@@ -75,8 +89,9 @@ export const usRubric: Rubric = {
   ],
 
   guidance: [
-    "Weigh depth over breadth when they conflict: one genuinely distinctive strength outweighs many shallow activities.",
-    "Judge academics in context — the rigor available at the student's school matters as much as the raw GPA.",
+    "Weigh depth over breadth when they conflict: one genuinely distinctive strength outweighs many shallow activities. But this is NOT a licence to dismiss everything outside the intended major — depth and range are both assessed here, and an activity does not have to relate to the course to count.",
+    "A sustained, demanding activity unrelated to the intended major (a sport, an instrument, climbing, an art form) is a real asset in this system. Judge it on how long it has been pursued, whether the student has progressed, and the level reached — not on whether it connects to the major. Calling such an item unhelpful is a misreading of holistic review.",
+    "Judge academics in context — the rigor available at the student's school matters as much as the raw GPA. If the school's offerings and grading are described, use that; if they are not, say that GPA cannot be fully judged without it rather than assuming.",
     "Credit sustained commitment and progression over time (e.g. member -> lead) more than one-off participation.",
     "Impact means consequences. If an item has no evidence of outcome, treat it as unproven and say so.",
     "Essays and recommendations are absent from this data and can shift an outcome substantially. Say so rather than scoring around the gap silently.",

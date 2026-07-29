@@ -52,6 +52,11 @@ model Profile {
   userId        String   @unique
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   gradeLevel    String? // e.g. "Grade 11", "Year 12"
+  // School context. Not all schools are equally rigorous, and a GPA means very
+  // little without knowing what was available to earn it — which courses the
+  // school offers, how it grades, whether it ranks.
+  schoolName    String?
+  schoolContext String?
   curriculum    String? // Zod enum: pre_ib | ib | ap | a_levels | gcse | other
   gpa           Float?
   gpaScale      String? // "4.0", "45" (IB), "letter", ...
@@ -147,7 +152,11 @@ model TargetSchool {
   // rubric; the registry is extensible — add CA/AU later, no schema change.
   country        String
   course         String? // specific course/major at this school (matters most for UK)
-  classification String // Zod enum: reach | match | safety
+  // No longer collected from the user — whether a school is a reach, match or
+  // safety depends on the profile, so the evaluation determines it and reports
+  // it per school. Kept nullable rather than dropped so values entered before
+  // this change aren't destroyed.
+  classification String?
   priority       Int?
   notes          String?
   createdAt      DateTime @default(now())

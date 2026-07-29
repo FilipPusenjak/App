@@ -65,6 +65,12 @@ const IMPACT_STYLES: Record<string, string> = {
   high: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
 };
 
+const CLASSIFICATION_STYLES: Record<string, string> = {
+  reach: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+  match: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  safety: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+};
+
 const SEVERITY_STYLES: Record<string, string> = {
   minor: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
   moderate:
@@ -129,7 +135,13 @@ export default async function EvaluationPage({
         <>
           <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
             <div className="flex flex-wrap items-center gap-8">
-              <ScoreRing score={result.overallScore} label="Overall" />
+              {result.gradeRelativeScore != null && (
+                <ScoreRing
+                  score={result.gradeRelativeScore}
+                  label="For your year"
+                />
+              )}
+              <ScoreRing score={result.overallScore} label="vs targets" />
               <ScoreRing
                 score={result.narrativeCoherence.score}
                 label="Narrative"
@@ -141,6 +153,14 @@ export default async function EvaluationPage({
                 </p>
               </div>
             </div>
+            {result.gradeContext && (
+              <p className="mt-4 rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  Two scores, two questions:{" "}
+                </span>
+                {result.gradeContext}
+              </p>
+            )}
           </section>
 
           <Card
@@ -164,14 +184,30 @@ export default async function EvaluationPage({
                           · {fit.course}
                         </span>
                       </h3>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {Math.round(fit.fitScore)}/100
+                      <span className="flex shrink-0 items-center gap-2">
+                        {fit.classification && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              CLASSIFICATION_STYLES[fit.classification] ?? ""
+                            }`}
+                          >
+                            {fit.classification}
+                          </span>
+                        )}
+                        <span className="text-sm font-semibold tabular-nums">
+                          {Math.round(fit.fitScore)}/100
+                        </span>
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-400">
                       {fit.country} · rubric:{" "}
                       {rubric ? rubric.name : fit.rubricUsed}
                     </p>
+                    {fit.classificationReason && (
+                      <p className="mt-2 text-sm italic text-zinc-500">
+                        {fit.classificationReason}
+                      </p>
+                    )}
                     <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                       {fit.assessment}
                     </p>

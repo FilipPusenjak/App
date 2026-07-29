@@ -11,6 +11,8 @@ import { isValidCountryCode } from "@/lib/data/countries";
 
 export const profileSchema = z.object({
   gradeLevel: z.string().trim().max(100).optional(),
+  schoolName: z.string().trim().max(200).optional(),
+  schoolContext: z.string().trim().max(2000).optional(),
   curriculum: curriculumSchema.optional(),
   gpa: z.number().min(0).max(100).optional(),
   gpaScale: z.string().trim().max(20).optional(),

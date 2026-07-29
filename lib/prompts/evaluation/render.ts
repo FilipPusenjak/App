@@ -13,6 +13,10 @@ export function renderSnapshot(s: EvaluationSnapshot): string {
 
   lines.push("## Student");
   lines.push(`- Grade level: ${st.gradeLevel ?? "not stated"}`);
+  lines.push(`- School: ${st.schoolName ?? "not stated"}`);
+  lines.push(
+    `- School context (rigor, courses offered, grading): ${st.schoolContext ?? "NOT PROVIDED — say that GPA cannot be fully judged without it"}`,
+  );
   lines.push(`- Curriculum: ${st.curriculum ?? "not stated"}`);
   lines.push(
     `- GPA: ${st.gpa != null ? `${st.gpa}${st.gpaScale ? ` (scale ${st.gpaScale})` : ""}` : "not stated"}`,
@@ -64,7 +68,7 @@ export function renderSnapshot(s: EvaluationSnapshot): string {
   } else {
     for (const t of s.targets) {
       lines.push(
-        `- ${t.name} (${t.countryName}) — course: ${t.course ?? "NOT SPECIFIED"} — student's tag: ${t.classification}${t.priority != null ? ` — priority ${t.priority}` : ""}`,
+        `- ${t.name} (${t.countryName}) — course: ${t.course ?? "NOT SPECIFIED"}${t.priority != null ? ` — student's priority ${t.priority}` : ""} — YOU must classify this as reach/match/safety`,
       );
       if (t.notes) lines.push(`    Notes: ${t.notes}`);
     }

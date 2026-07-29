@@ -17,7 +17,6 @@ export default async function EditTargetPage({
     name: target.name,
     country: target.country,
     course: target.course ?? "",
-    classification: target.classification,
     priority: target.priority != null ? String(target.priority) : "",
     notes: target.notes ?? "",
   };

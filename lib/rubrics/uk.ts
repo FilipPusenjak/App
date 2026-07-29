@@ -63,7 +63,7 @@ export const ukRubric: Rubric = {
       label: "Unrelated extracurricular activities",
       weight: "low",
       description:
-        "Sports, clubs, music, and leadership roles UNRELATED to the course carry very little weight in UK admissions. Do not credit them as if they were US-style breadth. Say plainly when an item falls here.",
+        "Sports, clubs, music, and leadership roles UNRELATED to the course carry very little weight in UK admissions. Do not credit them as if they were US-style breadth. Say plainly when an item falls here — but say it as a fact about THIS system, not as a judgement on the activity: the correct framing is 'this counts for little for a UK course application' rather than 'this is not useful'. The same item may be a genuine asset for a US target, and if the student has US targets you must say so instead of leaving the impression it is worthless everywhere.",
     },
   ],
 

@@ -7,6 +7,7 @@ import { COUNTRIES } from "@/lib/data/countries";
 import {
   Field,
   Input,
+  Textarea,
   Select,
   FormError,
   FormSuccess,
@@ -15,6 +16,8 @@ import { SubmitButton } from "@/components/ui/submit-button";
 
 export type ProfileFormValues = {
   gradeLevel: string | null;
+  schoolName: string | null;
+  schoolContext: string | null;
   curriculum: string | null;
   gpa: number | null;
   gpaScale: string | null;
@@ -42,6 +45,15 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
             name="gradeLevel"
             defaultValue={values.gradeLevel ?? ""}
             placeholder="e.g. Grade 11 / Year 12"
+          />
+        </Field>
+
+        <Field label="School" htmlFor="schoolName" error={fe.schoolName}>
+          <Input
+            id="schoolName"
+            name="schoolName"
+            defaultValue={values.schoolName ?? ""}
+            placeholder="e.g. Riverside High School"
           />
         </Field>
 
@@ -133,6 +145,21 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
           </Select>
         </Field>
       </div>
+
+      <Field
+        label="About your school"
+        htmlFor="schoolContext"
+        error={fe.schoolContext}
+        hint="What's actually available to you: which advanced courses your school offers (and which it doesn't), how it grades, whether it ranks. A GPA can't be judged fairly without this — the same number means different things at different schools."
+      >
+        <Textarea
+          id="schoolContext"
+          name="schoolContext"
+          rows={4}
+          defaultValue={values.schoolContext ?? ""}
+          placeholder="e.g. Small state school, offers 8 APs but no IB. No Further Maths available. Grades on an unweighted 4.0 scale and does not rank."
+        />
+      </Field>
 
       <SubmitButton pendingText="Saving…">Save profile</SubmitButton>
     </form>

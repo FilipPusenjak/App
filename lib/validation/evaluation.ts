@@ -30,6 +30,10 @@ const weaknessSchema = z.object({
   severity: severitySchema,
 });
 
+export const CLASSIFICATIONS_AI = ["reach", "match", "safety"] as const;
+export const aiClassificationSchema = z.enum(CLASSIFICATIONS_AI);
+export type AiClassification = (typeof CLASSIFICATIONS_AI)[number];
+
 const schoolFitSchema = z.object({
   schoolName: z.string(),
   country: z.string(),
@@ -38,6 +42,12 @@ const schoolFitSchema = z.object({
   rubricUsed: z.string(),
   /** 0-100. Fit against THIS school's rubric, not a generic quality score. */
   fitScore: z.number(),
+  /**
+   * The model's own reach/match/safety call. This used to be the student's
+   * guess on the form; it depends on the profile, so the evaluation decides it.
+   */
+  classification: aiClassificationSchema,
+  classificationReason: z.string(),
   assessment: z.string(),
   keyRisks: z.array(z.string()),
 });
@@ -94,8 +104,21 @@ const actionSchema = z.object({
 });
 
 export const evaluationResultSchema = z.object({
-  /** 0-100 overall. Deliberately calibrated, not flattering. */
+  /**
+   * 0-100 readiness against the student's NAMED TARGETS, as they stand today.
+   * A strong Grade 9 profile can score low here simply because there are years
+   * of work left — that is the honest reading, and it is why gradeRelativeScore
+   * exists alongside it.
+   */
   overallScore: z.number(),
+  /**
+   * 0-100 relative to a realistic pool of students AT THE SAME STAGE. This is
+   * the fair-comparison number: it answers "how am I doing for my year?"
+   * rather than "am I ready to apply?".
+   */
+  gradeRelativeScore: z.number(),
+  /** Why the two scores differ, and what stage-appropriate progress looks like. */
+  gradeContext: z.string(),
   /** One-sentence honest summary. */
   headline: z.string(),
   /** A short paragraph expanding the headline. */
@@ -131,6 +154,17 @@ export const evaluationResultSchema = z.object({
 export const storedEvaluationResultSchema = evaluationResultSchema.extend({
   itemAssessments: z.array(itemAssessmentSchema).optional().default([]),
   actions: z.array(actionSchema).optional().default([]),
+  // Added in prompt v3. Left undefined (not defaulted to a number) on older
+  // evaluations so the UI can omit the section rather than display a fabricated
+  // score of 0.
+  gradeRelativeScore: z.number().optional(),
+  gradeContext: z.string().optional(),
+  schoolFits: z.array(
+    schoolFitSchema.extend({
+      classification: aiClassificationSchema.optional(),
+      classificationReason: z.string().optional(),
+    }),
+  ),
 });
 
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;

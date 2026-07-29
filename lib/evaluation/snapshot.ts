@@ -18,6 +18,8 @@ export type EvaluationSnapshot = {
   capturedAt: string;
   student: {
     gradeLevel: string | null;
+    schoolName: string | null;
+    schoolContext: string | null;
     curriculum: string | null;
     gpa: number | null;
     gpaScale: string | null;
@@ -54,7 +56,7 @@ export type EvaluationSnapshot = {
     country: string;
     countryName: string;
     course: string | null;
-    classification: string;
+    classification: string | null;
     priority: number | null;
     notes: string | null;
   }[];
@@ -62,6 +64,8 @@ export type EvaluationSnapshot = {
 
 type ProfileLike = {
   gradeLevel: string | null;
+  schoolName: string | null;
+  schoolContext: string | null;
   curriculum: string | null;
   gpa: number | null;
   gpaScale: string | null;
@@ -89,7 +93,7 @@ type ProfileLike = {
     name: string;
     country: string;
     course: string | null;
-    classification: string;
+    classification: string | null;
     priority: number | null;
     notes: string | null;
   }[];
@@ -110,6 +114,8 @@ export function buildSnapshot(
     capturedAt: new Date().toISOString(),
     student: {
       gradeLevel: profile.gradeLevel,
+      schoolName: profile.schoolName,
+      schoolContext: profile.schoolContext,
       curriculum: label(CURRICULUM_LABELS, profile.curriculum as Curriculum),
       gpa: profile.gpa,
       gpaScale: profile.gpaScale,

@@ -2,7 +2,6 @@
 // evaluation branches on (US holistic vs UK course-specific), so it's required
 // and validated against the known country list.
 import { z } from "zod";
-import { classificationSchema } from "./enums";
 import { isValidCountryCode } from "@/lib/data/countries";
 
 export const targetSchoolSchema = z.object({
@@ -14,7 +13,6 @@ export const targetSchoolSchema = z.object({
       error: "Choose a country from the list.",
     }),
   course: z.string().trim().max(200).optional(),
-  classification: classificationSchema,
   priority: z.number().int().min(1).max(99).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
