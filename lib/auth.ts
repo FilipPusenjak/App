@@ -12,6 +12,18 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
 import { loginSchema } from "@/lib/validation/auth";
+import {
+  isLockedOut,
+  recordFailedLogin,
+  clearFailedLogins,
+} from "@/lib/login-throttle";
+
+/**
+ * A real bcrypt hash of a value nobody uses. Compared against when no account
+ * matches, so "no such user" and "wrong password" take similar time.
+ */
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$vc2SAoud9K8NdUHNP8PbmeQB6wb1kLcno7bLRkzkBtFjsTAt1NIuS";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -30,13 +42,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const parsed = loginSchema.safeParse(raw);
         if (!parsed.success) return null;
 
+        // loginSchema lowercases the address. Signup stores emails lowercased,
+        // so without this a user who types any capital letter is told their
+        // password is wrong — forever.
         const { email, password } = parsed.data;
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return null;
 
-        const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-        if (!passwordMatches) return null;
+        if (!user) {
+          // Compare against a throwaway hash so a missing account takes about
+          // as long as a wrong password. Returning early here would let an
+          // attacker distinguish registered addresses by response time.
+          await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+          return null;
+        }
 
+        // Refuse while locked, without revealing that state to the caller.
+        if (isLockedOut(user)) return null;
+
+        const passwordMatches = await bcrypt.compare(
+          password,
+          user.passwordHash,
+        );
+        if (!passwordMatches) {
+          await recordFailedLogin(user);
+          return null;
+        }
+
+        await clearFailedLogins(user);
         // Never return the password hash to the session.
         return { id: user.id, email: user.email, name: user.name };
       },

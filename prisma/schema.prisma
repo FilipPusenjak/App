@@ -33,6 +33,11 @@ model User {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // Brute-force protection. Stored on the user rather than in memory so the
+  // limit actually holds across serverless instances and restarts.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
   // One profile per user for now. Relaxing this to many (e.g. a counselor with
   // several students) later is additive and won't break existing data.
   profile Profile?

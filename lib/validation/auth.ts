@@ -4,14 +4,25 @@
 import { z } from "zod";
 import { isValidCountryCode } from "@/lib/data/countries";
 
+/**
+ * Email addresses are stored lowercased, so every schema that looks one up
+ * must normalize identically. Without this, signing up as "Me@Example.com"
+ * stores "me@example.com" and then logging in with the address as typed fails
+ * with "invalid email or password" — a bug that looks exactly like a wrong
+ * password.
+ */
+const normalizedEmail = z
+  .email({ error: "Enter a valid email address." })
+  .transform((v) => v.trim().toLowerCase());
+
 export const loginSchema = z.object({
-  email: z.email({ error: "Enter a valid email address." }),
+  email: normalizedEmail,
   password: z.string().min(1, { error: "Password is required." }),
 });
 
 export const signupSchema = z.object({
   name: z.string().trim().min(1, { error: "Name is required." }).max(100),
-  email: z.email({ error: "Enter a valid email address." }),
+  email: normalizedEmail,
   password: z
     .string()
     .min(8, { error: "Password must be at least 8 characters." })
