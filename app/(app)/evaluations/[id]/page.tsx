@@ -161,7 +161,48 @@ export default async function EvaluationPage({
                 {result.gradeContext}
               </p>
             )}
+            {result.changeSinceLast && (
+              <p className="mt-3 rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  Since your last evaluation:{" "}
+                </span>
+                {result.changeSinceLast}
+              </p>
+            )}
           </section>
+
+          {/* Per-system scores. A single number across US and UK targets
+              averages two systems that reward different things. */}
+          {result.systemScores.length > 0 && (
+            <Card
+              title="By admissions system"
+              subtitle="US holistic review and UK course-specific admissions reward different things, so they get their own scores. A gap between them is informative, not a contradiction."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                {result.systemScores.map((sys, i) => (
+                  <div
+                    key={`${sys.rubricId}-${i}`}
+                    className="rounded-lg border border-black/10 p-4 dark:border-white/15"
+                  >
+                    <h3 className="text-sm font-medium">{sys.systemLabel}</h3>
+                    <div className="mt-3 flex flex-wrap items-center gap-6">
+                      <ScoreRing
+                        score={sys.readinessScore}
+                        label="vs targets"
+                      />
+                      <ScoreRing
+                        score={sys.gradeRelativeScore}
+                        label="For your year"
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                      {sys.assessment}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           <Card
             title="Fit by target school"

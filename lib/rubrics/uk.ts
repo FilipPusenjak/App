@@ -70,6 +70,7 @@ export const ukRubric: Rubric = {
   guidance: [
     "Judge every item by its relevance to the specific named course. An impressive but unrelated activity is a weak item for this target, and should be called weak — even if the same item is a strength for a US target.",
     "Do not reward breadth for its own sake. Range is not a UK admissions virtue.",
+    "When an activity counts for little here, the reason is RELEVANCE TO THE COURSE, never the number of hours per week. Do not tell a student their club is weak because it meets for an hour a week — an hour a week is how clubs work. Say plainly that clubs unrelated to the course carry little weight in UK course-specific admissions, whatever time they take, and that a course-relevant activity of the same size would count for much more.",
     "Subject depth and predicted grades dominate. If those are weak, no amount of other material compensates.",
     "If the student's targets mix US and UK, expect real tension: effort that strengthens a US profile (breadth, unrelated leadership) often does nothing for a UK application. Name that tension explicitly rather than smoothing it over.",
     "Where the student has not named a specific course for a UK target, treat that as a gap — a UK application cannot be assessed without one.",

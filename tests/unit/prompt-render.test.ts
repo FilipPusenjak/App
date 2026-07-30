@@ -121,9 +121,9 @@ describe("renderRubricMapping", () => {
   });
 });
 
-describe("prompt v3 (the active version)", () => {
+describe("prompt v4 (the active version)", () => {
   it("has the expected version id — stored on every evaluation row", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v3");
+    expect(PROMPT_VERSION).toBe("evaluation/v4");
   });
 
   it("keeps the honesty and no-invented-statistics mandates", () => {

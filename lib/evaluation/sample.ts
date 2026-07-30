@@ -6,7 +6,7 @@
 // prominently. It deliberately does not fabricate anything specific about the
 // student beyond echoing back what they entered, and it asserts no admissions
 // facts whatsoever.
-import { getRubric } from "@/lib/rubrics";
+import { getRubric, rubricsForCountries } from "@/lib/rubrics";
 import type { EvaluationSnapshot } from "./snapshot";
 import type { EvaluationResult } from "@/lib/validation/evaluation";
 
@@ -38,9 +38,25 @@ export function buildSampleResult(
     };
   });
 
+  // One entry per distinct admissions system in the targets, mirroring what a
+  // real evaluation produces — so the per-system UI is exercised too.
+  const systemScores = rubricsForCountries(
+    snapshot.targets.map((t) => t.country),
+  ).map((rubric) => ({
+    rubricId: rubric.id,
+    systemLabel: rubric.name,
+    readinessScore: 50,
+    gradeRelativeScore: 50,
+    assessment:
+      "SAMPLE OUTPUT — a real evaluation scores each admissions system separately, because a broad profile can be strong for US holistic review while counting for much less on a UK course application.",
+  }));
+
   return {
     overallScore: 50,
     gradeRelativeScore: 50,
+    systemScores,
+    changeSinceLast:
+      "SAMPLE OUTPUT — a real evaluation compares against your previous one and explains exactly what moved and why.",
     gradeContext:
       "SAMPLE OUTPUT — a real evaluation gives you two scores: readiness for your named targets today, and how you compare to other students at your stage. Those are usually very different numbers, especially in earlier years.",
     headline:

@@ -103,6 +103,27 @@ const actionSchema = z.object({
   appliesTo: z.array(z.string()),
 });
 
+/**
+ * A readiness score for ONE admissions system, not blended across systems.
+ *
+ * A single overall number across US and UK targets is exactly the flattening
+ * this app exists to avoid: the two systems reward different things, so one
+ * average is a number about nothing. These sit alongside overallScore, which
+ * remains the whole-profile headline.
+ */
+const systemScoreSchema = z.object({
+  /** The rubric this score was produced under, e.g. "us-holistic". */
+  rubricId: z.string(),
+  /** Display label for the system, e.g. "United States — holistic review". */
+  systemLabel: z.string(),
+  /** 0-100 readiness for THIS system's targets, under THIS system's rubric. */
+  readinessScore: z.number(),
+  /** 0-100 versus same-stage students aiming at this system. */
+  gradeRelativeScore: z.number(),
+  /** Why this system's number differs from the other's — the useful part. */
+  assessment: z.string(),
+});
+
 export const evaluationResultSchema = z.object({
   /**
    * 0-100 readiness against the student's NAMED TARGETS, as they stand today.
@@ -119,6 +140,18 @@ export const evaluationResultSchema = z.object({
   gradeRelativeScore: z.number(),
   /** Why the two scores differ, and what stage-appropriate progress looks like. */
   gradeContext: z.string(),
+  /**
+   * One entry per admissions system represented in the targets. Keeps the US
+   * and UK reads separate at the headline level, not just per school.
+   */
+  systemScores: z.array(systemScoreSchema),
+  /**
+   * How the profile and the scores moved since the previous evaluation, and
+   * why. Exists because scores used to drift between runs with no explanation,
+   * and could fall when the student ADDED work — which made the number
+   * untrustworthy. When there is no previous evaluation this says so.
+   */
+  changeSinceLast: z.string(),
   /** One-sentence honest summary. */
   headline: z.string(),
   /** A short paragraph expanding the headline. */
@@ -159,6 +192,10 @@ export const storedEvaluationResultSchema = evaluationResultSchema.extend({
   // score of 0.
   gradeRelativeScore: z.number().optional(),
   gradeContext: z.string().optional(),
+  // Added in prompt v4. Same rule: absent on older rows, so the UI omits those
+  // sections rather than inventing a score or a change that was never assessed.
+  systemScores: z.array(systemScoreSchema).optional().default([]),
+  changeSinceLast: z.string().optional(),
   schoolFits: z.array(
     schoolFitSchema.extend({
       classification: aiClassificationSchema.optional(),
@@ -173,6 +210,7 @@ export type SchoolFit = z.infer<typeof schoolFitSchema>;
 export type Strength = z.infer<typeof strengthSchema>;
 export type Weakness = z.infer<typeof weaknessSchema>;
 export type Gap = z.infer<typeof gapSchema>;
+export type SystemScore = z.infer<typeof systemScoreSchema>;
 export type ItemAssessment = z.infer<typeof itemAssessmentSchema>;
 export type Action = z.infer<typeof actionSchema>;
 

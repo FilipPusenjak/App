@@ -14,6 +14,7 @@ import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { getAnthropicClient, getModel, getEffort } from "@/lib/anthropic";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildSampleResult } from "@/lib/evaluation/sample";
+import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import {
@@ -87,6 +88,12 @@ export async function POST() {
   }
 
   const snapshot = buildSnapshot(profile, user.countryOfOrigin ?? null);
+
+  // The previous evaluation is fed back in so scores can't drift between runs
+  // and can't fall when the student has only added work. Ownership-scoped, and
+  // a malformed or missing previous row simply means no comparison.
+  const diff = await buildDiffAgainstPrevious(profile.id, snapshot);
+
   const client = getAnthropicClient();
   const isSample = client === null;
 
@@ -129,7 +136,7 @@ export async function POST() {
         // the response ourselves below rather than trusting it.
         format: zodOutputFormat(evaluationResultSchema),
       },
-      messages: [{ role: "user", content: buildUserPrompt(snapshot) }],
+      messages: [{ role: "user", content: buildUserPrompt(snapshot, diff) }],
     });
 
     const message = await stream.finalMessage();

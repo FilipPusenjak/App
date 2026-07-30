@@ -14,13 +14,33 @@ import {
   storedEvaluationResultSchema,
 } from "@/lib/validation/evaluation";
 
-/** A complete result as prompt v3 produces it. */
-function v3Result() {
+/** A complete result as the CURRENT prompt (v4) produces it. */
+function v4Result() {
   return {
     overallScore: 42,
     gradeRelativeScore: 71,
     gradeContext:
       "Strong for Grade 10; the readiness score is low only because applications are two years away.",
+    systemScores: [
+      {
+        rubricId: "us-holistic",
+        systemLabel: "United States — holistic review",
+        readinessScore: 48,
+        gradeRelativeScore: 74,
+        assessment:
+          "Breadth and the sustained climbing commitment carry real weight here.",
+      },
+      {
+        rubricId: "uk-course-specific",
+        systemLabel: "United Kingdom — course-specific admissions",
+        readinessScore: 33,
+        gradeRelativeScore: 60,
+        assessment:
+          "Course-specific evidence is thin, and breadth counts for little on a UK application.",
+      },
+    ],
+    changeSinceLast:
+      "You added two items and nothing was removed; readiness moved 39 -> 42 on the strength of the new competition result.",
     headline: "Solid foundation, big gaps toward the named targets.",
     summary: "A short honest paragraph.",
     strengths: [
@@ -70,9 +90,17 @@ function v3Result() {
 
 type Json = Record<string, unknown>;
 
+/** What prompt v3 rows look like: one blended score, no change explanation. */
+function v3Result(): Json {
+  const v = v4Result() as unknown as Json;
+  delete v.systemScores;
+  delete v.changeSinceLast;
+  return v;
+}
+
 /** What prompt v2 rows look like: no stage-relative score, no AI classification. */
 function v2Result(): Json {
-  const v = v3Result() as unknown as Json;
+  const v = v3Result();
   delete v.gradeRelativeScore;
   delete v.gradeContext;
   v.schoolFits = (v.schoolFits as Json[]).map((fit) => {
@@ -93,23 +121,36 @@ function v1Result(): Json {
 }
 
 describe("evaluationResultSchema (strict — validates new model output)", () => {
-  it("accepts a complete v3 result", () => {
-    expect(evaluationResultSchema.safeParse(v3Result()).success).toBe(true);
+  it("accepts a complete v4 result", () => {
+    expect(evaluationResultSchema.safeParse(v4Result()).success).toBe(true);
   });
 
-  it("rejects output missing the v3 fields — new runs may not regress", () => {
+  it("rejects output from every older prompt — new runs may not regress", () => {
+    expect(evaluationResultSchema.safeParse(v3Result()).success).toBe(false);
     expect(evaluationResultSchema.safeParse(v2Result()).success).toBe(false);
     expect(evaluationResultSchema.safeParse(v1Result()).success).toBe(false);
   });
 
+  it("requires per-system scores — a single blended number is the bug", () => {
+    const bad = v4Result() as unknown as Json;
+    delete bad.systemScores;
+    expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("requires the change explanation", () => {
+    const bad = v4Result() as unknown as Json;
+    delete bad.changeSinceLast;
+    expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
+  });
+
   it("rejects an invalid classification value", () => {
-    const bad = v3Result();
+    const bad = v4Result();
     bad.schoolFits[0]!.classification = "sure thing" as never;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rejects an invalid helpfulness value", () => {
-    const bad = v3Result();
+    const bad = v4Result();
     bad.itemAssessments[0]!.helpfulness = "amazing" as never;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
@@ -134,17 +175,35 @@ describe("storedEvaluationResultSchema (lenient — reads saved rows)", () => {
     expect(parsed.schoolFits[0]!.classification).toBeUndefined();
   });
 
-  it("parses a v3 row with everything intact", () => {
+  it("still parses a v3 row, with no per-system scores invented", () => {
     const parsed = storedEvaluationResultSchema.parse(v3Result());
     expect(parsed.gradeRelativeScore).toBe(71);
     expect(parsed.schoolFits[0]!.classification).toBe("reach");
+    // Empty, not a fabricated system breakdown that was never assessed.
+    expect(parsed.systemScores).toEqual([]);
+    expect(parsed.changeSinceLast).toBeUndefined();
+  });
+
+  it("parses a v4 row with everything intact", () => {
+    const parsed = storedEvaluationResultSchema.parse(v4Result());
+    expect(parsed.systemScores).toHaveLength(2);
+    expect(parsed.systemScores.map((s) => s.rubricId)).toEqual([
+      "us-holistic",
+      "uk-course-specific",
+    ]);
+    // The two systems must be able to disagree — that's the point.
+    expect(parsed.systemScores[0]!.readinessScore).not.toBe(
+      parsed.systemScores[1]!.readinessScore,
+    );
+    expect(parsed.changeSinceLast).toContain("39 -> 42");
   });
 });
 
 describe("parseStoredResult (what the pages actually call)", () => {
   it("round-trips a stored JSON string", () => {
-    const parsed = parseStoredResult(JSON.stringify(v3Result()));
+    const parsed = parseStoredResult(JSON.stringify(v4Result()));
     expect(parsed?.overallScore).toBe(42);
+    expect(parsed?.systemScores).toHaveLength(2);
   });
 
   it("parses stored v1 JSON — old evaluations must never render blank", () => {
