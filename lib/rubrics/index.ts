@@ -8,7 +8,12 @@ import { usRubric } from "./us";
 import { ukRubric } from "./uk";
 import { genericRubric } from "./generic";
 
-export type { Rubric, RubricDimension, DimensionWeight } from "./types";
+export type {
+  Rubric,
+  RubricDimension,
+  RubricStage,
+  DimensionWeight,
+} from "./types";
 export { usRubric, ukRubric, genericRubric };
 
 const REGISTRY: Record<string, Rubric> = {
@@ -64,12 +69,34 @@ export function renderRubric(rubric: Rubric): string {
   const guidance = rubric.guidance.map((g) => `  - ${g}`).join("\n");
   const cautions = rubric.cautions.map((c) => `  - ${c}`).join("\n");
 
+  // The stage ladder. Without it every dimension above describes a finished
+  // application, so a student years from applying is measured against a
+  // yardstick nothing they can currently do would satisfy.
+  const stages = rubric.stages
+    .map((s) =>
+      [
+        `  ${s.label} [key: ${s.key}]`,
+        `    What this stage is for: ${s.purpose}`,
+        "    Good evidence AT THIS STAGE:",
+        ...s.evidence.map((e) => `      - ${e}`),
+        "    NOT YET REACHABLE at this stage — absence is NOT a gap, must not be",
+        "    listed as one, and must not lower the stage-relative score:",
+        ...s.notYetExpected.map((n) => `      - ${n}`),
+      ].join("\n"),
+    )
+    .join("\n\n");
+
   return [
     `RUBRIC: ${rubric.name} (id: ${rubric.id})`,
     rubric.summary,
     "",
-    "Dimensions (weights are how much this dimension actually moves the decision):",
+    "Dimensions (weights are how much this dimension actually moves the decision).",
+    "NOTE: these describe a COMPLETED application. Use the stage ladder below to",
+    "judge a student who has not reached that point yet.",
     dimensions,
+    "",
+    "Stage ladder — what each point in school is actually for:",
+    stages,
     "",
     "How to weigh evidence in this system:",
     guidance,

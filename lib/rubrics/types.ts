@@ -18,6 +18,36 @@ export type RubricDimension = {
   description: string;
 };
 
+/**
+ * What a given point in school is actually FOR.
+ *
+ * Every dimension above describes a finished application — depth achieved,
+ * level reached, impact evidenced. Judged against that alone, a 14-year-old
+ * looks empty no matter what they do, because most of what those dimensions
+ * measure is gated behind coursework, skills and relationships that take years
+ * to build. That produced evaluations telling Grade 9 students their biggest
+ * gap was having no admissions test score, two years before they could sit one.
+ *
+ * A stage says what good looks like NOW, and — just as importantly — what is
+ * not yet reachable, so its absence is never counted against the student.
+ */
+export type RubricStage = {
+  /** Stable key: "early" | "middle" | "final". */
+  key: string;
+  /** Human label, e.g. "Early — Grade 9-10 / Year 10-11". */
+  label: string;
+  /** What this stage is for. The positive model that was missing entirely. */
+  purpose: string;
+  /** What genuinely good evidence looks like at this stage. */
+  evidence: string[];
+  /**
+   * Things that are GATED at this stage — they require prerequisites the
+   * student cannot have yet. Their absence is not a gap and must never be
+   * listed as one, nor counted against the stage-relative score.
+   */
+  notYetExpected: string[];
+};
+
 export type Rubric = {
   /** Stable id, also stored in prompts for traceability. */
   id: string;
@@ -28,6 +58,8 @@ export type Rubric = {
   /** One-line characterization of the system. */
   summary: string;
   dimensions: RubricDimension[];
+  /** What each point in school is for, and what is gated at it. */
+  stages: RubricStage[];
   /** Rubric-specific instructions — how to weigh and interpret evidence. */
   guidance: string[];
   /** Things the model must NOT assert for this system; it should defer instead. */

@@ -67,6 +67,62 @@ export const ukRubric: Rubric = {
     },
   ],
 
+  stages: [
+    {
+      key: "early",
+      label: "Early — Year 10-11 / Grade 9-10 (pre-A-level)",
+      purpose:
+        "Getting into position for the subject. UK admissions is decided almost entirely on the course-relevant record, and at this stage that means the grades that gate subject choice, choosing the right subjects, and beginning genuine engagement with the field beyond the classroom. This stage is about becoming ELIGIBLE for depth, not demonstrating it.",
+      evidence: [
+        "Strong grades in the subjects that lead to the intended course — these determine which A-levels or equivalents are open at all.",
+        "Deliberate thinking about subject choice for the next stage, with the course requirements actually checked.",
+        "Early super-curricular engagement: reading in the subject, following it beyond the syllabus, following where the curiosity goes.",
+        "Any first-hand exposure to the field that is actually open at this age — for medicine, regular volunteering in a care setting rather than one day of shadowing.",
+        "A sustained interest of any kind, pursued seriously. It counts for little on a UK form directly, but the habits it builds are real.",
+      ],
+      notYetExpected: [
+        "A-level or IB predicted grades. The courses have not started.",
+        "Admissions test results (UCAT, LNAT, and successors). These are sat in the final year — preparing now is premature, not diligent.",
+        "A personal statement. It is written in the final year.",
+        "Work experience placements with minimum ages the student has not reached.",
+        "Research or an EPQ-style extended project before the qualification is available.",
+        "Interview practice, which belongs to the application year.",
+      ],
+    },
+    {
+      key: "middle",
+      label: "Middle — Year 12 / Grade 11 (first A-level year)",
+      purpose:
+        "Building the actual case for the course. Subject performance is now the dominant fact of the application, and super-curricular depth should be accumulating into something specific enough to write and be interviewed about.",
+      evidence: [
+        "Strong performance in the course-relevant subjects; predicted grades taking shape.",
+        "Substantial super-curricular work: sustained reading, an extended project, olympiads, lectures, wider study with a point of view.",
+        "For applied courses, sustained relevant experience rather than one-off exposure.",
+        "Beginning admissions test preparation where the course requires one.",
+        "Being able to say something specific and personal about why this course.",
+      ],
+      notYetExpected: [
+        "Final grades.",
+        "A submitted application.",
+      ],
+    },
+    {
+      key: "final",
+      label: "Final — Year 13 / Grade 12",
+      purpose:
+        "Execution. Predicted grades, admissions tests, the personal statement and interviews — all in a compressed window, all decisive.",
+      evidence: [
+        "Predicted grades at or above what the course expects (verify the actual requirement).",
+        "Admissions test sat or scheduled.",
+        "A personal statement that is overwhelmingly about the subject.",
+        "Interview preparation grounded in the student's own super-curricular work.",
+      ],
+      notYetExpected: [
+        "New super-curricular activity started now that cannot deepen before the deadline.",
+      ],
+    },
+  ],
+
   guidance: [
     "Judge every item by its relevance to the specific named course. An impressive but unrelated activity is a weak item for this target, and should be called weak — even if the same item is a strength for a US target.",
     "Do not reward breadth for its own sake. Range is not a UK admissions virtue.",

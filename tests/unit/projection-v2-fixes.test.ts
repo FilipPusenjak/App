@@ -131,10 +131,9 @@ describe("projections are anchored across runs", () => {
     plansUnchanged: true,
   };
 
-  it("defines score bands, which v1 did not", () => {
-    expect(SYSTEM_PROMPT).toMatch(/place the student in a band/i);
-    expect(SYSTEM_PROMPT).toMatch(/41-60/);
-    expect(SYSTEM_PROMPT).toMatch(/81-100/);
+  it("defines what a number means, which v1 did not", () => {
+    expect(SYSTEM_PROMPT).toMatch(/Readiness is a PERCENTILE/);
+    expect(SYSTEM_PROMPT).toMatch(/stronger than roughly 90%/);
   });
 
   it("passes the previous projection's numbers and verdicts back in", () => {

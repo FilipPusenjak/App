@@ -52,11 +52,61 @@ const schoolFitSchema = z.object({
   keyRisks: z.array(z.string()),
 });
 
+/**
+ * When a gap is actually actionable.
+ *
+ * "later" exists because the app was telling Grade 9 students their biggest
+ * gap was having no admissions test score — something they cannot sit for two
+ * more years. A locked door is not a gap, and presenting it as one creates
+ * anxiety about the one thing the student can do nothing about.
+ */
+export const GAP_TIMINGS = ["now", "soon", "later"] as const;
+export const gapTimingSchema = z.enum(GAP_TIMINGS);
+export type GapTiming = (typeof GAP_TIMINGS)[number];
+
 const gapSchema = z.object({
   title: z.string(),
   detail: z.string(),
+  /**
+   * "now" = reachable at this stage and not being done — a real gap.
+   * "soon" = becomes reachable at the next stage; worth knowing, not acting on.
+   * "later" = gated behind prerequisites the student cannot have yet. Never
+   * frame these as failings.
+   */
+  timing: gapTimingSchema,
   /** School names or "all" — a gap for a UK target may be irrelevant to a US one. */
   appliesTo: z.array(z.string()),
+});
+
+/** Whether the student is building the right foundations FOR THEIR STAGE. */
+export const STAGE_TRACKS = [
+  "ahead",
+  "on_track",
+  "slightly_behind",
+  "behind",
+] as const;
+export const stageTrackSchema = z.enum(STAGE_TRACKS);
+export type StageTrack = (typeof STAGE_TRACKS)[number];
+
+/**
+ * The positive read of a student's stage that the app previously lacked
+ * entirely. Every rubric dimension describes a finished application, so an
+ * early-years student scored as though empty no matter what they did. This
+ * asks the question that actually matters at that point: are the right
+ * foundations being laid?
+ */
+const stageOutlookSchema = z.object({
+  /** Which stage the student is at, e.g. "Early — Grade 9-10". */
+  stageLabel: z.string(),
+  /** What this stage is for, in the student's own situation. */
+  whatMattersNow: z.string(),
+  onTrack: stageTrackSchema,
+  /** Honest read of the foundations — not of the finished application. */
+  assessment: z.string(),
+  /** Things genuinely reachable at this stage that they have NOT started. */
+  reachableNow: z.array(z.string()),
+  /** Things correctly absent because they are gated — named to defuse worry. */
+  notYetExpected: z.array(z.string()),
 });
 
 /** How much an individual resume item actually helps. "negligible" exists so
@@ -78,12 +128,30 @@ export const IMPACT_LEVELS = ["low", "medium", "high"] as const;
 export const impactSchema = z.enum(IMPACT_LEVELS);
 export type ImpactLevel = (typeof IMPACT_LEVELS)[number];
 
+/**
+ * How much an item is worth as a FOUNDATION, separately from what it is worth
+ * to an application today.
+ *
+ * These come apart sharply in the early years, and only measuring the second
+ * one made everything a 14-year-old does look worthless. A club joined in
+ * Grade 9 that becomes a leadership role and a body of work by Grade 12 has
+ * enormous foundational value and almost no present value; the identical club
+ * joined in Grade 12 has neither.
+ */
+export const FOUNDATIONAL_VALUES = ["high", "moderate", "low", "none"] as const;
+export const foundationalValueSchema = z.enum(FOUNDATIONAL_VALUES);
+export type FoundationalValue = (typeof FOUNDATIONAL_VALUES)[number];
+
 const itemAssessmentSchema = z.object({
   /** Matches EvaluationSnapshot.resumeItems[].ref, e.g. "R1". */
   itemRef: z.string(),
   /** Echoed back so the UI degrades gracefully if a ref can't be resolved. */
   itemTitle: z.string(),
   helpfulness: helpfulnessSchema,
+  /** What this is worth as something to build ON, given the student's stage. */
+  foundationalValue: foundationalValueSchema,
+  /** What it could realistically become if sustained — the compounding case. */
+  compoundsInto: z.string(),
   /** Why it helps or doesn't — honest, not encouraging. */
   verdict: z.string(),
   /** Concrete, doable step that would make this specific item stronger. */
@@ -140,6 +208,8 @@ export const evaluationResultSchema = z.object({
   gradeRelativeScore: z.number(),
   /** Why the two scores differ, and what stage-appropriate progress looks like. */
   gradeContext: z.string(),
+  /** Are the right foundations being laid for this student's stage? */
+  stageOutlook: stageOutlookSchema,
   /**
    * One entry per admissions system represented in the targets. Keeps the US
    * and UK reads separate at the headline level, not just per school.
@@ -185,7 +255,6 @@ export const evaluationResultSchema = z.object({
  * validated against the strict schema above, which requires them.
  */
 export const storedEvaluationResultSchema = evaluationResultSchema.extend({
-  itemAssessments: z.array(itemAssessmentSchema).optional().default([]),
   actions: z.array(actionSchema).optional().default([]),
   // Added in prompt v3. Left undefined (not defaulted to a number) on older
   // evaluations so the UI can omit the section rather than display a fabricated
@@ -196,6 +265,21 @@ export const storedEvaluationResultSchema = evaluationResultSchema.extend({
   // sections rather than inventing a score or a change that was never assessed.
   systemScores: z.array(systemScoreSchema).optional().default([]),
   changeSinceLast: z.string().optional(),
+  // Added in prompt v5. Older rows have no stage reading, no gap timing and no
+  // foundational value; those stay absent rather than being invented.
+  stageOutlook: stageOutlookSchema.optional(),
+  gaps: z.array(gapSchema.extend({ timing: gapTimingSchema.optional() })),
+  // Single definition for stored item assessments: pre-M6 rows have none at
+  // all, pre-v5 rows have them without the foundational fields.
+  itemAssessments: z
+    .array(
+      itemAssessmentSchema.extend({
+        foundationalValue: foundationalValueSchema.optional(),
+        compoundsInto: z.string().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
   schoolFits: z.array(
     schoolFitSchema.extend({
       classification: aiClassificationSchema.optional(),
@@ -211,6 +295,7 @@ export type Strength = z.infer<typeof strengthSchema>;
 export type Weakness = z.infer<typeof weaknessSchema>;
 export type Gap = z.infer<typeof gapSchema>;
 export type SystemScore = z.infer<typeof systemScoreSchema>;
+export type StageOutlook = z.infer<typeof stageOutlookSchema>;
 export type ItemAssessment = z.infer<typeof itemAssessmentSchema>;
 export type Action = z.infer<typeof actionSchema>;
 

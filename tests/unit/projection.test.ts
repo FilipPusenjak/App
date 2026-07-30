@@ -115,7 +115,7 @@ describe("buildProjectionSnapshot", () => {
 
 describe("the projection prompt", () => {
   it("has a version id, recorded on every projection row", () => {
-    expect(PROMPT_VERSION).toBe("projection/v2");
+    expect(PROMPT_VERSION).toBe("projection/v3");
   });
 
   it("insists planning is not doing — the central guard against false comfort", () => {

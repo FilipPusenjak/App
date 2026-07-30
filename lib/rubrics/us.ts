@@ -88,6 +88,67 @@ export const usRubric: Rubric = {
     },
   ],
 
+  stages: [
+    {
+      key: "early",
+      label: "Early — Grade 9-10",
+      purpose:
+        "Building the foundations everything later is made of: the strongest courses actually available, a small number of activities that can still be running in three years, and genuine exploration of what the student cares about. Almost nothing here is supposed to look impressive yet — the value is that it COMPOUNDS. An activity begun in Grade 9 can become a leadership role and a body of work by Grade 12; the identical activity begun in Grade 12 cannot.",
+      evidence: [
+        "Taking the most demanding courses the school actually offers at this level, and doing well in them.",
+        "Two or three activities begun and stuck with, rather than a long list sampled briefly.",
+        "Any sustained commitment — a sport, an instrument, an art, a craft — that is being pursued seriously and improving.",
+        "Real curiosity being followed: reading, building, making, self-teaching, in a direction that means something to them.",
+        "Starting something that can grow — a project, a small business, a group — where the growth is the point.",
+        "Beginning to seek out what is available locally: a volunteering placement, a club, a mentor, a summer programme.",
+      ],
+      notYetExpected: [
+        "Standardized test scores. Sitting them this early is usually pointless and occasionally harmful.",
+        "Admissions test preparation for tests taken in the final year.",
+        "Leadership titles. Most are held by older students; not having one at 14 says nothing.",
+        "Published or independently significant research. It requires coursework, technique and a mentor relationship that take years to build — being upstream of it is not a deficit.",
+        "Selective summer programmes with age floors the student has not reached.",
+        "A finished, coherent application narrative. It is being lived now, not written.",
+        "Internships and formal work experience, which are mostly closed at this age.",
+      ],
+    },
+    {
+      key: "middle",
+      label: "Middle — Grade 11",
+      purpose:
+        "Turning foundations into evidence. Commitments started earlier should now be producing something visible — a role, an output, a result — and the profile should be narrowing toward what the student is actually about rather than still widening.",
+      evidence: [
+        "Depth showing: years of continuity in the things that matter, with a role or an output to point at.",
+        "Rigor at or near the ceiling of what the school offers.",
+        "A recognizable direction emerging, with activity that supports it.",
+        "First external validation where it is available — competitions, exhibitions, publications, real users, real customers.",
+        "Testing underway if the student's targets use it.",
+        "Relationships with teachers who will eventually write about them with specifics.",
+      ],
+      notYetExpected: [
+        "Completed applications or finished essays.",
+        "Final-year leadership positions not yet held.",
+        "Results from competitions and programmes that only take part in the final year.",
+      ],
+    },
+    {
+      key: "final",
+      label: "Final — Grade 12",
+      purpose:
+        "Converting what exists into an application. The profile is largely fixed; what remains is presenting it truthfully and well, and finishing anything close to done.",
+      evidence: [
+        "A clear, honest narrative that the record actually supports.",
+        "Peak responsibility in the things sustained longest.",
+        "Testing complete or a deliberate decision not to test.",
+        "Recommenders who can speak in specifics.",
+        "Any long-running project brought to a real conclusion.",
+      ],
+      notYetExpected: [
+        "New commitments started now that cannot possibly show depth before applications close.",
+      ],
+    },
+  ],
+
   guidance: [
     "Weigh depth over breadth when they conflict: one genuinely distinctive strength outweighs many shallow activities. But this is NOT a licence to dismiss everything outside the intended major — depth and range are both assessed here, and an activity does not have to relate to the course to count.",
     "A sustained, demanding activity unrelated to the intended major (a sport, an instrument, climbing, an art form) is a real asset in this system. Judge it on how long it has been pursued, whether the student has progressed, and the level reached — not on whether it connects to the major. Calling such an item unhelpful is a misreading of holistic review.",

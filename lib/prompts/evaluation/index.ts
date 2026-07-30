@@ -1,12 +1,12 @@
 // The currently-active evaluation prompt.
 //
-// v4 anchors scores to defined bands, feeds the previous evaluation back in so
-// the number can't drift (or fall when the student adds work), stops treating
-// weekly hours as a commitment score, and scores each admissions system
-// separately instead of averaging US and UK into one figure.
+// v5 makes both scores percentiles ("90 = stronger than about 90% of the pool")
+// and makes stage a first-class concept: the rubrics carry a stage ladder, gaps
+// carry timing, and items are judged both for what they are worth today and for
+// what they are worth to build on.
 //
-// v1-v3 are kept for attribution — evaluations record the version that
-// produced them, so results from different prompts stay distinguishable.
+// v1-v4 are kept for attribution — evaluations record the version that produced
+// them, so results from different prompts stay distinguishable.
 //
-// To iterate: add v5.ts and change these re-exports.
-export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v4";
+// To iterate: add v6.ts and change these re-exports.
+export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v5";

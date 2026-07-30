@@ -71,7 +71,7 @@ describe("weekly hours are not treated as a commitment score", () => {
 
   it("the system prompt forbids ranking items by hours", () => {
     expect(SYSTEM_PROMPT).toMatch(/Never rank items by hours/i);
-    expect(SYSTEM_PROMPT).toMatch(/low hours do not make an activity weak/i);
+    expect(SYSTEM_PROMPT).toMatch(/the hours alone are not/i);
   });
 
   it("the US rubric says hours must not drive the rating", () => {
@@ -87,7 +87,7 @@ describe("weekly hours are not treated as a commitment score", () => {
 
   it("still allows calling an item weak for short duration with no outcome", () => {
     // The fix must not become "never criticize an activity".
-    expect(SYSTEM_PROMPT).toMatch(/single term with nothing to show/i);
+    expect(SYSTEM_PROMPT).toMatch(/short-lived, unevidenced, no role, no outcome/i);
     expect(SYSTEM_PROMPT).toMatch(/Call weak items weak/);
   });
 });
@@ -181,11 +181,12 @@ describe("scores cannot fall when the profile only gained content", () => {
     expect(prompt).toMatch(/None — this is the student's first evaluation/);
   });
 
-  it("defines score bands so a number means the same thing every run", () => {
-    // The root cause of drift: v3 never said what 50 meant.
-    expect(SYSTEM_PROMPT).toMatch(/41-60/);
-    expect(SYSTEM_PROMPT).toMatch(/81-100/);
-    expect(SYSTEM_PROMPT).toMatch(/place the student in a band/i);
+  it("defines what a number means so it is stable between runs", () => {
+    // The root cause of drift: v3 never said what 50 meant. v5 makes both
+    // scores percentiles, which is checkable rather than vibes.
+    expect(SYSTEM_PROMPT).toMatch(/Both scores are PERCENTILES/);
+    expect(SYSTEM_PROMPT).toMatch(/stronger than roughly 90%/);
+    expect(SYSTEM_PROMPT).toMatch(/squarely mid-pack/i);
   });
 });
 
@@ -193,7 +194,7 @@ describe("scores cannot fall when the profile only gained content", () => {
 describe("US and UK are scored separately", () => {
   it("asks for one entry per admissions system, never blended", () => {
     expect(SYSTEM_PROMPT).toMatch(/Score each admissions system separately/);
-    expect(SYSTEM_PROMPT).toMatch(/single blended number is a number about nothing/i);
+    expect(SYSTEM_PROMPT).toMatch(/never blended/i);
     expect(SYSTEM_PROMPT).toMatch(/systemScores/);
   });
 

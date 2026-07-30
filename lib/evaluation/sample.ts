@@ -58,7 +58,21 @@ export function buildSampleResult(
     changeSinceLast:
       "SAMPLE OUTPUT — a real evaluation compares against your previous one and explains exactly what moved and why.",
     gradeContext:
-      "SAMPLE OUTPUT — a real evaluation gives you two scores: readiness for your named targets today, and how you compare to other students at your stage. Those are usually very different numbers, especially in earlier years.",
+      "SAMPLE OUTPUT — a real evaluation gives you two percentiles: where you place among people applying to targets like yours, and where you place among students in your own year. Those are usually very different numbers, especially in earlier years.",
+    stageOutlook: {
+      stageLabel: "SAMPLE — stage not assessed",
+      whatMattersNow:
+        "SAMPLE OUTPUT — a real evaluation works out which stage you're at and says what actually matters at it, instead of judging you against a finished application.",
+      onTrack: "on_track" as const,
+      assessment:
+        "SAMPLE OUTPUT — no assessment of your foundations was made. A real evaluation separates what you can't do yet from what you could be doing and aren't.",
+      reachableNow: [
+        "SAMPLE OUTPUT — a real evaluation lists the things genuinely open to you right now that you haven't started.",
+      ],
+      notYetExpected: [
+        "SAMPLE OUTPUT — a real evaluation names the things that are gated at your stage, so you don't worry about them.",
+      ],
+    },
     headline:
       "SAMPLE EVALUATION — this is placeholder output, not an AI assessment of your profile.",
     summary:
@@ -93,6 +107,9 @@ export function buildSampleResult(
       itemRef: item.ref,
       itemTitle: item.title,
       helpfulness: "moderate" as const,
+      foundationalValue: "moderate" as const,
+      compoundsInto:
+        "SAMPLE OUTPUT — a real evaluation says what this could become if you keep at it, which matters more than its value today when you have years left.",
       verdict:
         "SAMPLE OUTPUT — this item was not assessed. A real evaluation judges how much it actually helps, and says so plainly when the answer is 'not much'.",
       howToStrengthen:
@@ -124,6 +141,7 @@ export function buildSampleResult(
         title: "Real evaluation not yet run",
         detail:
           "Add ANTHROPIC_API_KEY to .env.local, restart the dev server, and run the evaluation again.",
+        timing: "now" as const,
         appliesTo: ["all"],
       },
     ],

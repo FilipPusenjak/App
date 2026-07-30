@@ -4,7 +4,16 @@ import { findOwnedEvaluation } from "@/lib/ownership";
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import { getRubricById } from "@/lib/rubrics";
 
-function ScoreRing({ score, label }: { score: number; label: string }) {
+function ScoreRing({
+  score,
+  label,
+  emphasis = false,
+}: {
+  score: number;
+  label: string;
+  /** The number that actually matters for this student right now. */
+  emphasis?: boolean;
+}) {
   const tone =
     score >= 75
       ? "text-green-600 dark:text-green-400"
@@ -13,16 +22,76 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
         : "text-rose-600 dark:text-rose-400";
   return (
     <div className="text-center">
-      <div className={`text-4xl font-semibold tabular-nums ${tone}`}>
+      <div
+        className={`font-semibold tabular-nums ${emphasis ? "text-5xl" : "text-3xl opacity-80"} ${tone}`}
+      >
         {Math.round(score)}
-        <span className="text-lg text-zinc-400">/100</span>
+        <span className={emphasis ? "text-lg text-zinc-400" : "text-base text-zinc-400"}>
+          /100
+        </span>
       </div>
-      <div className="mt-1 text-xs uppercase tracking-wide text-zinc-500">
+      <div
+        className={`mt-1 text-xs uppercase tracking-wide ${emphasis ? "font-medium text-zinc-600 dark:text-zinc-300" : "text-zinc-500"}`}
+      >
         {label}
       </div>
     </div>
   );
 }
+
+/**
+ * Should the stage-relative score be the headline?
+ *
+ * For a student years from applying, "vs applicants" is structurally low for
+ * reasons that are not their fault, and making it the biggest number on the
+ * page misrepresents where they stand. Read from the stage the model assigned,
+ * falling back to the grade level in the stored snapshot.
+ */
+function shouldLeadWithStage(
+  stageLabel: string | undefined,
+  gradeLevel: string | undefined,
+): boolean {
+  const haystack = `${stageLabel ?? ""} ${gradeLevel ?? ""}`.toLowerCase();
+  if (/final|grade 12|year 13|senior/.test(haystack)) return false;
+  return /early|middle|grade 9|grade 10|grade 11|year 9|year 10|year 11|year 12/.test(
+    haystack,
+  );
+}
+
+const TRACK_STYLES: Record<string, string> = {
+  ahead: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+  on_track:
+    "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
+  slightly_behind:
+    "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  behind: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+};
+
+const TRACK_LABELS: Record<string, string> = {
+  ahead: "ahead for your year",
+  on_track: "on track for your year",
+  slightly_behind: "slightly behind for your year",
+  behind: "behind for your year",
+};
+
+const GAP_TIMING_STYLES: Record<string, string> = {
+  now: "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
+  soon: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
+  later: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
+};
+
+const GAP_TIMING_LABELS: Record<string, string> = {
+  now: "act on this now",
+  soon: "next year",
+  later: "not yet — comes later",
+};
+
+const FOUNDATIONAL_LABELS: Record<string, string> = {
+  high: "strong foundation",
+  moderate: "useful foundation",
+  low: "weak foundation",
+  none: "nothing to build on",
+};
 
 function Card({
   title,
@@ -90,6 +159,25 @@ export default async function EvaluationPage({
 
   const result = parseStoredResult(evaluation.resultJson);
 
+  // The grade level as it was when this evaluation ran, for deciding which
+  // score to lead with. Read from the frozen snapshot so an old evaluation
+  // still renders the way it did at the time.
+  let snapshotGradeLevel: string | undefined;
+  try {
+    const snapshot = evaluation.inputSnapshotJson
+      ? (JSON.parse(evaluation.inputSnapshotJson) as {
+          student?: { gradeLevel?: string | null };
+        })
+      : null;
+    snapshotGradeLevel = snapshot?.student?.gradeLevel ?? undefined;
+  } catch {
+    // Unreadable snapshot: fall back to the stage label alone.
+  }
+
+  const leadWithStage =
+    result?.gradeRelativeScore != null &&
+    shouldLeadWithStage(result.stageOutlook?.stageLabel, snapshotGradeLevel);
+
   return (
     <div className="space-y-6">
       <Link
@@ -139,9 +227,14 @@ export default async function EvaluationPage({
                 <ScoreRing
                   score={result.gradeRelativeScore}
                   label="For your year"
+                  emphasis={leadWithStage}
                 />
               )}
-              <ScoreRing score={result.overallScore} label="vs targets" />
+              <ScoreRing
+                score={result.overallScore}
+                label="vs applicants"
+                emphasis={!leadWithStage}
+              />
               <ScoreRing
                 score={result.narrativeCoherence.score}
                 label="Narrative"
@@ -153,6 +246,35 @@ export default async function EvaluationPage({
                 </p>
               </div>
             </div>
+
+            {/* What the numbers mean. Editorial framing, deliberately kept out
+                of the model's output: it is barred from asserting admit rates,
+                so the percentile -> selectivity translation lives here. */}
+            <p className="mt-4 text-xs text-zinc-500">
+              Both numbers are percentiles. {result.overallScore}/100 &ldquo;vs
+              applicants&rdquo; means stronger than roughly{" "}
+              {Math.round(result.overallScore)}% of people applying to targets
+              like yours today
+              {result.gradeRelativeScore != null && (
+                <>
+                  , while {Math.round(result.gradeRelativeScore)}/100 &ldquo;for
+                  your year&rdquo; compares you to students at your own stage
+                </>
+              )}
+              . As a rough guide, the more selective a course is, the closer to
+              the top of that range it draws from — but this app never estimates
+              any university&apos;s actual admit rate, so check those yourself.
+            </p>
+
+            {leadWithStage && (
+              <p className="mt-3 text-xs text-zinc-500">
+                You have years left, so &ldquo;for your year&rdquo; is the
+                number that means something right now. &ldquo;Vs
+                applicants&rdquo; compares you to people submitting
+                applications, most of whom are finishing school — expect it to
+                be low, and expect it to move as you go.
+              </p>
+            )}
             {result.gradeContext && (
               <p className="mt-4 rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
                 <span className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -170,6 +292,76 @@ export default async function EvaluationPage({
               </p>
             )}
           </section>
+
+          {/* Where you are in school, and what that actually means. The
+              rubrics describe a finished application; without this, a student
+              years out is measured against a yardstick nothing they can
+              currently do would satisfy. */}
+          {result.stageOutlook && (
+            <Card
+              title="Where you are right now"
+              subtitle="Judged against what's actually reachable at your stage — not against a finished application."
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                <h3 className="font-medium">
+                  {result.stageOutlook.stageLabel}
+                </h3>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    TRACK_STYLES[result.stageOutlook.onTrack] ??
+                    TRACK_STYLES.on_track
+                  }`}
+                >
+                  {TRACK_LABELS[result.stageOutlook.onTrack] ??
+                    result.stageOutlook.onTrack}
+                </span>
+              </div>
+
+              <p className="mt-3 text-sm">
+                <span className="font-medium">What matters now: </span>
+                <span className="text-zinc-600 dark:text-zinc-400">
+                  {result.stageOutlook.whatMattersNow}
+                </span>
+              </p>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                {result.stageOutlook.assessment}
+              </p>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {result.stageOutlook.reachableNow.length > 0 && (
+                  <div className="rounded-lg border border-black/10 p-3 dark:border-white/15">
+                    <h4 className="text-sm font-medium">
+                      Open to you now, not started
+                    </h4>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      These are the real gaps at your stage.
+                    </p>
+                    <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      {result.stageOutlook.reachableNow.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.stageOutlook.notYetExpected.length > 0 && (
+                  <div className="rounded-lg border border-black/10 p-3 dark:border-white/15">
+                    <h4 className="text-sm font-medium">
+                      Not expected yet — don&apos;t worry about these
+                    </h4>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      Gated behind things you can&apos;t have yet. Their absence
+                      is not counted against you.
+                    </p>
+                    <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                      {result.stageOutlook.notYetExpected.map((n, i) => (
+                        <li key={i}>{n}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Per-system scores. A single number across US and UK targets
               averages two systems that reward different things. */}
@@ -371,12 +563,35 @@ export default async function EvaluationPage({
                       >
                         {item.helpfulness === "negligible"
                           ? "negligible help"
-                          : `${item.helpfulness} help`}
+                          : `${item.helpfulness} help today`}
                       </span>
+                      {/* An item can be worth little today and a great deal to
+                          build on — that gap is the whole point in early years. */}
+                      {item.foundationalValue && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            HELPFULNESS_STYLES[item.foundationalValue] ??
+                            "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300"
+                          }`}
+                        >
+                          {FOUNDATIONAL_LABELS[item.foundationalValue] ??
+                            item.foundationalValue}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                       {item.verdict}
                     </p>
+                    {item.compoundsInto && (
+                      <p className="mt-2 text-sm">
+                        <span className="font-medium">
+                          If you keep at it:{" "}
+                        </span>
+                        <span className="text-zinc-600 dark:text-zinc-400">
+                          {item.compoundsInto}
+                        </span>
+                      </p>
+                    )}
                     <p className="mt-2 text-sm">
                       <span className="font-medium">To strengthen: </span>
                       <span className="text-zinc-600 dark:text-zinc-400">
@@ -396,12 +611,23 @@ export default async function EvaluationPage({
 
           <Card
             title="Gaps"
-            subtitle="What's missing given your stated targets."
+            subtitle="What's missing given your stated targets — with when each one is actually worth acting on."
           >
             <ul className="space-y-3">
               {result.gaps.map((g, i) => (
                 <li key={i}>
-                  <p className="text-sm font-medium">{g.title}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium">{g.title}</p>
+                    {g.timing && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          GAP_TIMING_STYLES[g.timing] ?? GAP_TIMING_STYLES.now
+                        }`}
+                      >
+                        {GAP_TIMING_LABELS[g.timing] ?? g.timing}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-zinc-600 dark:text-zinc-400">
                     {g.detail}
                   </p>
