@@ -41,7 +41,7 @@ export function RunEvaluationButton({
         onClick={run}
         disabled={running || disabled}
         title={disabled ? disabledReason : undefined}
-        className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        className="inline-flex items-center whitespace-nowrap rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
       >
         {running ? "Evaluating… (this can take a minute)" : "Run evaluation"}
       </button>

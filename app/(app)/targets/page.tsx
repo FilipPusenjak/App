@@ -22,7 +22,7 @@ export default async function TargetsPage() {
 
       {/* Goals (edited on the profile page) */}
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1 text-sm">
             <p>
               <span className="text-zinc-500">Intended major:</span>{" "}
@@ -39,7 +39,7 @@ export default async function TargetsPage() {
           </div>
           <Link
             href="/profile"
-            className="shrink-0 rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            className="shrink-0 self-start rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
           >
             Edit on profile
           </Link>
@@ -48,7 +48,7 @@ export default async function TargetsPage() {
 
       {/* Target schools */}
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Target schools</h2>
             <p className="text-sm text-zinc-500">
@@ -73,7 +73,7 @@ export default async function TargetsPage() {
                   key={t.id}
                   className="rounded-lg border border-black/10 p-4 dark:border-white/15"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-medium">{t.name}</h3>

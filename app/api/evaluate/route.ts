@@ -14,6 +14,7 @@ import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { getAnthropicClient, getModel, getEffort } from "@/lib/anthropic";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildSampleResult } from "@/lib/evaluation/sample";
+import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import {
   evaluationResultSchema,
@@ -24,6 +25,20 @@ import {
 // an HTTP timeout.
 const MAX_TOKENS = 32000;
 
+/**
+ * Maximum seconds this route may run for.
+ *
+ * A real evaluation genuinely takes tens of seconds, and hosting platforms
+ * enforce a much shorter default. Without this the function is killed
+ * mid-stream in production — the tokens are paid for, but the answer is lost —
+ * while working perfectly on localhost, where no such limit exists.
+ *
+ * 60s is the ceiling on Vercel's Hobby plan; platforms that allow more will
+ * honor a larger number here, and any run that still overruns is recovered by
+ * the stale-pending sweep rather than being left "pending" forever.
+ */
+export const maxDuration = 60;
+
 export async function POST() {
   // 1. Authenticated users only.
   const user = await getCurrentUser();
@@ -31,7 +46,11 @@ export async function POST() {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  // 2. Rate limit per user id (never per client-supplied value).
+  // 2. Clear out any abandoned run first, so a previously-interrupted
+  // evaluation doesn't linger as "pending" once this one replaces it.
+  await failStalePendingEvaluations();
+
+  // 3. Rate limit per user id (never per client-supplied value).
   const limit = await evaluationRateLimiter.check(user.id);
   if (!limit.ok) {
     const message =
@@ -44,7 +63,7 @@ export async function POST() {
     );
   }
 
-  // 3. Load the profile — ownership-scoped by the session, not by any input.
+  // 4. Load the profile — ownership-scoped by the session, not by any input.
   // `user` already carries countryOfOrigin and is deduplicated per request.
   const profile = await getProfileWithRelations();
 
@@ -71,7 +90,7 @@ export async function POST() {
   const client = getAnthropicClient();
   const isSample = client === null;
 
-  // 4. Create the pending row up front so a failure is still recorded.
+  // 5. Create the pending row up front so a failure is still recorded.
   const evaluation = await prisma.evaluation.create({
     data: {
       profileId: profile.id,
@@ -83,7 +102,7 @@ export async function POST() {
     },
   });
 
-  // 5a. No API key: store a clearly-labelled sample so the feature is usable.
+  // 6a. No API key: store a clearly-labelled sample so the feature is usable.
   if (isSample) {
     const sample = buildSampleResult(snapshot);
     await prisma.evaluation.update({
@@ -98,7 +117,7 @@ export async function POST() {
     return NextResponse.json({ id: evaluation.id, isSample: true });
   }
 
-  // 5b. Real evaluation.
+  // 6b. Real evaluation.
   try {
     const stream = client.messages.stream({
       model: getModel(),

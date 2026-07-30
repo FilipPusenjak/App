@@ -117,7 +117,7 @@ export default async function ProfilePage() {
 
       {/* Resume items */}
       <Card>
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Resume items</h2>
             <p className="text-sm text-zinc-500">
@@ -147,7 +147,9 @@ export default async function ProfilePage() {
                   key={item.id}
                   className="rounded-lg border border-black/10 p-4 dark:border-white/15"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  {/* Stacks on phones: side-by-side action buttons squeeze the
+                      title and description into an unreadable column. */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <span className="inline-block rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
                         {RESUME_ITEM_TYPE_LABELS[item.type as ResumeItemType] ??

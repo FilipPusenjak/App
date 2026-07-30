@@ -6,6 +6,7 @@ import {
   deltaFromPrevious,
 } from "@/lib/evaluation/progress";
 import { ScoreTrend } from "@/components/score-trend";
+import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { RunEvaluationButton } from "./run-evaluation-button";
 
 function scoreTone(score: number | null) {
@@ -57,6 +58,10 @@ function Card({
 }
 
 export default async function EvaluationsPage() {
+  // Recover anything abandoned by an interrupted run before listing, so a dead
+  // evaluation is shown as failed-with-a-reason rather than "pending" forever.
+  await failStalePendingEvaluations();
+
   const [profile, evaluations] = await Promise.all([
     getProfileWithRelations(),
     getOwnedEvaluations(),
@@ -82,7 +87,7 @@ export default async function EvaluationsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Evaluations</h1>
           <p className="mt-1 text-sm text-zinc-500">
@@ -204,7 +209,7 @@ export default async function EvaluationsPage() {
                   key={e.id}
                   className="rounded-lg border border-black/10 p-4 dark:border-white/15"
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span
@@ -212,7 +217,9 @@ export default async function EvaluationsPage() {
                         >
                           {e.overallScore != null
                             ? `${e.overallScore}/100`
-                            : e.status}
+                            : e.status === "pending"
+                              ? "Running…"
+                              : e.status}
                         </span>
                         {delta != null && <Delta value={delta} />}
                         {e.isSample && (
@@ -234,6 +241,12 @@ export default async function EvaluationsPage() {
                         {e.model ? ` · ${e.model}` : ""}
                         {e.promptVersion ? ` · ${e.promptVersion}` : ""}
                       </p>
+                      {e.status === "pending" && (
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Started just now — an evaluation takes up to a
+                          minute. Reload this page to see the result.
+                        </p>
+                      )}
                       {e.error && (
                         <p className="mt-1 text-xs text-red-600 dark:text-red-400">
                           {e.error}

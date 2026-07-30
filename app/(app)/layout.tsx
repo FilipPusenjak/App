@@ -16,12 +16,15 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-black/10 dark:border-white/15">
-        <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-5">
+        {/* Wraps rather than overflowing: the nav alone is wider than a phone
+            screen, so on narrow viewports the brand and links stack onto
+            further lines instead of pushing the page sideways. */}
+        <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1">
             <Link href="/dashboard" className="text-sm font-semibold">
               Application Profile Evaluator
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-zinc-500">
+            <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
               <Link href="/dashboard" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Dashboard
               </Link>
@@ -39,7 +42,7 @@ export default async function AppLayout({
               </Link>
             </nav>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-4">
             <span className="hidden text-sm text-zinc-500 sm:inline">
               {user.email}
             </span>
@@ -54,7 +57,9 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+        {children}
+      </main>
     </div>
   );
 }

@@ -129,10 +129,34 @@ Anthropic console under **Settings → Limits**.
 - **Your local and production databases are separate.** Data entered locally does
   not appear on the deployed site.
 
+## If you forget your password
+
+There is no "forgot password" email flow, so this is the recovery path. From
+your terminal, with the **production** database URL in front of the command:
+
+```bash
+DATABASE_URL="<your Neon connection string>" npm run set-password -- you@example.com
+```
+
+It asks for the new password twice (never echoing it, and never putting it in
+your shell history), enforces the same 8-character minimum the signup form
+does, and clears any login lockout at the same time.
+
+Two things worth knowing:
+
+- Without the `DATABASE_URL` prefix it edits your **local** database, not the
+  deployed one. The script prints the account it found before changing
+  anything, so read that line.
+- Anyone with your database URL can reset any password. That's inherent to a
+  connection string being a full-access credential — treat it accordingly, and
+  never paste it into anything public.
+
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
+| Locked out after failed logins | Wait 15 minutes, or reset the password with `npm run set-password` (see above), which clears the lock. |
+| An evaluation stays "Running…" | It was interrupted (usually a function timeout). It is marked failed automatically after 5 minutes; just run it again. |
 | Build fails on `prisma migrate deploy` | `DATABASE_URL` missing/wrong in Vercel, or the database rejects connections. |
 | "DATABASE_URL is not set" locally | No `.env` file, or it is in the wrong folder. |
 | Login works locally but not deployed | `AUTH_SECRET` not set in Vercel. |
