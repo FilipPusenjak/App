@@ -34,6 +34,9 @@ export default async function AppLayout({
               <Link href="/targets" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Targets
               </Link>
+              <Link href="/plans" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Plans
+              </Link>
               <Link href="/evaluations" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Evaluations
               </Link>

@@ -69,6 +69,63 @@ model Profile {
   testScores    TestScore[]
   targetSchools TargetSchool[]
   evaluations   Evaluation[]
+  plannedItems  PlannedItem[]
+  projections   Projection[]
+}
+
+/// Something the student INTENDS to do but has not done.
+///
+/// Deliberately a separate table from ResumeItem rather than a flag on it.
+/// Intentions must never leak into an evaluation or the progress chart: the
+/// history view is a record of what has actually been achieved, and letting
+/// plans inflate it would make the one number the student tracks untrustworthy.
+model PlannedItem {
+  id           String    @id @default(cuid())
+  profileId    String
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  // Same Zod enum as ResumeItem.type.
+  type         String
+  title        String
+  description  String?
+  org          String?
+  /// When they intend to start, or the deadline they are working toward.
+  targetDate   DateTime?
+  hoursPerWeek Float?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([profileId])
+}
+
+/// A conditional "what if I did these things" projection.
+///
+/// Stored apart from Evaluation for the same reason PlannedItem is stored apart
+/// from ResumeItem — a projection is a hypothetical, and no query that builds
+/// the student's real history should have to remember to filter it out.
+model Projection {
+  id     String @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // Zod enum: pending | completed | failed
+  status String @default("pending")
+
+  model         String? // projections run on a cheaper model than evaluations
+  promptVersion String?
+  isSample      Boolean @default(false)
+
+  /// The real evaluation this projects forward from, if there was one. Kept as
+  /// a plain id (not a relation) so deleting an old evaluation cannot cascade
+  /// away a projection the student is still reading.
+  baseEvaluationId String?
+
+  inputSnapshotJson String?
+  resultJson        String?
+  error             String?
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  @@index([profileId])
 }
 
 model ResumeItem {

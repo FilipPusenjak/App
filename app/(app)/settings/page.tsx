@@ -1,15 +1,22 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
+import {
+  getOwnedEvaluations,
+  getOwnedPlannedItems,
+  getOwnedProjections,
+  getProfileWithRelations,
+} from "@/lib/ownership";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
   if (!user?.email) redirect("/login");
 
-  const [profile, evaluations] = await Promise.all([
+  const [profile, evaluations, plannedItems, projections] = await Promise.all([
     getProfileWithRelations(),
     getOwnedEvaluations(),
+    getOwnedPlannedItems(),
+    getOwnedProjections(),
   ]);
 
   const counts = [
@@ -17,6 +24,8 @@ export default async function SettingsPage() {
     { label: "test scores", n: profile.testScores.length },
     { label: "target schools", n: profile.targetSchools.length },
     { label: "evaluations", n: evaluations.length },
+    { label: "plans", n: plannedItems.length },
+    { label: "projections", n: projections.length },
   ];
 
   return (

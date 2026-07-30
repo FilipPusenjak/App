@@ -36,12 +36,17 @@ vi.mock("@/lib/session", () => ({
 import * as ownership from "@/lib/ownership";
 import {
   findOwnedEvaluation,
+  findOwnedPlannedItem,
+  findOwnedProjection,
   findOwnedResumeItem,
   findOwnedTargetSchool,
   getOrCreateProfile,
   getOwnedEvaluations,
+  getOwnedPlannedItems,
+  getOwnedProjections,
   getOwnedTargets,
   getProfileWithRelations,
+  requireOwnedPlannedItem,
   requireOwnedResumeItem,
   requireOwnedTargetSchool,
   requireOwnedTestScore,
@@ -54,7 +59,7 @@ type Fixture = Awaited<ReturnType<typeof seedUser>>;
 /** A user with one of everything: resume item, test score, target, evaluation. */
 async function seedUser(label: string) {
   const { user, profile } = await createUserWithProfile(runTag, label);
-  const [item, score, target, evaluation] = await Promise.all([
+  const [item, score, target, evaluation, plan, projection] = await Promise.all([
     prisma.resumeItem.create({
       data: { profileId: profile.id, type: "project", title: `${label} item` },
     }),
@@ -68,13 +73,29 @@ async function seedUser(label: string) {
       data: {
         profileId: profile.id,
         status: "completed",
-        promptVersion: "evaluation/v3",
+        promptVersion: "evaluation/v4",
+        isSample: true,
+        inputSnapshotJson: "{}",
+      },
+    }),
+    prisma.plannedItem.create({
+      data: {
+        profileId: profile.id,
+        type: "extracurricular",
+        title: `${label} plan`,
+      },
+    }),
+    prisma.projection.create({
+      data: {
+        profileId: profile.id,
+        status: "completed",
+        promptVersion: "projection/v1",
         isSample: true,
         inputSnapshotJson: "{}",
       },
     }),
   ]);
-  return { user, profile, item, score, target, evaluation };
+  return { user, profile, item, score, target, evaluation, plan, projection };
 }
 
 describe.skipIf(!hasTestDb)("ownership helpers", () => {
@@ -130,6 +151,27 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
 
     it("refuses B's evaluation", async () => {
       await expect(findOwnedEvaluation(b.evaluation.id)).resolves.toBeNull();
+    });
+
+    it("refuses B's planned item", async () => {
+      await expect(findOwnedPlannedItem(b.plan.id)).resolves.toBeNull();
+      await expect(requireOwnedPlannedItem(b.plan.id)).rejects.toThrow(
+        "Planned item not found",
+      );
+    });
+
+    it("refuses B's projection", async () => {
+      await expect(findOwnedProjection(b.projection.id)).resolves.toBeNull();
+    });
+
+    it("plan and projection lists contain only A's rows", async () => {
+      const plans = await getOwnedPlannedItems();
+      expect(plans.map((p) => p.id)).toContain(a.plan.id);
+      expect(plans.map((p) => p.id)).not.toContain(b.plan.id);
+
+      const projections = await getOwnedProjections();
+      expect(projections.map((p) => p.id)).toContain(a.projection.id);
+      expect(projections.map((p) => p.id)).not.toContain(b.projection.id);
     });
 
     it("lists contain only A's rows, never B's", async () => {
@@ -206,12 +248,17 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
       expect(Object.keys(ownership).sort()).toEqual(
         [
           "findOwnedEvaluation",
+          "findOwnedPlannedItem",
+          "findOwnedProjection",
           "findOwnedResumeItem",
           "findOwnedTargetSchool",
           "getOrCreateProfile",
           "getOwnedEvaluations",
+          "getOwnedPlannedItems",
+          "getOwnedProjections",
           "getOwnedTargets",
           "getProfileWithRelations",
+          "requireOwnedPlannedItem",
           "requireOwnedResumeItem",
           "requireOwnedTargetSchool",
           "requireOwnedTestScore",

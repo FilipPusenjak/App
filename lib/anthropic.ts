@@ -18,8 +18,26 @@ export const DEFAULT_MODEL = "claude-opus-5";
  */
 export const DEFAULT_EFFORT = "medium";
 
+/**
+ * Model for "what if I did these things" projections.
+ *
+ * Deliberately a cheaper model than the evaluation. A projection is a lighter
+ * task — it reasons forward from scores an evaluation already established,
+ * rather than judging a whole profile from scratch — and it is the run a
+ * student will repeat most while experimenting with plans.
+ */
+export const DEFAULT_PROJECTION_MODEL = "claude-sonnet-5";
+
+/** Effort for projections. Lower than evaluations: less to weigh up. */
+export const DEFAULT_PROJECTION_EFFORT = "low";
+
 export const getModel = () => process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 export const getEffort = () => process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT;
+
+export const getProjectionModel = () =>
+  process.env.ANTHROPIC_PROJECTION_MODEL || DEFAULT_PROJECTION_MODEL;
+export const getProjectionEffort = () =>
+  process.env.ANTHROPIC_PROJECTION_EFFORT || DEFAULT_PROJECTION_EFFORT;
 
 /** True when a real API key is configured. */
 export function hasApiKey(): boolean {

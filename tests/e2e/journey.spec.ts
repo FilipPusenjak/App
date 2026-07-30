@@ -72,6 +72,32 @@ test("a student's full journey", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText("University of Cambridge").first()).toBeVisible();
 
+  // ── 4b. Plans and a projection (the hypothetical path) ──────────────────
+  await page.goto("/plans/new");
+  await page.fill('input[name="title"]', "Start a programming club");
+  await page.fill(
+    'textarea[name="description"]',
+    "Run it weekly and enter two regional contests.",
+  );
+  await page.getByRole("button", { name: "Add plan" }).click();
+  await page.waitForURL("**/plans");
+  await expect(page.getByText("Start a programming club")).toBeVisible();
+
+  // Same hydration caveat as the evaluation button.
+  await expect(async () => {
+    if (/\/projections\/[a-z0-9]+/.test(page.url())) return;
+    await page
+      .getByRole("button", { name: "Project my plans" })
+      .click({ timeout: 2_000 });
+    await page.waitForURL(/\/projections\/[a-z0-9]+/, { timeout: 15_000 });
+  }).toPass({ timeout: 90_000 });
+
+  // The disclaimer that keeps a projection from reading as an achievement.
+  await expect(page.getByText("None of this has happened yet.")).toBeVisible();
+  await expect(
+    page.getByText("This is a sample, not an AI projection."),
+  ).toBeVisible();
+
   // ── 5. Export — same session, complete, and free of credentials ─────────
   const exportResponse = await page.request.get("/api/export");
   expect(exportResponse.ok()).toBeTruthy();
@@ -84,14 +110,26 @@ test("a student's full journey", async ({ page }) => {
   const data = JSON.parse(raw) as {
     account: { email: string };
     testScores: unknown[];
+    resumeItems: { title: string }[];
     targetSchools: { name: string }[];
     evaluations: { isSample: boolean }[];
+    plannedItems: { title: string }[];
+    projections: { isSample: boolean }[];
   };
   expect(data.account.email).toBe(email);
   expect(data.testScores).toHaveLength(1);
   expect(data.targetSchools[0]!.name).toBe("University of Cambridge");
   expect(data.evaluations).toHaveLength(1);
   expect(data.evaluations[0]!.isSample).toBe(true);
+  // Plans and projections are exported, and kept in their own buckets.
+  expect(data.plannedItems.map((p) => p.title)).toEqual([
+    "Start a programming club",
+  ]);
+  expect(data.projections).toHaveLength(1);
+  // THE ISOLATION GUARANTEE: a plan must never appear among achievements.
+  expect(data.resumeItems.map((i) => i.title)).not.toContain(
+    "Start a programming club",
+  );
 
   // ── 6. Delete the account (retype-the-email confirmation) ───────────────
   await page.goto("/settings");

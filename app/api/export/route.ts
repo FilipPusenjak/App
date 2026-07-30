@@ -8,9 +8,15 @@
 // client, so there is no way to request someone else's export.
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { getProfileWithRelations, getOwnedEvaluations } from "@/lib/ownership";
+import {
+  getProfileWithRelations,
+  getOwnedEvaluations,
+  getOwnedPlannedItems,
+  getOwnedProjections,
+} from "@/lib/ownership";
 import { prisma } from "@/lib/db";
 import { parseStoredResult } from "@/lib/validation/evaluation";
+import { parseStoredProjection } from "@/lib/validation/projection";
 
 export async function GET() {
   const sessionUser = await getCurrentUser();
@@ -18,7 +24,7 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
 
-  const [user, profile, evaluations] = await Promise.all([
+  const [user, profile, evaluations, plannedItems, projections] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: sessionUser.id },
       // Explicit select: never let the password hash into an export.
@@ -31,6 +37,8 @@ export async function GET() {
     }),
     getProfileWithRelations(),
     getOwnedEvaluations(),
+    getOwnedPlannedItems(),
+    getOwnedProjections(),
   ]);
 
   const payload = {
@@ -50,6 +58,22 @@ export async function GET() {
     testScores: profile.testScores,
     resumeItems: profile.resumeItems,
     targetSchools: profile.targetSchools,
+    plannedItems,
+    projections: projections.map((p) => ({
+      id: p.id,
+      createdAt: p.createdAt,
+      completedAt: p.completedAt,
+      status: p.status,
+      isSample: p.isSample,
+      model: p.model,
+      promptVersion: p.promptVersion,
+      baseEvaluationId: p.baseEvaluationId,
+      error: p.error,
+      result: parseStoredProjection(p.resultJson),
+      inputSnapshot: p.inputSnapshotJson
+        ? (JSON.parse(p.inputSnapshotJson) as unknown)
+        : null,
+    })),
     evaluations: evaluations.map((e) => ({
       id: e.id,
       createdAt: e.createdAt,

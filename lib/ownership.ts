@@ -119,3 +119,44 @@ export async function findOwnedEvaluation(id: string) {
     where: { id, profile: { userId } },
   });
 }
+
+/** The current user's planned ("things I intend to do") items. */
+export async function getOwnedPlannedItems() {
+  const profile = await getOrCreateProfile();
+  return prisma.plannedItem.findMany({
+    where: { profileId: profile.id },
+    orderBy: [{ targetDate: "asc" }, { createdAt: "asc" }],
+  });
+}
+
+/** A planned item owned by the current user, or null. */
+export async function findOwnedPlannedItem(id: string) {
+  const userId = await requireUserId();
+  return prisma.plannedItem.findFirst({
+    where: { id, profile: { userId } },
+  });
+}
+
+/** Assert ownership of a planned item before mutating/deleting it. */
+export async function requireOwnedPlannedItem(id: string) {
+  const item = await findOwnedPlannedItem(id);
+  if (!item) throw new Error("Planned item not found");
+  return item;
+}
+
+/** The current user's projections, newest first. */
+export async function getOwnedProjections() {
+  const profile = await getOrCreateProfile();
+  return prisma.projection.findMany({
+    where: { profileId: profile.id },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/** A single projection owned by the current user, or null. */
+export async function findOwnedProjection(id: string) {
+  const userId = await requireUserId();
+  return prisma.projection.findFirst({
+    where: { id, profile: { userId } },
+  });
+}
