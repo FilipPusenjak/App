@@ -115,7 +115,7 @@ describe("buildProjectionSnapshot", () => {
 
 describe("the projection prompt", () => {
   it("has a version id, recorded on every projection row", () => {
-    expect(PROMPT_VERSION).toBe("projection/v1");
+    expect(PROMPT_VERSION).toBe("projection/v2");
   });
 
   it("insists planning is not doing — the central guard against false comfort", () => {
@@ -156,11 +156,12 @@ describe("the projection prompt", () => {
     expect(prompt).toContain("[P2]");
   });
 
-  it("passes the measured baseline through and forbids silent re-scoring", () => {
+  it("passes a measured baseline through and forbids re-deriving it", () => {
     const prompt = buildUserPrompt(snapshot());
     expect(prompt).toContain("us-holistic: 48");
     expect(prompt).toContain("uk-course-specific: 33");
-    expect(prompt).toMatch(/Do not silently re-score/i);
+    expect(prompt).toMatch(/MEASURED readiness per admissions system/);
+    expect(prompt).toMatch(/Use these EXACTLY as currentReadiness/);
   });
 
   it("handles having no baseline evaluation yet", () => {

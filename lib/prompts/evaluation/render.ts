@@ -3,7 +3,7 @@
 // The prompt TEXT is what gets versioned (v1.ts, v2.ts). Turning the snapshot
 // and rubrics into text is mechanical, so it lives here and is shared — keeping
 // a formatting fix from having to be made in every version.
-import { renderRubric, rubricsForCountries } from "@/lib/rubrics";
+import { getRubric, renderRubric, rubricsForCountries } from "@/lib/rubrics";
 import type { EvaluationSnapshot } from "@/lib/evaluation/snapshot";
 import type { SnapshotDiff } from "@/lib/evaluation/diff";
 
@@ -166,10 +166,30 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
   return lines.join("\n");
 }
 
-/** Explicit school -> rubric mapping so the model can't blend them. */
+/**
+ * Explicit school -> rubric mapping so the model can't blend them.
+ *
+ * Names the rubric ACTUALLY APPLIED, by id. It used to say
+ * "Trinity College Dublin -> Ireland rubric", which describes a rubric that
+ * does not exist: Ireland has no entry in the registry, so that target is
+ * judged by the generic fallback. The model was then handed a rubric titled
+ * "General (no country-specific rubric)" with no way to connect the two, and
+ * produced a self-contradicting section claiming no generic targets were
+ * listed while scoring one.
+ */
 export function renderRubricMapping(s: EvaluationSnapshot): string {
-  return (
-    s.targets.map((t) => `- ${t.name} -> ${t.countryName} rubric`).join("\n") ||
-    "- (no targets recorded)"
-  );
+  if (s.targets.length === 0) return "- (no targets recorded)";
+
+  return s.targets
+    .map((t) => {
+      const rubric = getRubric(t.country);
+      const generic = rubric.id === "generic";
+      return (
+        `- ${t.name} (${t.countryName}) -> ${rubric.name} [id: ${rubric.id}]` +
+        (generic
+          ? " — no country-specific rubric exists for this country, so it is judged generically. Say so plainly rather than implying a national rubric was applied."
+          : "")
+      );
+    })
+    .join("\n");
 }

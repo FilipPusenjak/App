@@ -28,8 +28,15 @@ export const DEFAULT_EFFORT = "medium";
  */
 export const DEFAULT_PROJECTION_MODEL = "claude-sonnet-5";
 
-/** Effort for projections. Lower than evaluations: less to weigh up. */
-export const DEFAULT_PROJECTION_EFFORT = "low";
+/**
+ * Effort for projections.
+ *
+ * Was "low" for cost. Low effort is the least consistent setting in the app,
+ * and projections are the one output a student runs repeatedly and compares
+ * against itself — so instability there is far more damaging than the saving is
+ * worth. Still cheaper than an evaluation, which uses a bigger model.
+ */
+export const DEFAULT_PROJECTION_EFFORT = "medium";
 
 export const getModel = () => process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 export const getEffort = () => process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT;

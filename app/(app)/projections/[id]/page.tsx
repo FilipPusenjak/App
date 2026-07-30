@@ -38,14 +38,42 @@ const WORTH_LABELS: Record<string, string> = {
   negligible: "not worth it",
 };
 
-/** Current -> projected, shown as the movement it is rather than one number. */
+/**
+ * Current -> projected.
+ *
+ * The arrow is only drawn when the starting number was actually MEASURED by an
+ * evaluation. When it wasn't, both ends would be the model's own estimate, and
+ * an arrow between two guesses claims a movement nobody measured — which is
+ * what made projections look inconsistent. In that case we show the projected
+ * figure alone and say the baseline is missing.
+ */
 function Movement({
   current,
   projected,
+  measured,
 }: {
   current: number;
   projected: number;
+  measured: boolean;
 }) {
+  if (!measured) {
+    return (
+      <div>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span className="text-3xl font-semibold tabular-nums">
+            {Math.round(projected)}
+            <span className="text-base text-zinc-400">/100</span>
+          </span>
+          <span className="text-sm text-zinc-500">projected</span>
+        </div>
+        <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+          No measured starting point for this system — run an evaluation to get
+          a real before-and-after.
+        </p>
+      </div>
+    );
+  }
+
   const delta = Math.round(projected) - Math.round(current);
   const tone =
     delta > 0
@@ -70,6 +98,17 @@ function Movement({
   );
 }
 
+/**
+ * Turn whatever the model put in wouldMoveNeedleFor into something a student
+ * can read. It is asked for school names, but v1 returned rubric ids like
+ * "us-holistic", and those went straight to the screen.
+ */
+function friendlyTargets(values: string[]): string {
+  return values
+    .map((v) => getRubricById(v)?.name ?? v)
+    .join(", ");
+}
+
 export default async function ProjectionPage({
   params,
 }: {
@@ -80,6 +119,23 @@ export default async function ProjectionPage({
   if (!projection) notFound();
 
   const result = parseStoredProjection(projection.resultJson);
+
+  // Which systems had a genuinely measured starting point. Read from the
+  // stored input snapshot so an old projection still renders honestly.
+  const measuredSystems = new Set<string>();
+  try {
+    const snapshot = projection.inputSnapshotJson
+      ? (JSON.parse(projection.inputSnapshotJson) as {
+          baseline?: { systemReadiness?: Record<string, number> };
+        })
+      : null;
+    for (const key of Object.keys(snapshot?.baseline?.systemReadiness ?? {})) {
+      measuredSystems.add(key);
+    }
+  } catch {
+    // Unreadable snapshot: treat every baseline as unmeasured, which is the
+    // conservative direction — we understate certainty rather than overstate it.
+  }
 
   return (
     <div className="space-y-6">
@@ -137,6 +193,14 @@ export default async function ProjectionPage({
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
               {result.summary}
             </p>
+            {result.changeSinceLastProjection && (
+              <p className="mt-3 rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  Since your last projection:{" "}
+                </span>
+                {result.changeSinceLastProjection}
+              </p>
+            )}
           </section>
 
           {result.systemProjections.length > 0 && (
@@ -159,6 +223,7 @@ export default async function ProjectionPage({
                         <Movement
                           current={sys.currentReadiness}
                           projected={sys.projectedReadiness}
+                          measured={measuredSystems.has(sys.rubricId)}
                         />
                       </div>
                       <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
@@ -203,7 +268,7 @@ export default async function ProjectionPage({
                     </p>
                     {plan.wouldMoveNeedleFor.length > 0 && (
                       <p className="mt-2 text-xs text-zinc-400">
-                        Helps: {plan.wouldMoveNeedleFor.join(", ")}
+                        Helps: {friendlyTargets(plan.wouldMoveNeedleFor)}
                       </p>
                     )}
                   </li>

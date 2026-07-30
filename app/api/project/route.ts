@@ -21,6 +21,7 @@ import {
 } from "@/lib/anthropic";
 import { buildProjectionSnapshot } from "@/lib/evaluation/projection-snapshot";
 import { buildSampleProjection } from "@/lib/evaluation/projection-sample";
+import { buildPreviousProjectionContext } from "@/lib/evaluation/projection-previous";
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import {
   SYSTEM_PROMPT,
@@ -113,6 +114,10 @@ export async function POST() {
     },
   );
 
+  // The previous projection is fed back in so re-running on the same plans
+  // can't produce different numbers — the inconsistency this version fixes.
+  const previous = await buildPreviousProjectionContext(profile.id, snapshot);
+
   const client = getAnthropicClient();
   const isSample = client === null;
 
@@ -155,7 +160,7 @@ export async function POST() {
           | "max",
         format: zodOutputFormat(projectionResultSchema),
       },
-      messages: [{ role: "user", content: buildUserPrompt(snapshot) }],
+      messages: [{ role: "user", content: buildUserPrompt(snapshot, previous) }],
     });
 
     const message = await stream.finalMessage();

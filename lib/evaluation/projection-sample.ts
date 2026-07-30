@@ -17,6 +17,8 @@ export function buildSampleProjection(
   return {
     headline:
       "SAMPLE PROJECTION — placeholder output, not an assessment of your plans.",
+    changeSinceLastProjection:
+      "SAMPLE OUTPUT — a real projection compares against your previous one and explains any difference, so re-running on the same plans gives you the same numbers.",
     summary:
       `No Anthropic API key is configured, so the app generated this sample instead of calling the model. ` +
       `It confirms the projection pipeline works: your profile and ${planCount} plan${planCount === 1 ? "" : "s"} were read, ` +

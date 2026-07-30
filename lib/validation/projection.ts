@@ -30,7 +30,15 @@ export type PlanWorth = (typeof PLAN_WORTH_LEVELS)[number];
 const systemProjectionSchema = z.object({
   rubricId: z.string(),
   systemLabel: z.string(),
-  /** Readiness today, echoed from the base evaluation (or judged if none). */
+  /**
+   * Readiness today under this system.
+   *
+   * When the base evaluation recorded a per-system score, this echoes it and
+   * the UI shows a real before -> after. When it did not (evaluations from
+   * before per-system scoring), this is the model's own estimate, and the UI
+   * deliberately does NOT draw an arrow from it — an arrow would imply a
+   * measurement that was never taken.
+   */
   currentReadiness: z.number(),
   /** Readiness IF every plan is completed as described — not a promise. */
   projectedReadiness: z.number(),
@@ -62,6 +70,14 @@ const sequenceStepSchema = z.object({
 export const projectionResultSchema = z.object({
   headline: z.string(),
   summary: z.string(),
+  /**
+   * How this projection differs from the previous one, and why.
+   *
+   * Projections are compared against each other by students tweaking their
+   * plans, so unexplained drift between runs makes the whole feature useless.
+   * When there is no previous projection this says so.
+   */
+  changeSinceLastProjection: z.string(),
   /** One entry per admissions system represented in the targets. */
   systemProjections: z.array(systemProjectionSchema),
   /** One entry per planned item — the model assesses every one. */
@@ -82,6 +98,9 @@ export const storedProjectionResultSchema = projectionResultSchema.extend({
   sequencing: z.array(sequenceStepSchema).optional().default([]),
   cautions: z.array(z.string()).optional().default([]),
   verifyThese: z.array(z.string()).optional().default([]),
+  // Added in projection/v2. Absent on v1 rows, so the UI omits the section
+  // rather than claiming a comparison that was never made.
+  changeSinceLastProjection: z.string().optional(),
 });
 
 export type ProjectionResult = z.infer<typeof projectionResultSchema>;

@@ -114,10 +114,26 @@ describe("renderRubricSection", () => {
 });
 
 describe("renderRubricMapping", () => {
-  it("pins every school to its own rubric so systems cannot blend", () => {
+  it("pins every school to the rubric actually applied, by id", () => {
     const text = renderRubricMapping(makeSnapshot());
-    expect(text).toContain("- MIT -> United States rubric");
-    expect(text).toContain("- Cambridge -> United Kingdom rubric");
+    expect(text).toContain("MIT (United States) -> United States — holistic review [id: us-holistic]");
+    expect(text).toContain(
+      "Cambridge (United Kingdom) -> United Kingdom — course-specific admissions [id: uk-course-specific]",
+    );
+  });
+
+  it("says plainly when a country has no rubric of its own", () => {
+    // The real bug: this used to read "Trinity -> Ireland rubric", naming a
+    // rubric that does not exist, while supplying the generic one. The model
+    // then produced a section contradicting itself about generic targets.
+    const text = renderRubricMapping(
+      makeSnapshot({
+        targets: [{ name: "Trinity College Dublin", country: "IE", course: "Medicine" }],
+      }),
+    );
+    expect(text).toContain("[id: generic]");
+    expect(text).toMatch(/no country-specific rubric exists/i);
+    expect(text).not.toMatch(/Ireland rubric/);
   });
 });
 
@@ -147,6 +163,6 @@ describe("prompt v4 (the active version)", () => {
     expect(prompt).toContain("Riverside High");
     expect(prompt).toContain("id: us-holistic");
     expect(prompt).toContain("id: uk-course-specific");
-    expect(prompt).toContain("- MIT -> United States rubric");
+    expect(prompt).toContain("MIT (United States) ->");
   });
 });
