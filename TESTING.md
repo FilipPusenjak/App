@@ -12,6 +12,19 @@ Three layers, each answering a different question:
 notice, when no test database is configured). Everything also runs
 automatically on every push via GitHub Actions (`.github/workflows/ci.yml`).
 
+## After pulling a branch that changed the database
+
+Nothing to do — `npm run dev` and `npm run build` both apply pending
+migrations before starting. If you ever want to apply them on their own:
+
+```bash
+npm run db:deploy
+```
+
+(Before this was automatic, pulling a migration and running `npm run dev`
+left the database a version behind, and the new pages crashed with Prisma
+error P2021 — "the table does not exist".)
+
 ## Everyday use
 
 ```bash

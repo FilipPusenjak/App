@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:clean": "(lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
-    "dev:fresh": "rm -rf .next && (lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
+    "dev": "prisma migrate deploy && next dev",
+    "dev:clean": "prisma migrate deploy && (lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
+    "dev:fresh": "rm -rf .next && prisma migrate deploy && (lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
     "build": "prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
@@ -19,7 +19,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "set-password": "tsx scripts/set-password.ts"
+    "set-password": "tsx scripts/set-password.ts",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

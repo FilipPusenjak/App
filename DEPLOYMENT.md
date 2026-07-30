@@ -156,6 +156,7 @@ Two things worth knowing:
 | Symptom | Cause |
 |---|---|
 | Locked out after failed logins | Wait 15 minutes, or reset the password with `npm run set-password` (see above), which clears the lock. |
+| A page errors with Prisma P2021 "table does not exist" | The database is behind the code. `npm run db:deploy` applies pending migrations; `npm run dev` and `npm run build` now do it for you. |
 | An evaluation stays "Running…" | It was interrupted (usually a function timeout). It is marked failed automatically after 5 minutes; just run it again. |
 | Build fails on `prisma migrate deploy` | `DATABASE_URL` missing/wrong in Vercel, or the database rejects connections. |
 | "DATABASE_URL is not set" locally | No `.env` file, or it is in the wrong folder. |
