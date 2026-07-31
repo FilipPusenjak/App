@@ -23,10 +23,11 @@ import {
   fromWireResult,
 } from "@/lib/validation/evaluation-wire";
 import {
-  extractJsonObject,
   isGrammarTooLargeError,
+  parseModelJson,
+  renderRetryNote,
   renderSchemaInstructions,
-  responseExcerpt,
+  type ModelAttempt,
 } from "@/lib/structured-output";
 
 // Thinking + a structured result need headroom; stream so long runs don't hit
@@ -46,6 +47,15 @@ const MAX_TOKENS = 32000;
  * the stale-pending sweep rather than being left "pending" forever.
  */
 export const maxDuration = 60;
+
+/**
+ * How far into the budget a retry is still worth starting.
+ *
+ * A second attempt that overruns maxDuration loses the whole run, which is the
+ * outcome the retry exists to prevent. Past this point the honest answer is the
+ * recorded failure, which the student can act on by pressing the button again.
+ */
+const RETRY_DEADLINE_MS = 25_000;
 
 /** The JSON Schema sent to the model — computed once, not per request. */
 const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
@@ -193,69 +203,64 @@ export async function POST() {
   }
 
   // 6b. Real evaluation.
+  const startedAt = Date.now();
   try {
-    const { message, constrained } = await requestEvaluation(
-      client,
-      buildUserPrompt(snapshot, diff),
+    const prompt = buildUserPrompt(snapshot, diff);
+
+    const attempt = async (text: string): Promise<ModelAttempt> => {
+      const { message, constrained } = await requestEvaluation(client, text);
+      // Neither of these is a bad roll of the dice, so neither is retried: a
+      // refusal is a decision, and a response that ran out of tokens will
+      // simply run out again.
+      if (message.stop_reason === "refusal") {
+        throw new Error(
+          "The model declined to produce an evaluation for this profile.",
+        );
+      }
+      if (message.stop_reason === "max_tokens") {
+        throw new Error(
+          `The evaluation ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or reduce the size of your profile.`,
+        );
+      }
+      return {
+        text: message.content
+          .map((block) => (block.type === "text" ? block.text : ""))
+          .join(""),
+        constrained,
+        stopReason: message.stop_reason,
+      };
+    };
+
+    let outcome = parseModelJson(
+      evaluationWireSchema,
+      await attempt(prompt),
+      "model's response",
     );
 
-    // Which path produced the response. Attached to every failure below: when
-    // an evaluation comes back unusable, "was the schema constraint even in
-    // force?" is the first question, and without this there is no way to tell
-    // a grammar-fallback problem from a model problem.
-    const path = constrained ? "constrained" : "prompt-only";
-
-    // The model can decline; check before reading content.
-    if (message.stop_reason === "refusal") {
-      throw new Error(
-        "The model declined to produce an evaluation for this profile.",
+    // One retry, told what was wrong with the last answer. Generation is
+    // stochastic — a single malformed response is usually not repeated — and
+    // losing an entire evaluation to one bad roll is a much worse outcome than
+    // one extra request. Skipped when there is no time left, because
+    // overrunning maxDuration would lose the run entirely, which is the
+    // failure this is supposed to prevent.
+    if (!outcome.ok && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+      console.warn("Evaluation response unusable; retrying once:", outcome.reason);
+      const retried = parseModelJson(
+        evaluationWireSchema,
+        await attempt(`${prompt}\n\n${renderRetryNote(outcome.reason)}`),
+        "model's response",
       );
-    }
-    if (message.stop_reason === "max_tokens") {
-      throw new Error(
-        "The evaluation was cut off before it finished. Try again, or reduce the size of your profile.",
-      );
-    }
-
-    const text = message.content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("");
-
-    if (!text.trim()) {
-      throw new Error(
-        `The model returned an empty response [${path}, stop_reason: ${message.stop_reason}].`,
-      );
+      // Report the FIRST failure if both fail: it describes the original
+      // problem, where the second describes a response to a correction.
+      if (retried.ok) outcome = retried;
+      else outcome = { ok: false, reason: `${outcome.reason} Retried once; still unusable.` };
     }
 
-    // Handle malformed output gracefully: parse, then validate with Zod, and
-    // only store on success. Failures carry an excerpt of what actually came
-    // back — it is the only evidence of why, and it is the student's own data
-    // on the student's own row.
-    const json = extractJsonObject(text);
-    let raw: unknown;
-    try {
-      if (json === null) throw new Error("no JSON object found");
-      raw = JSON.parse(json);
-    } catch {
-      throw new Error(
-        `The model returned output that was not valid JSON [${path}, stop_reason: ${message.stop_reason}]. Response began: ${responseExcerpt(text)}`,
-      );
-    }
-
-    const parsed = evaluationWireSchema.safeParse(raw);
-    if (!parsed.success) {
-      const shown = parsed.error.issues
-        .slice(0, 3)
-        .map((i) => `${i.path.join(".") || "root"}: ${i.message}`)
-        .join("; ");
-      throw new Error(
-        `The model's response did not match the expected schema [${path}] (${shown}).`,
-      );
-    }
+    if (!outcome.ok) throw new Error(outcome.reason);
 
     // Flattened back into the shape the database, the UI and every previous
     // evaluation use. The wire envelope exists only to keep the grammar small.
-    const result: EvaluationResult = fromWireResult(parsed.data);
+    const result: EvaluationResult = fromWireResult(outcome.data);
     await prisma.evaluation.update({
       where: { id: evaluation.id },
       data: {

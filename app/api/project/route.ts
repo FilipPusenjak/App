@@ -33,15 +33,20 @@ import {
   type ProjectionResult,
 } from "@/lib/validation/projection";
 import {
-  extractJsonObject,
   isGrammarTooLargeError,
+  parseModelJson,
+  renderRetryNote,
   renderSchemaInstructions,
+  type ModelAttempt,
 } from "@/lib/structured-output";
 
 const MAX_TOKENS = 16000;
 
 /** Same reasoning as the evaluation route: platform defaults are too short. */
 export const maxDuration = 60;
+
+/** As in the evaluation route: past this, a retry would overrun the budget. */
+const RETRY_DEADLINE_MS = 25_000;
 
 const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
 
@@ -63,7 +68,7 @@ async function requestProjection(
     | "max";
 
   try {
-    return await client.messages
+    const message = await client.messages
       .stream({
         model: getProjectionModel(),
         max_tokens: MAX_TOKENS,
@@ -72,6 +77,7 @@ async function requestProjection(
         messages: [{ role: "user", content: prompt }],
       })
       .finalMessage();
+    return { message, constrained: true };
   } catch (error) {
     if (!isGrammarTooLargeError(error)) throw error;
 
@@ -80,7 +86,7 @@ async function requestProjection(
       error,
     );
 
-    return await client.messages
+    const message = await client.messages
       .stream({
         model: getProjectionModel(),
         max_tokens: MAX_TOKENS,
@@ -94,6 +100,7 @@ async function requestProjection(
         ],
       })
       .finalMessage();
+    return { message, constrained: false };
   }
 }
 
@@ -205,51 +212,54 @@ export async function POST() {
     return NextResponse.json({ id: projection.id, isSample: true });
   }
 
+  const startedAt = Date.now();
   try {
-    const message = await requestProjection(
-      client,
-      buildUserPrompt(snapshot, previous),
+    const prompt = buildUserPrompt(snapshot, previous);
+
+    const attempt = async (text: string): Promise<ModelAttempt> => {
+      const { message, constrained } = await requestProjection(client, text);
+      // Neither a refusal nor a truncated response is a bad roll of the dice,
+      // so neither is retried.
+      if (message.stop_reason === "refusal") {
+        throw new Error(
+          "The model declined to produce a projection for these plans.",
+        );
+      }
+      if (message.stop_reason === "max_tokens") {
+        throw new Error(
+          `The projection ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or shorten your plan list.`,
+        );
+      }
+      return {
+        text: message.content
+          .map((block) => (block.type === "text" ? block.text : ""))
+          .join(""),
+        constrained,
+        stopReason: message.stop_reason,
+      };
+    };
+
+    let outcome = parseModelJson(
+      projectionResultSchema,
+      await attempt(prompt),
+      "projection",
     );
 
-    if (message.stop_reason === "refusal") {
-      throw new Error(
-        "The model declined to produce a projection for these plans.",
+    // One retry, told what was wrong — same reasoning as the evaluation route.
+    if (!outcome.ok && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+      console.warn("Projection response unusable; retrying once:", outcome.reason);
+      const retried = parseModelJson(
+        projectionResultSchema,
+        await attempt(`${prompt}\n\n${renderRetryNote(outcome.reason)}`),
+        "projection",
       );
-    }
-    if (message.stop_reason === "max_tokens") {
-      throw new Error(
-        "The projection was cut off before it finished. Try again, or shorten your plan list.",
-      );
+      if (retried.ok) outcome = retried;
+      else outcome = { ok: false, reason: `${outcome.reason} Retried once; still unusable.` };
     }
 
-    const text = message.content
-      .map((block) => (block.type === "text" ? block.text : ""))
-      .join("");
+    if (!outcome.ok) throw new Error(outcome.reason);
 
-    if (!text.trim()) {
-      throw new Error("The model returned an empty response.");
-    }
-
-    const json = extractJsonObject(text);
-    let raw: unknown;
-    try {
-      if (json === null) throw new Error("no JSON object found");
-      raw = JSON.parse(json);
-    } catch {
-      throw new Error("The model returned output that was not valid JSON.");
-    }
-
-    const parsed = projectionResultSchema.safeParse(raw);
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      throw new Error(
-        `The model's response did not match the expected schema${
-          first ? ` (${first.path.join(".") || "root"}: ${first.message})` : ""
-        }.`,
-      );
-    }
-
-    const result: ProjectionResult = parsed.data;
+    const result: ProjectionResult = outcome.data;
     await prisma.projection.update({
       where: { id: projection.id },
       data: {

@@ -139,6 +139,86 @@ export function extractJsonObject(text: string): string | null {
   return null;
 }
 
+/** What one attempt at a structured response produced. */
+export type ModelAttempt = {
+  /** Concatenated text blocks. */
+  text: string;
+  /** False when the grammar had to be dropped — the first thing to know. */
+  constrained: boolean;
+  stopReason: string | null;
+};
+
+export type ParsedAttempt<T> =
+  | { ok: true; data: T }
+  | { ok: false; reason: string };
+
+/** Just enough of a Zod schema to validate with, without importing zod here. */
+type Validator<T> = {
+  safeParse: (value: unknown) =>
+    | { success: true; data: T }
+    | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } };
+};
+
+/**
+ * Turn one attempt into either a validated result or a reason it was unusable.
+ *
+ * The reason is written to be read by two audiences at once: the student, in
+ * their evaluation history, and whoever has to debug it. So it names the path,
+ * the stop reason, and — when the failure was the JSON itself — what actually
+ * came back.
+ */
+export function parseModelJson<T>(
+  schema: Validator<T>,
+  attempt: ModelAttempt,
+  subject: string,
+): ParsedAttempt<T> {
+  const where = `${attempt.constrained ? "constrained" : "prompt-only"}, stop_reason: ${attempt.stopReason}`;
+
+  if (!attempt.text.trim()) {
+    return { ok: false, reason: `The model returned an empty response [${where}].` };
+  }
+
+  const json = extractJsonObject(attempt.text);
+  let raw: unknown;
+  try {
+    if (json === null) throw new Error("no complete JSON object in the response");
+    raw = JSON.parse(json);
+  } catch {
+    return {
+      ok: false,
+      reason: `The model returned output that was not valid JSON [${where}]. Response began: ${responseExcerpt(attempt.text)}`,
+    };
+  }
+
+  const parsed = schema.safeParse(raw);
+  if (parsed.success) return { ok: true, data: parsed.data };
+
+  const issues = parsed.error.issues
+    .slice(0, 3)
+    .map((i) => `${i.path.join(".") || "root"}: ${i.message}`)
+    .join("; ");
+  return {
+    ok: false,
+    reason: `The ${subject} did not match the expected schema [${where}] (${issues}).`,
+  };
+}
+
+/**
+ * The correction appended to the prompt on a second attempt.
+ *
+ * Generation is stochastic: one malformed response does not mean the next one
+ * will be malformed, and losing a whole evaluation to a single bad roll is a
+ * far worse outcome than one extra request. Telling the model what was wrong
+ * with the last attempt makes the retry meaningfully better than a coin flip.
+ */
+export function renderRetryNote(reason: string): string {
+  return `# Your previous response could not be used
+
+${reason}
+
+Answer again. Return ONE complete JSON object matching the schema and NOTHING else — no preamble, no commentary after it, no markdown code fences. Every required property must be present, and the object must be closed.`;
+}
+
 /**
  * A short, safe excerpt of a response that could not be used.
  *

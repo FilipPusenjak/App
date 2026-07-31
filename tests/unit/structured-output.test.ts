@@ -14,8 +14,11 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
   extractJsonObject,
   isGrammarTooLargeError,
+  parseModelJson,
+  renderRetryNote,
   renderSchemaInstructions,
   responseExcerpt,
+  type ModelAttempt,
 } from "@/lib/structured-output";
 import { evaluationResultSchema } from "@/lib/validation/evaluation";
 import {
@@ -335,6 +338,91 @@ describe("reading JSON back out of a response", () => {
     // A response cut off mid-generation. Better to fail loudly than to hand
     // back a fragment that parses into something half-empty.
     expect(extractJsonObject('{"a":1,"b":')).toBeNull();
+  });
+});
+
+describe("turning one attempt into a result or a reason", () => {
+  const schema = {
+    safeParse(value: unknown) {
+      const ok =
+        typeof value === "object" && value !== null && "a" in value;
+      return ok
+        ? ({ success: true, data: value } as const)
+        : ({
+            success: false,
+            error: { issues: [{ path: ["a"], message: "Required" }] },
+          } as const);
+    },
+  };
+
+  function attempt(over: Partial<ModelAttempt> = {}): ModelAttempt {
+    return { text: '{"a":1}', constrained: true, stopReason: "end_turn", ...over };
+  }
+
+  it("returns the validated value on a good response", () => {
+    const out = parseModelJson(schema, attempt(), "model's response");
+    expect(out.ok).toBe(true);
+  });
+
+  it("names the path and stop reason on every failure", () => {
+    // The whole point: a failure has to say whether the schema constraint was
+    // even in force, or there is nothing to debug from.
+    for (const bad of [
+      attempt({ text: "" }),
+      attempt({ text: "sorry, no" }),
+      attempt({ text: '{"b":1}' }),
+    ]) {
+      const out = parseModelJson(schema, bad, "model's response");
+      expect(out.ok).toBe(false);
+      if (!out.ok) {
+        expect(out.reason).toContain("constrained");
+        expect(out.reason).toContain("stop_reason: end_turn");
+      }
+    }
+  });
+
+  it("says which path when the grammar had to be dropped", () => {
+    const out = parseModelJson(
+      schema,
+      attempt({ text: "not json", constrained: false }),
+      "model's response",
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("prompt-only");
+  });
+
+  it("quotes the response when the JSON itself was the problem", () => {
+    const out = parseModelJson(
+      schema,
+      attempt({ text: "I'd rather explain this in prose." }),
+      "model's response",
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("I'd rather explain this in prose.");
+  });
+
+  it("lists schema issues rather than only the first", () => {
+    const out = parseModelJson(schema, attempt({ text: '{"b":1}' }), "projection");
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.reason).toContain("projection");
+      expect(out.reason).toContain("a: Required");
+    }
+  });
+});
+
+describe("the retry note", () => {
+  it("tells the model exactly what went wrong last time", () => {
+    const note = renderRetryNote("The model returned output that was not valid JSON.");
+    expect(note).toContain("previous response could not be used");
+    expect(note).toContain("not valid JSON");
+  });
+
+  it("restates the constraints the failed attempt broke", () => {
+    const note = renderRetryNote("whatever");
+    expect(note).toMatch(/ONE complete JSON object/);
+    expect(note).toMatch(/no markdown code fences/);
+    expect(note).toMatch(/the object must be closed/);
   });
 });
 
