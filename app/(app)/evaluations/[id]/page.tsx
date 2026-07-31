@@ -140,6 +140,21 @@ const CLASSIFICATION_STYLES: Record<string, string> = {
   safety: "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
 };
 
+/**
+ * How selective the model judged each course to be.
+ *
+ * Shown next to the fit score because the two only mean something together:
+ * 90/100 at an accessible school and 90/100 at an extremely selective one are
+ * completely different facts about a student.
+ */
+const SELECTIVITY_LABELS: Record<string, string> = {
+  open: "open admission",
+  accessible: "accessible",
+  selective: "selective",
+  highly_selective: "highly selective",
+  extremely_selective: "extremely selective",
+};
+
 const SEVERITY_STYLES: Record<string, string> = {
   minor: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
   moderate:
@@ -398,7 +413,7 @@ export default async function EvaluationPage({
 
           <Card
             title="Fit by target school"
-            subtitle="Each school is judged by its own country's admissions rubric — not a single blended score."
+            subtitle="Where you stand at each school specifically — your profile against that course's bar, not the readiness score repeated. A less selective school should score much higher than your headline number, and that's the point of having one on your list."
           >
             <ul className="space-y-3">
               {result.schoolFits.map((fit, i) => {
@@ -435,6 +450,8 @@ export default async function EvaluationPage({
                     <p className="mt-0.5 text-xs text-zinc-400">
                       {fit.country} · rubric:{" "}
                       {rubric ? rubric.name : fit.rubricUsed}
+                      {fit.selectivity &&
+                        ` · ${SELECTIVITY_LABELS[fit.selectivity] ?? fit.selectivity}`}
                     </p>
                     {fit.classificationReason && (
                       <p className="mt-2 text-sm italic text-zinc-500">

@@ -14,8 +14,8 @@ import {
   storedEvaluationResultSchema,
 } from "@/lib/validation/evaluation";
 
-/** A complete result as the CURRENT prompt (v5) produces it. */
-function v5Result() {
+/** A complete result as the CURRENT prompt (v6) produces it. */
+function v6Result() {
   return {
     overallScore: 42,
     gradeRelativeScore: 71,
@@ -66,6 +66,7 @@ function v5Result() {
         country: "United States",
         course: "Computer Science",
         rubricUsed: "us-holistic",
+        selectivity: "extremely_selective",
         fitScore: 30,
         classification: "reach",
         classificationReason: "Admit rates make this a reach for any profile.",
@@ -116,9 +117,20 @@ function v5Result() {
 
 type Json = Record<string, unknown>;
 
+/** What prompt v5 rows look like: no selectivity read on any target. */
+function v5Result(): Json {
+  const v = v6Result() as unknown as Json;
+  v.schoolFits = (v.schoolFits as Json[]).map((fit) => {
+    const copy = { ...fit };
+    delete copy.selectivity;
+    return copy;
+  });
+  return v;
+}
+
 /** What prompt v4 rows look like: no stage reading, no gap timing. */
 function v4Result(): Json {
-  const v = v5Result() as unknown as Json;
+  const v = v5Result();
   delete v.stageOutlook;
   v.gaps = (v.gaps as Json[]).map((g) => {
     const copy = { ...g };
@@ -165,11 +177,12 @@ function v1Result(): Json {
 }
 
 describe("evaluationResultSchema (strict — validates new model output)", () => {
-  it("accepts a complete v5 result", () => {
-    expect(evaluationResultSchema.safeParse(v5Result()).success).toBe(true);
+  it("accepts a complete v6 result", () => {
+    expect(evaluationResultSchema.safeParse(v6Result()).success).toBe(true);
   });
 
   it("rejects output from every older prompt — new runs may not regress", () => {
+    expect(evaluationResultSchema.safeParse(v5Result()).success).toBe(false);
     expect(evaluationResultSchema.safeParse(v4Result()).success).toBe(false);
     expect(evaluationResultSchema.safeParse(v3Result()).success).toBe(false);
     expect(evaluationResultSchema.safeParse(v2Result()).success).toBe(false);
@@ -177,13 +190,13 @@ describe("evaluationResultSchema (strict — validates new model output)", () =>
   });
 
   it("requires the stage reading — judging a student stage-blind is the bug", () => {
-    const bad = v5Result() as unknown as Json;
+    const bad = v6Result() as unknown as Json;
     delete bad.stageOutlook;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
 
   it("requires timing on every gap, so locked doors aren't shown as failings", () => {
-    const bad = v5Result() as unknown as Json;
+    const bad = v6Result() as unknown as Json;
     bad.gaps = (bad.gaps as Json[]).map((g) => {
       const copy = { ...g };
       delete copy.timing;
@@ -193,7 +206,7 @@ describe("evaluationResultSchema (strict — validates new model output)", () =>
   });
 
   it("requires foundational value on items, not just present helpfulness", () => {
-    const bad = v5Result() as unknown as Json;
+    const bad = v6Result() as unknown as Json;
     bad.itemAssessments = (bad.itemAssessments as Json[]).map((i) => {
       const copy = { ...i };
       delete copy.foundationalValue;
@@ -203,25 +216,25 @@ describe("evaluationResultSchema (strict — validates new model output)", () =>
   });
 
   it("requires per-system scores — a single blended number is the bug", () => {
-    const bad = v5Result() as unknown as Json;
+    const bad = v6Result() as unknown as Json;
     delete bad.systemScores;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
 
   it("requires the change explanation", () => {
-    const bad = v5Result() as unknown as Json;
+    const bad = v6Result() as unknown as Json;
     delete bad.changeSinceLast;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rejects an invalid classification value", () => {
-    const bad = v5Result();
+    const bad = v6Result();
     bad.schoolFits[0]!.classification = "sure thing" as never;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
 
   it("rejects an invalid helpfulness value", () => {
-    const bad = v5Result();
+    const bad = v6Result();
     bad.itemAssessments[0]!.helpfulness = "amazing" as never;
     expect(evaluationResultSchema.safeParse(bad).success).toBe(false);
   });
@@ -264,8 +277,18 @@ describe("storedEvaluationResultSchema (lenient — reads saved rows)", () => {
     expect(parsed.itemAssessments[0]!.foundationalValue).toBeUndefined();
   });
 
-  it("parses a v5 row with everything intact", () => {
+  it("still parses a v5 row, with no selectivity invented", () => {
     const parsed = storedEvaluationResultSchema.parse(v5Result());
+    expect(parsed.stageOutlook?.onTrack).toBe("on_track");
+    // Absent, not guessed — the UI omits the tier rather than asserting one
+    // that no evaluation ever made.
+    expect(parsed.schoolFits[0]!.selectivity).toBeUndefined();
+    expect(parsed.schoolFits[0]!.fitScore).toBe(30);
+  });
+
+  it("parses a v6 row with everything intact", () => {
+    const parsed = storedEvaluationResultSchema.parse(v6Result());
+    expect(parsed.schoolFits[0]!.selectivity).toBe("extremely_selective");
     expect(parsed.stageOutlook?.onTrack).toBe("on_track");
     expect(parsed.gaps.map((g) => g.timing)).toEqual(["now", "later"]);
     expect(parsed.itemAssessments[0]!.foundationalValue).toBe("high");
@@ -284,7 +307,7 @@ describe("storedEvaluationResultSchema (lenient — reads saved rows)", () => {
 
 describe("parseStoredResult (what the pages actually call)", () => {
   it("round-trips a stored JSON string", () => {
-    const parsed = parseStoredResult(JSON.stringify(v5Result()));
+    const parsed = parseStoredResult(JSON.stringify(v6Result()));
     expect(parsed?.overallScore).toBe(42);
     expect(parsed?.systemScores).toHaveLength(2);
   });

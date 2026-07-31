@@ -25,10 +25,11 @@ export function buildSampleResult(
       country: t.countryName,
       course: t.course ?? "Not specified",
       rubricUsed: rubric.id,
+      selectivity: "selective" as const,
       fitScore: 50,
       classification: "match" as const,
       classificationReason:
-        "SAMPLE OUTPUT — a real evaluation classifies each target as reach, match, or safety from your actual profile.",
+        "SAMPLE OUTPUT — a real evaluation judges how selective this course is and scores your position against that bar, so an accessible school and a highly selective one get very different numbers.",
       assessment: isUk
         ? `SAMPLE OUTPUT — not a real assessment. A real evaluation would judge this target under the ${rubric.name} rubric, which weighs depth in ${t.course ?? "the specific course"} and predicted grades far above unrelated activities.`
         : `SAMPLE OUTPUT — not a real assessment. A real evaluation would judge this target under the ${rubric.name} rubric, which weighs the whole profile: academic rigor in context, a distinctive strength, and how coherently the pieces fit together.`,

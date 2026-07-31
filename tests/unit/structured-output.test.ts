@@ -126,6 +126,7 @@ describe("the wire envelope round-trips to the stored shape", () => {
         country: "United States",
         course: "Computer Science",
         rubricUsed: "us-holistic",
+        selectivity: "extremely_selective",
         fitScore: 30,
         classification: "reach",
         classificationReason: "Selective for any profile.",

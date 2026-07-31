@@ -130,12 +130,13 @@ export const ukRubric: Rubric = {
     "Subject depth and predicted grades dominate. If those are weak, no amount of other material compensates.",
     "If the student's targets mix US and UK, expect real tension: effort that strengthens a US profile (breadth, unrelated leadership) often does nothing for a UK application. Name that tension explicitly rather than smoothing it over.",
     "Where the student has not named a specific course for a UK target, treat that as a gap — a UK application cannot be assessed without one.",
+    "SELECTIVITY VARIES ENORMOUSLY BY COURSE, MUCH MORE THAN BY UNIVERSITY. Medicine, Veterinary Medicine, Law and Computer Science are heavily oversubscribed almost everywhere; many other courses at the same universities admit most applicants who meet the stated grade requirements. Judge fit against the bar of the specific COURSE. Where that bar is one a qualified applicant clears, subject depth beyond the entry requirements adds little to the admission decision, and the honest answer is that meeting the grades is what matters.",
   ],
 
   cautions: [
     "Do not state specific grade requirements or typical offers (e.g. 'they require A*AA' or 'you need 39 IB points') — these vary by course and year. Tell the student to verify on the university's own course page.",
     "Do not assert which admissions test a course requires. Test requirements change (for example, the BMAT was discontinued after its final sittings, and some courses have since changed test), so requirements must be verified on the official course page for the year of entry.",
-    "Do not state acceptance rates or applicants-per-place figures.",
+    "Do not state acceptance rates or applicants-per-place figures. Saying in words how selective a course is — and it is required of you — is not the same thing and is not covered by this.",
     "Do not assume the interview practices of any university or course.",
   ],
 };

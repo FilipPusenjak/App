@@ -177,7 +177,7 @@ describe("scores are percentiles", () => {
   it("still forbids naming any acceptance rate when explaining a percentile", () => {
     // The whole reason the selectivity framing lives in the UI, not here.
     expect(SYSTEM_PROMPT).toMatch(
-      /Never state, estimate or imply any university's acceptance rate/,
+      /Never state or estimate any university's acceptance rate/,
     );
     expect(SYSTEM_PROMPT).toMatch(/This holds when explaining what a percentile means/);
   });

@@ -86,6 +86,7 @@ export const genericRubric: Rubric = {
     "Do not assume this country's system resembles the US or UK. State clearly that the rubric applied is generic.",
     "The stage model here is deliberately general. Say that stage expectations for this country should be verified rather than assumed.",
     "Restrict the assessment to what is defensible without country-specific knowledge, and push the student to verify the real criteria.",
+    "Still judge how selective the course is, and say so in words. Most institutions in most countries are not highly selective, and defaulting every target to a high bar systematically understates where a qualified student stands. Where you are unsure of the bar, choose the more cautious tier, say you are unsure, and send the student to verify.",
   ],
 
   cautions: [

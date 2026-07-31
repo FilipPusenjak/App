@@ -34,13 +34,43 @@ export const CLASSIFICATIONS_AI = ["reach", "match", "safety"] as const;
 export const aiClassificationSchema = z.enum(CLASSIFICATIONS_AI);
 export type AiClassification = (typeof CLASSIFICATIONS_AI)[number];
 
+/**
+ * How high a bar this course sets — the missing variable that made fit scores
+ * meaningless.
+ *
+ * Without it, "fit" collapsed into "how impressive is this profile in absolute
+ * terms", so a 4.0 student was told they were a 58 for a large public
+ * university that admits the large majority of qualified applicants. Fit is
+ * profile measured against a BAR, and the bar has to be named for the
+ * measurement to mean anything.
+ *
+ * Coarse on purpose. The model is still forbidden from stating or estimating
+ * any acceptance rate — a five-way tier is a judgment it can make reliably,
+ * where a number would be a fabricated statistic.
+ */
+export const SELECTIVITY_TIERS = [
+  "open",
+  "accessible",
+  "selective",
+  "highly_selective",
+  "extremely_selective",
+] as const;
+export const selectivitySchema = z.enum(SELECTIVITY_TIERS);
+export type Selectivity = (typeof SELECTIVITY_TIERS)[number];
+
 const schoolFitSchema = z.object({
   schoolName: z.string(),
   country: z.string(),
   course: z.string(),
   /** Which rubric was applied — surfaced in the UI so the branch is visible. */
   rubricUsed: z.string(),
-  /** 0-100. Fit against THIS school's rubric, not a generic quality score. */
+  /** How high this course's bar sits. fitScore is meaningless without it. */
+  selectivity: selectivitySchema,
+  /**
+   * 0-100. This student's position for admission to THIS course — profile
+   * measured against THIS school's bar, NOT the headline percentile restated.
+   * A modest profile can and should score very high at an accessible school.
+   */
   fitScore: z.number(),
   /**
    * The model's own reach/match/safety call. This used to be the student's
@@ -284,6 +314,9 @@ export const storedEvaluationResultSchema = evaluationResultSchema.extend({
     schoolFitSchema.extend({
       classification: aiClassificationSchema.optional(),
       classificationReason: z.string().optional(),
+      // Added in prompt v6. Rows written before it have no selectivity read, so
+      // the UI omits the tier rather than asserting one that was never judged.
+      selectivity: selectivitySchema.optional(),
     }),
   ),
 });

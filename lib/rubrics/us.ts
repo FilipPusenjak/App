@@ -158,10 +158,11 @@ export const usRubric: Rubric = {
     "Time-intensive activities (a varsity sport, serious music practice) earn credit for that intensity, but the reverse does not follow: a low-hours activity is not thereby weak. Do not rank items by hours.",
     "Impact means consequences. If an item has no evidence of outcome, treat it as unproven and say so.",
     "Essays and recommendations are absent from this data and can shift an outcome substantially. Say so rather than scoring around the gap silently.",
+    "THESE DIMENSIONS DESCRIBE SELECTIVE HOLISTIC REVIEW, WHICH IS NOT HOW EVERY US UNIVERSITY ADMITS. Holistic review in this full form is what schools do when they must turn away large numbers of qualified applicants. Many US universities — including large, well-regarded public ones — admit primarily on academic qualification: meet the grade and course requirements and you are in. When judging fit at such a school, weight academic rigor and GPA almost entirely, and treat the spike, leadership, narrative and breadth dimensions as close to irrelevant. A student with a strong transcript is comfortably admissible there whatever their activity list looks like, and saying otherwise is a straightforward misreading of that school.",
   ],
 
   cautions: [
-    "Do not state or estimate any school's acceptance rate, average GPA, or average test score.",
+    "Do not state or estimate any school's acceptance rate, average GPA, or average test score. Naming how selective a course is IN WORDS is required and is not covered by this — the prohibition is on numbers, which would be invented.",
     "Do not assert a school's current testing policy (test-optional, test-blind, required) — these change year to year. Tell the student to verify it.",
     "Do not claim a student 'will' or 'will not' get in. Holistic outcomes are not predictable from a resume.",
   ],
