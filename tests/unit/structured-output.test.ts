@@ -18,6 +18,7 @@ import {
   parseModelJson,
   renderRetryNote,
   renderSchemaInstructions,
+  repairTruncatedJson,
   responseExcerpt,
   type ModelAttempt,
 } from "@/lib/structured-output";
@@ -488,17 +489,106 @@ describe("the retry note", () => {
 
 describe("keeping the evidence when a response can't be used", () => {
   it("collapses whitespace so the excerpt reads on one line", () => {
-    expect(responseExcerpt("  hello\n\n   world  ")).toBe("hello world");
+    expect(responseExcerpt("  hello\n\n   world  ")).toBe("Response: hello world");
   });
 
-  it("truncates, and says how much was cut", () => {
-    const excerpt = responseExcerpt("x".repeat(5000), 100);
-    expect(excerpt.length).toBeLessThan(200);
-    expect(excerpt).toContain("5000 chars total");
+  it("shows the END as well as the start", () => {
+    // The head alone proved a 26,000-character response STARTED correctly and
+    // left the actual break invisible. Where it stops is what identifies the
+    // fault: mid-word means cut off, cleanly closed means damage in the middle.
+    const excerpt = responseExcerpt(`{"a":"${"x".repeat(5000)}","last":"tail"}`, 50, 40);
+    expect(excerpt).toContain('{"a":"xxx');
+    expect(excerpt).toContain('"last":"tail"}');
+    expect(excerpt).toContain("chars total");
+  });
+
+  it("does not split a response short enough to show whole", () => {
+    expect(responseExcerpt('{"a":1}', 400, 300)).toBe('Response: {"a":1}');
   });
 
   it("says so plainly rather than returning nothing", () => {
     expect(responseExcerpt("")).toBe("(empty)");
     expect(responseExcerpt("   \n ")).toBe("(empty)");
+  });
+});
+
+describe("salvaging a response that stops mid-JSON", () => {
+  it("closes an object cut off after a complete value", () => {
+    const out = repairTruncatedJson('{"a":1,"b":{"c":2}');
+    expect(JSON.parse(out!)).toEqual({ a: 1, b: { c: 2 } });
+  });
+
+  it("drops a string the response stopped in the middle of", () => {
+    const out = repairTruncatedJson('{"a":1,"b":"half a sente');
+    expect(JSON.parse(out!)).toEqual({ a: 1 });
+  });
+
+  it("drops a key whose value never arrived", () => {
+    const out = repairTruncatedJson('{"a":1,"b":');
+    expect(JSON.parse(out!)).toEqual({ a: 1 });
+  });
+
+  it("closes nested arrays and objects in the right order", () => {
+    const out = repairTruncatedJson('{"a":[{"b":[1,2],');
+    expect(JSON.parse(out!)).toEqual({ a: [{ b: [1, 2] }] });
+  });
+
+  it("discards a trailing bare number, which may itself be cut in half", () => {
+    // "25" truncated to "2" is indistinguishable from a complete 2, so the
+    // last unterminated token is dropped rather than believed.
+    expect(JSON.parse(repairTruncatedJson('{"a":[1,2')!)).toEqual({ a: [1] });
+  });
+
+  it("leaves a COMPLETE object alone — that is not its job", () => {
+    expect(repairTruncatedJson('{"a":1}')).toBeNull();
+  });
+
+  it("refuses text that is not a truncated object", () => {
+    expect(repairTruncatedJson("no braces here")).toBeNull();
+    expect(repairTruncatedJson("")).toBeNull();
+    // Mismatched closers are corruption, not truncation.
+    expect(repairTruncatedJson('{"a":[1}')).toBeNull();
+  });
+
+  it("repairs, but never trusts — the result still has to validate", () => {
+    // A cut that lost required fields must still be rejected. The repair only
+    // makes the response parseable; the schema decides if it is usable.
+    const schema = {
+      safeParse(value: unknown) {
+        const ok =
+          typeof value === "object" && value !== null && "required" in value;
+        return ok
+          ? { success: true as const, data: value as { required: unknown } }
+          : {
+              success: false as const,
+              error: { issues: [{ path: ["required"], message: "Required" }] },
+            };
+      },
+    };
+    const out = parseModelJson(
+      schema,
+      {
+        text: '{"a":1,"b":"cut off here',
+        constrained: false,
+        stopReason: "end_turn",
+      },
+      "model's response",
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("required: Required");
+  });
+
+  it("rescues a response whose only fault was the missing bracket", () => {
+    const schema = {
+      safeParse(value: unknown) {
+        return { success: true as const, data: value as { a: unknown } };
+      },
+    };
+    const out = parseModelJson(
+      schema,
+      { text: '{"a":1,"b":{"c":2}', constrained: false, stopReason: "end_turn" },
+      "model's response",
+    );
+    expect(out.ok).toBe(true);
   });
 });

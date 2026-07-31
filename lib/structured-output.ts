@@ -229,15 +229,19 @@ export function parseModelJson<T>(
     return { ok: false, reason: `The model returned an empty response [${where}].` };
   }
 
-  const json = extractJsonObject(attempt.text);
+  const json = extractJsonObject(attempt.text) ?? repairTruncatedJson(attempt.text);
   let raw: unknown;
   try {
-    if (json === null) throw new Error("no complete JSON object in the response");
+    if (json === null) throw new Error("no JSON object found at all");
     raw = JSON.parse(json);
-  } catch {
+  } catch (error) {
+    // JSON.parse says exactly WHERE it gave up ("Unexpected token } in JSON at
+    // position 24911"), which was being thrown away — leaving a 26,000
+    // character response and no idea which character in it was the problem.
+    const detail = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      reason: `The model returned output that was not valid JSON [${where}]. Response began: ${responseExcerpt(attempt.text)}`,
+      reason: `The model returned output that was not valid JSON [${where}]: ${detail}. ${responseExcerpt(attempt.text)}`,
     };
   }
 
@@ -273,16 +277,94 @@ Answer again. Return ONE complete JSON object matching the schema and NOTHING el
 /**
  * A short, safe excerpt of a response that could not be used.
  *
- * When parsing fails, the response itself is the only evidence of why, and
- * discarding it leaves nothing to debug but "it didn't work". This is stored
- * on the student's own failed evaluation row — the same ownership scope as
- * every other field on it — and truncated so a runaway response cannot bloat
- * the table.
+ * Shows the START and the END, because for a long response those answer
+ * different questions and only the pair identifies the fault. A first attempt
+ * at this showed the head alone, which proved the response began correctly and
+ * left the actual break — 26,000 characters later — invisible. An end that
+ * stops mid-word means the response was cut off; an end that closes cleanly
+ * means the damage is somewhere in the middle.
+ *
+ * Stored on the student's own failed row, the same ownership scope as every
+ * other field on it, and bounded so a runaway response cannot bloat the table.
  */
-export function responseExcerpt(text: string, limit = 600): string {
+export function responseExcerpt(text: string, head = 400, tail = 300): string {
   const collapsed = text.replace(/\s+/g, " ").trim();
   if (!collapsed) return "(empty)";
-  return collapsed.length <= limit
-    ? collapsed
-    : `${collapsed.slice(0, limit)}… [${collapsed.length} chars total]`;
+  if (collapsed.length <= head + tail) return `Response: ${collapsed}`;
+  return (
+    `Response began: ${collapsed.slice(0, head)}` +
+    ` … and ended: ${collapsed.slice(-tail)}` +
+    ` [${collapsed.length} chars total]`
+  );
+}
+
+/**
+ * Last resort for a response that stops before its JSON is closed.
+ *
+ * Without a grammar the model writes tens of thousands of characters of JSON
+ * unaided, and a response that ends one bracket short is otherwise thrown away
+ * whole. This closes what is still open — dropping a partial string or a
+ * dangling key first — and hands it back to be parsed and VALIDATED like any
+ * other response. Nothing is trusted because it was repaired: if the cut lost
+ * a required field, validation rejects it exactly as it should.
+ *
+ * Returns null when the text does not look like a truncated object, so this
+ * can never turn a differently-broken response into a plausible-looking one.
+ */
+export function repairTruncatedJson(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  let lastStructural = -1;
+
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      if (inString) escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+
+    if (ch === "{" || ch === "[") {
+      stack.push(ch === "{" ? "}" : "]");
+      lastStructural = i;
+    } else if (ch === "}" || ch === "]") {
+      if (stack.pop() !== ch) return null;
+      lastStructural = i;
+      // A complete object: extractJsonObject would have found this already.
+      if (stack.length === 0) return null;
+    } else if (ch === "," || ch === ":") {
+      lastStructural = i;
+    }
+  }
+
+  if (stack.length === 0) return null;
+
+  // Cut back to the last structural character, which drops an unterminated
+  // string or a half-written key, then drop the separator that was leading
+  // into the value that never arrived.
+  let body = text.slice(start, lastStructural + 1).trimEnd();
+  while (body.endsWith(",") || body.endsWith(":")) {
+    body = body.slice(0, -1).trimEnd();
+    // A dangling key with no value has to go with it.
+    if (body.endsWith('"')) {
+      const keyStart = body.lastIndexOf('"', body.length - 2);
+      if (keyStart === -1) return null;
+      body = body.slice(0, keyStart).trimEnd();
+      if (body.endsWith(",")) body = body.slice(0, -1).trimEnd();
+    }
+  }
+
+  return body + stack.reverse().join("");
 }

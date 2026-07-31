@@ -50,13 +50,26 @@ const MAX_TOKENS = 32000;
 export const maxDuration = 60;
 
 /**
- * How far into the budget a retry is still worth starting.
+ * The wall clock a retry has to fit inside.
  *
- * A second attempt that overruns maxDuration loses the whole run, which is the
- * outcome the retry exists to prevent. Past this point the honest answer is the
- * recorded failure, which the student can act on by pressing the button again.
+ * maxDuration is a SERVERLESS limit. `next dev` has no such ceiling, and a
+ * fixed 25s deadline meant the retry was silently skipped on every real
+ * evaluation, because a real evaluation takes longer than that to fail in the
+ * first place — the recovery existed and never once ran.
+ *
+ * So: in development there is no budget and the retry always happens. In
+ * production it happens only when a second attempt of similar length would
+ * still fit, since overrunning maxDuration loses the run entirely, which is
+ * the outcome the retry exists to prevent.
  */
-const RETRY_DEADLINE_MS = 25_000;
+const RETRY_BUDGET_MS =
+  process.env.NODE_ENV === "production" ? maxDuration * 1000 : Infinity;
+
+/** Would a second attempt, taking about as long as the first, still fit? */
+function retryFits(startedAt: number): boolean {
+  const elapsed = Date.now() - startedAt;
+  return elapsed * 2 < RETRY_BUDGET_MS;
+}
 
 /** The JSON Schema sent to the model — computed once, not per request. */
 const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
@@ -260,10 +273,8 @@ export async function POST() {
     // One retry, told what was wrong with the last answer. Generation is
     // stochastic — a single malformed response is usually not repeated — and
     // losing an entire evaluation to one bad roll is a much worse outcome than
-    // one extra request. Skipped when there is no time left, because
-    // overrunning maxDuration would lose the run entirely, which is the
-    // failure this is supposed to prevent.
-    if (!outcome.ok && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+    // one extra request.
+    if (!outcome.ok && retryFits(startedAt)) {
       console.warn("Evaluation response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
         evaluationWireSchema,

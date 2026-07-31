@@ -46,8 +46,19 @@ const MAX_TOKENS = 16000;
 /** Same reasoning as the evaluation route: platform defaults are too short. */
 export const maxDuration = 60;
 
-/** As in the evaluation route: past this, a retry would overrun the budget. */
-const RETRY_DEADLINE_MS = 25_000;
+/**
+ * As in the evaluation route: maxDuration is a serverless limit, so in
+ * development there is no budget and the retry always runs. A fixed deadline
+ * here meant it never ran at all on a real projection.
+ */
+const RETRY_BUDGET_MS =
+  process.env.NODE_ENV === "production" ? maxDuration * 1000 : Infinity;
+
+/** Would a second attempt, taking about as long as the first, still fit? */
+function retryFits(startedAt: number): boolean {
+  const elapsed = Date.now() - startedAt;
+  return elapsed * 2 < RETRY_BUDGET_MS;
+}
 
 const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
 
@@ -263,7 +274,7 @@ export async function POST() {
     );
 
     // One retry, told what was wrong — same reasoning as the evaluation route.
-    if (!outcome.ok && Date.now() - startedAt < RETRY_DEADLINE_MS) {
+    if (!outcome.ok && retryFits(startedAt)) {
       console.warn("Projection response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
         projectionResultSchema,
