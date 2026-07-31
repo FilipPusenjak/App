@@ -105,7 +105,11 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
     `Your previous evaluation was captured ${diff.previousAt.slice(0, 10)}.`,
   );
   lines.push("");
-  lines.push("Scores you gave last time:");
+  lines.push(
+    p.scaleChanged
+      ? "Scores from that run — FOR CONTEXT ONLY, see the warning below:"
+      : "Scores you gave last time:",
+  );
   lines.push(
     `- overallScore: ${p.overallScore ?? "not recorded"}`,
   );
@@ -139,6 +143,27 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
   lines.push(...bullets);
 
   lines.push("");
+
+  // A redefinition of the scale and the stability rule are direct opposites.
+  // When the scale has changed, the stability rule is not merely unhelpful, it
+  // is wrong: it pins the new number to a measurement of something else.
+  if (p.scaleChanged) {
+    lines.push(
+      "THE SCORING DEFINITIONS HAVE CHANGED SINCE THAT EVALUATION. Those numbers were produced by an older version of these instructions, against a different definition of what each score measures. They are NOT a baseline.",
+    );
+    lines.push(
+      "Do NOT hold your scores near them, and do NOT treat a difference as drift needing justification. Work each score out from the definitions in your instructions as if scoring this profile for the first time. If the correct number under the current definitions is far from the old one, that IS the correct answer — the old number was measuring something else.",
+    );
+    lines.push(
+      "The changes above are still exactly what the student did, so use them. But in changeSinceLast, say plainly that the way these scores are defined has changed, and that a move is a change in the measurement rather than a change in them.",
+    );
+    lines.push("");
+    lines.push(
+      "Use changeSinceLast to tell the student plainly what moved, in which direction, and why — referring to what they actually changed.",
+    );
+    return lines.join("\n");
+  }
+
   if (diff.unchanged) {
     lines.push(
       "THE PROFILE IS UNCHANGED. Your scores must therefore stay essentially the same as last time (within a point or two). Drifting on identical input would tell the student their work changed something when it did not.",

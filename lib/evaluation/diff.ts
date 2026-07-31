@@ -22,6 +22,21 @@ export type PreviousScores = {
   gradeRelativeScore: number | null;
   /** Per-target fit, keyed by school name. */
   fitScores: Record<string, number>;
+  /** Which prompt produced them, e.g. "evaluation/v6". */
+  promptVersion?: string | null;
+  /**
+   * True when the previous scores were produced by a DIFFERENT prompt version
+   * — meaning they are numbers on a scale that no longer exists.
+   *
+   * Consistency anchoring and recalibration are direct opposites, and without
+   * this flag anchoring silently wins: told "the profile is unchanged, so keep
+   * your scores the same" AND "here is a new definition of the score", a model
+   * follows the concrete instruction with a number attached and ignores the
+   * abstract one. A redefinition then has no effect on any existing user,
+   * which is exactly backwards — the students with history are the ones whose
+   * numbers most need correcting.
+   */
+  scaleChanged?: boolean;
 };
 
 export type SnapshotDiff = {

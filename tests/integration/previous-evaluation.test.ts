@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
+import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import {
   cleanupRun,
   createUserWithProfile,
@@ -93,6 +94,7 @@ function createEvaluation(
     snapshotJson?: string | null;
     resultJson?: string | null;
     overallScore?: number | null;
+    promptVersion?: string;
   },
 ) {
   return prisma.evaluation.create({
@@ -103,6 +105,7 @@ function createEvaluation(
       inputSnapshotJson: opts.snapshotJson ?? JSON.stringify(snapshot(["Old item"])),
       resultJson: opts.resultJson ?? storedResult(40, 65, 30),
       overallScore: opts.overallScore ?? 40,
+      promptVersion: opts.promptVersion,
       createdAt: opts.createdAt,
     },
   });
@@ -247,5 +250,47 @@ describe.skipIf(!hasTestDb)("buildDiffAgainstPrevious", () => {
     expect(diff!.previousScores.overallScore).toBe(38);
     expect(diff!.previousScores.gradeRelativeScore).toBeNull();
     expect(diff!.addedItems).toEqual(["New item"]);
+  });
+});
+
+describe.skipIf(!hasTestDb)("releasing the anchor when the scale changes", () => {
+  // The renderer decides what to do with scaleChanged; this checks the wiring
+  // that sets it — that the previous row's promptVersion is actually read back
+  // out of the database and compared against the running one.
+  afterAll(async () => {
+    await cleanupRun(runTag);
+  });
+
+  it("flags a previous evaluation produced by an older prompt", async () => {
+    const { profile } = await createUserWithProfile(runTag, "scale-old");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(10),
+      promptVersion: "evaluation/v6",
+    });
+
+    const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
+    expect(diff).not.toBeNull();
+    expect(diff!.previousScores.promptVersion).toBe("evaluation/v6");
+    expect(diff!.previousScores.scaleChanged).toBe(true);
+  });
+
+  it("does NOT flag one produced by the prompt now running", async () => {
+    const { profile } = await createUserWithProfile(runTag, "scale-current");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(10),
+      promptVersion: PROMPT_VERSION,
+    });
+
+    const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
+    expect(diff!.previousScores.scaleChanged).toBe(false);
+  });
+
+  it("treats a row with no recorded version as a different scale", async () => {
+    // Safer than assuming it matches: an unknown scale is not this one.
+    const { profile } = await createUserWithProfile(runTag, "scale-none");
+    await createEvaluation(profile.id, { createdAt: minutesAgo(10) });
+
+    const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
+    expect(diff!.previousScores.scaleChanged).toBe(true);
   });
 });

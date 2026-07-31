@@ -6,6 +6,7 @@
 // a real evaluation to one would be worse than having no anchor at all.
 import { prisma } from "@/lib/db";
 import { parseStoredResult } from "@/lib/validation/evaluation";
+import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { buildDiff, type SnapshotDiff } from "./diff";
 import type { EvaluationSnapshot } from "./snapshot";
 
@@ -24,7 +25,12 @@ export async function buildDiffAgainstPrevious(
   const previous = await prisma.evaluation.findFirst({
     where: { profileId, status: "completed", isSample: false },
     orderBy: { createdAt: "desc" },
-    select: { inputSnapshotJson: true, resultJson: true, overallScore: true },
+    select: {
+      inputSnapshotJson: true,
+      resultJson: true,
+      overallScore: true,
+      promptVersion: true,
+    },
   });
 
   if (!previous?.inputSnapshotJson) return null;
@@ -58,5 +64,10 @@ export async function buildDiffAgainstPrevious(
     overallScore: previous.overallScore ?? result?.overallScore ?? null,
     gradeRelativeScore: result?.gradeRelativeScore ?? null,
     fitScores,
+    promptVersion: previous.promptVersion,
+    // The previous run used a different prompt, so its numbers were produced
+    // under a different definition of what they mean. Holding the new run
+    // steady against them would carry the old calibration forward forever.
+    scaleChanged: previous.promptVersion !== PROMPT_VERSION,
   });
 }
