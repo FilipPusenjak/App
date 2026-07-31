@@ -28,6 +28,11 @@
 //
 //    What this must NOT become is flattery. "Not yet reachable" and "reachable
 //    and not started" are different, and the second still has to be said.
+//
+// The output is emitted with the headline reading grouped under "overview" —
+// see lib/validation/evaluation-wire for why. Nothing about the assessment
+// changes, and the stored result is the same flat object it has always been,
+// so this is still v5.
 import {
   renderSnapshot,
   renderRubricSection,
@@ -182,6 +187,7 @@ Assess EVERY resume item, using the exact reference given ([R1], [R2], ...) as i
 
 Return JSON matching the provided schema exactly.
 
+- The headline reading — headline, summary, overallScore, gradeRelativeScore, gradeContext, changeSinceLast and narrativeCoherence — is grouped under "overview", and comes last. Write the per-item, per-school and stage analysis first, then summarize it. The numbers should follow from that work, not precede it.
 - All scores 0-100, as percentiles defined above.
 - stageOutlook: the stage read, filled in honestly.
 - gaps: each with timing.

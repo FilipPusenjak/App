@@ -32,11 +32,70 @@ import {
   projectionResultSchema,
   type ProjectionResult,
 } from "@/lib/validation/projection";
+import {
+  extractJsonObject,
+  isGrammarTooLargeError,
+  renderSchemaInstructions,
+} from "@/lib/structured-output";
 
 const MAX_TOKENS = 16000;
 
 /** Same reasoning as the evaluation route: platform defaults are too short. */
 export const maxDuration = 60;
+
+const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
+
+/**
+ * As in the evaluation route: if the API rejects the schema itself because the
+ * compiled grammar is too large, ask again with the schema in the prompt. This
+ * schema is far smaller than the evaluation's and has never tripped the limit,
+ * but the limit is undocumented and the projection schema will keep growing.
+ */
+async function requestProjection(
+  client: NonNullable<ReturnType<typeof getAnthropicClient>>,
+  prompt: string,
+) {
+  const effort = getProjectionEffort() as
+    | "low"
+    | "medium"
+    | "high"
+    | "xhigh"
+    | "max";
+
+  try {
+    return await client.messages
+      .stream({
+        model: getProjectionModel(),
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        output_config: { effort, format: OUTPUT_FORMAT },
+        messages: [{ role: "user", content: prompt }],
+      })
+      .finalMessage();
+  } catch (error) {
+    if (!isGrammarTooLargeError(error)) throw error;
+
+    console.warn(
+      "Structured output rejected the projection schema; retrying with schema instructions in the prompt.",
+      error,
+    );
+
+    return await client.messages
+      .stream({
+        model: getProjectionModel(),
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        output_config: { effort },
+        messages: [
+          {
+            role: "user",
+            content: `${prompt}\n\n${renderSchemaInstructions(OUTPUT_FORMAT.schema)}`,
+          },
+        ],
+      })
+      .finalMessage();
+  }
+}
 
 export async function POST() {
   const user = await getCurrentUser();
@@ -147,23 +206,10 @@ export async function POST() {
   }
 
   try {
-    const stream = client.messages.stream({
-      model: getProjectionModel(),
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      output_config: {
-        effort: getProjectionEffort() as
-          | "low"
-          | "medium"
-          | "high"
-          | "xhigh"
-          | "max",
-        format: zodOutputFormat(projectionResultSchema),
-      },
-      messages: [{ role: "user", content: buildUserPrompt(snapshot, previous) }],
-    });
-
-    const message = await stream.finalMessage();
+    const message = await requestProjection(
+      client,
+      buildUserPrompt(snapshot, previous),
+    );
 
     if (message.stop_reason === "refusal") {
       throw new Error(
@@ -184,9 +230,11 @@ export async function POST() {
       throw new Error("The model returned an empty response.");
     }
 
+    const json = extractJsonObject(text);
     let raw: unknown;
     try {
-      raw = JSON.parse(text);
+      if (json === null) throw new Error("no JSON object found");
+      raw = JSON.parse(json);
     } catch {
       throw new Error("The model returned output that was not valid JSON.");
     }

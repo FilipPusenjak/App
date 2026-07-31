@@ -17,10 +17,16 @@ import { buildSampleResult } from "@/lib/evaluation/sample";
 import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "@/lib/prompts/evaluation";
+import type { EvaluationResult } from "@/lib/validation/evaluation";
 import {
-  evaluationResultSchema,
-  type EvaluationResult,
-} from "@/lib/validation/evaluation";
+  evaluationWireSchema,
+  fromWireResult,
+} from "@/lib/validation/evaluation-wire";
+import {
+  extractJsonObject,
+  isGrammarTooLargeError,
+  renderSchemaInstructions,
+} from "@/lib/structured-output";
 
 // Thinking + a structured result need headroom; stream so long runs don't hit
 // an HTTP timeout.
@@ -39,6 +45,65 @@ const MAX_TOKENS = 32000;
  * the stale-pending sweep rather than being left "pending" forever.
  */
 export const maxDuration = 60;
+
+/** The JSON Schema sent to the model — computed once, not per request. */
+const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
+
+/**
+ * Ask the model for the evaluation, constrained to the schema.
+ *
+ * If the API rejects the schema itself — the compiled grammar exceeding a size
+ * limit that is not published and cannot be measured from here — this asks
+ * again with the schema written into the prompt instead. That retry is free:
+ * the rejection happens before any tokens are generated. The response is
+ * validated with Zod either way, so the fallback gives up a guarantee about
+ * generation, not about what gets stored.
+ */
+async function requestEvaluation(
+  client: NonNullable<ReturnType<typeof getAnthropicClient>>,
+  prompt: string,
+) {
+  const effort = getEffort() as "low" | "medium" | "high" | "xhigh" | "max";
+
+  try {
+    return await client.messages
+      .stream({
+        model: getModel(),
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        output_config: {
+          effort,
+          // Constrains generation to the schema's shape. We still validate the
+          // response ourselves below rather than trusting it.
+          format: OUTPUT_FORMAT,
+        },
+        messages: [{ role: "user", content: prompt }],
+      })
+      .finalMessage();
+  } catch (error) {
+    if (!isGrammarTooLargeError(error)) throw error;
+
+    console.warn(
+      "Structured output rejected the evaluation schema; retrying with schema instructions in the prompt.",
+      error,
+    );
+
+    return await client.messages
+      .stream({
+        model: getModel(),
+        max_tokens: MAX_TOKENS,
+        system: SYSTEM_PROMPT,
+        output_config: { effort },
+        messages: [
+          {
+            role: "user",
+            content: `${prompt}\n\n${renderSchemaInstructions(OUTPUT_FORMAT.schema)}`,
+          },
+        ],
+      })
+      .finalMessage();
+  }
+}
 
 export async function POST() {
   // 1. Authenticated users only.
@@ -126,20 +191,10 @@ export async function POST() {
 
   // 6b. Real evaluation.
   try {
-    const stream = client.messages.stream({
-      model: getModel(),
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      output_config: {
-        effort: getEffort() as "low" | "medium" | "high" | "xhigh" | "max",
-        // Constrains generation to the Zod schema's shape. We still validate
-        // the response ourselves below rather than trusting it.
-        format: zodOutputFormat(evaluationResultSchema),
-      },
-      messages: [{ role: "user", content: buildUserPrompt(snapshot, diff) }],
-    });
-
-    const message = await stream.finalMessage();
+    const message = await requestEvaluation(
+      client,
+      buildUserPrompt(snapshot, diff),
+    );
 
     // The model can decline; check before reading content.
     if (message.stop_reason === "refusal") {
@@ -163,14 +218,16 @@ export async function POST() {
 
     // Handle malformed output gracefully: parse, then validate with Zod, and
     // only store on success.
+    const json = extractJsonObject(text);
     let raw: unknown;
     try {
-      raw = JSON.parse(text);
+      if (json === null) throw new Error("no JSON object found");
+      raw = JSON.parse(json);
     } catch {
       throw new Error("The model returned output that was not valid JSON.");
     }
 
-    const parsed = evaluationResultSchema.safeParse(raw);
+    const parsed = evaluationWireSchema.safeParse(raw);
     if (!parsed.success) {
       const first = parsed.error.issues[0];
       throw new Error(
@@ -180,7 +237,9 @@ export async function POST() {
       );
     }
 
-    const result: EvaluationResult = parsed.data;
+    // Flattened back into the shape the database, the UI and every previous
+    // evaluation use. The wire envelope exists only to keep the grammar small.
+    const result: EvaluationResult = fromWireResult(parsed.data);
     await prisma.evaluation.update({
       where: { id: evaluation.id },
       data: {
