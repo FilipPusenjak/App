@@ -91,17 +91,67 @@ Where a property's description reads {enum: [...]}, its value must be exactly on
  * unchanged. On the fallback path a model occasionally wraps it in a code
  * fence or adds a line of preamble despite being told not to, and throwing
  * that response away would be a worse outcome than trimming it.
+ *
+ * The fence is only stripped when the response OPENS with one. An earlier
+ * version matched a fence anywhere, which would have quietly sliced a valid
+ * response in half if any string value inside it happened to contain a triple
+ * backtick — advice about code very plausibly does.
  */
 export function extractJsonObject(text: string): string | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
+  let body = text.trim();
+  if (!body) return null;
 
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (fenced ? fenced[1] : trimmed).trim();
+  if (body.startsWith("```")) {
+    const opened = body.replace(/^```[a-z]*\s*/i, "");
+    const closed = opened.lastIndexOf("```");
+    body = (closed === -1 ? opened : opened.slice(0, closed)).trim();
+  }
 
   const start = body.indexOf("{");
-  const end = body.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) return null;
+  if (start === -1) return null;
 
-  return body.slice(start, end + 1);
+  // Scan for the brace that closes the FIRST object, respecting strings and
+  // escapes, so trailing commentary is dropped rather than swallowed. Falling
+  // back to the last brace would turn "{...} Hope this helps! }" into a parse
+  // error instead of a result.
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < body.length; i++) {
+    const ch = body[i]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      if (inString) escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}" && --depth === 0) return body.slice(start, i + 1);
+  }
+
+  return null;
+}
+
+/**
+ * A short, safe excerpt of a response that could not be used.
+ *
+ * When parsing fails, the response itself is the only evidence of why, and
+ * discarding it leaves nothing to debug but "it didn't work". This is stored
+ * on the student's own failed evaluation row — the same ownership scope as
+ * every other field on it — and truncated so a runaway response cannot bloat
+ * the table.
+ */
+export function responseExcerpt(text: string, limit = 600): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  if (!collapsed) return "(empty)";
+  return collapsed.length <= limit
+    ? collapsed
+    : `${collapsed.slice(0, limit)}… [${collapsed.length} chars total]`;
 }

@@ -26,6 +26,7 @@ import {
   extractJsonObject,
   isGrammarTooLargeError,
   renderSchemaInstructions,
+  responseExcerpt,
 } from "@/lib/structured-output";
 
 // Thinking + a structured result need headroom; stream so long runs don't hit
@@ -66,7 +67,7 @@ async function requestEvaluation(
   const effort = getEffort() as "low" | "medium" | "high" | "xhigh" | "max";
 
   try {
-    return await client.messages
+    const message = await client.messages
       .stream({
         model: getModel(),
         max_tokens: MAX_TOKENS,
@@ -80,6 +81,7 @@ async function requestEvaluation(
         messages: [{ role: "user", content: prompt }],
       })
       .finalMessage();
+    return { message, constrained: true };
   } catch (error) {
     if (!isGrammarTooLargeError(error)) throw error;
 
@@ -88,7 +90,7 @@ async function requestEvaluation(
       error,
     );
 
-    return await client.messages
+    const message = await client.messages
       .stream({
         model: getModel(),
         max_tokens: MAX_TOKENS,
@@ -102,6 +104,7 @@ async function requestEvaluation(
         ],
       })
       .finalMessage();
+    return { message, constrained: false };
   }
 }
 
@@ -191,10 +194,16 @@ export async function POST() {
 
   // 6b. Real evaluation.
   try {
-    const message = await requestEvaluation(
+    const { message, constrained } = await requestEvaluation(
       client,
       buildUserPrompt(snapshot, diff),
     );
+
+    // Which path produced the response. Attached to every failure below: when
+    // an evaluation comes back unusable, "was the schema constraint even in
+    // force?" is the first question, and without this there is no way to tell
+    // a grammar-fallback problem from a model problem.
+    const path = constrained ? "constrained" : "prompt-only";
 
     // The model can decline; check before reading content.
     if (message.stop_reason === "refusal") {
@@ -213,27 +222,34 @@ export async function POST() {
       .join("");
 
     if (!text.trim()) {
-      throw new Error("The model returned an empty response.");
+      throw new Error(
+        `The model returned an empty response [${path}, stop_reason: ${message.stop_reason}].`,
+      );
     }
 
     // Handle malformed output gracefully: parse, then validate with Zod, and
-    // only store on success.
+    // only store on success. Failures carry an excerpt of what actually came
+    // back — it is the only evidence of why, and it is the student's own data
+    // on the student's own row.
     const json = extractJsonObject(text);
     let raw: unknown;
     try {
       if (json === null) throw new Error("no JSON object found");
       raw = JSON.parse(json);
     } catch {
-      throw new Error("The model returned output that was not valid JSON.");
+      throw new Error(
+        `The model returned output that was not valid JSON [${path}, stop_reason: ${message.stop_reason}]. Response began: ${responseExcerpt(text)}`,
+      );
     }
 
     const parsed = evaluationWireSchema.safeParse(raw);
     if (!parsed.success) {
-      const first = parsed.error.issues[0];
+      const shown = parsed.error.issues
+        .slice(0, 3)
+        .map((i) => `${i.path.join(".") || "root"}: ${i.message}`)
+        .join("; ");
       throw new Error(
-        `The model's response did not match the expected schema${
-          first ? ` (${first.path.join(".") || "root"}: ${first.message})` : ""
-        }.`,
+        `The model's response did not match the expected schema [${path}] (${shown}).`,
       );
     }
 

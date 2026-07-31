@@ -448,7 +448,9 @@ export default async function EvaluationPage({
                       </span>
                     </div>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      {fit.country} · rubric:{" "}
+                      {/* Older rows carry a country name; newer ones don't ask
+                          the model for one, since the rubric label says it. */}
+                      {fit.country ? `${fit.country} · ` : ""}rubric:{" "}
                       {rubric ? rubric.name : fit.rubricUsed}
                       {fit.selectivity &&
                         ` · ${SELECTIVITY_LABELS[fit.selectivity] ?? fit.selectivity}`}

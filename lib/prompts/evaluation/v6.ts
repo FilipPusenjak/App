@@ -257,7 +257,7 @@ Assess EVERY resume item, using the exact reference given ([R1], [R2], ...) as i
 
 Return JSON matching the provided schema exactly.
 
-- The headline reading — headline, summary, overallScore, gradeRelativeScore, gradeContext, changeSinceLast and narrativeCoherence — is grouped under "overview", and comes last. Write the per-item, per-school and stage analysis first, then summarize it. The numbers should follow from that work, not precede it.
+- Two groups exist purely to keep the output structure small; they change nothing about what you are being asked for. "analysis" holds strengths, weaknesses, actions, gaps and verifyThese. "overview" holds headline, summary, overallScore, gradeRelativeScore, gradeContext, changeSinceLast and narrativeCoherence, and comes last — write the per-item, per-school and stage work first, then summarize it, so the numbers follow from the analysis rather than preceding it.
 - All scores 0-100. overallScore and gradeRelativeScore are percentiles; fitScore is position against one school's bar, in the bands defined above.
 - schoolFits: each with a selectivity tier, a fitScore consistent with it, and a classification consistent with both.
 - stageOutlook: the stage read, filled in honestly.

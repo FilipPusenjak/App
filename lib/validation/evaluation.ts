@@ -60,7 +60,6 @@ export type Selectivity = (typeof SELECTIVITY_TIERS)[number];
 
 const schoolFitSchema = z.object({
   schoolName: z.string(),
-  country: z.string(),
   course: z.string(),
   /** Which rubric was applied — surfaced in the UI so the branch is visible. */
   rubricUsed: z.string(),
@@ -317,6 +316,10 @@ export const storedEvaluationResultSchema = evaluationResultSchema.extend({
       // Added in prompt v6. Rows written before it have no selectivity read, so
       // the UI omits the tier rather than asserting one that was never judged.
       selectivity: selectivitySchema.optional(),
+      // Asked of the model up to v6, then dropped: it is a display name the app
+      // already has on the target, and every property costs grammar. Older rows
+      // still carry it, and the UI shows it when present.
+      country: z.string().optional(),
     }),
   ),
 });

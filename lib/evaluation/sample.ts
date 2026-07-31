@@ -22,7 +22,6 @@ export function buildSampleResult(
     const isUk = rubric.id === "uk-course-specific";
     return {
       schoolName: t.name,
-      country: t.countryName,
       course: t.course ?? "Not specified",
       rubricUsed: rubric.id,
       selectivity: "selective" as const,

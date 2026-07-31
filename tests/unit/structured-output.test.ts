@@ -15,6 +15,7 @@ import {
   extractJsonObject,
   isGrammarTooLargeError,
   renderSchemaInstructions,
+  responseExcerpt,
 } from "@/lib/structured-output";
 import { evaluationResultSchema } from "@/lib/validation/evaluation";
 import {
@@ -70,7 +71,7 @@ describe("the schema actually sent to the model is small enough to compile", () 
 
     // 16 top-level properties is what tripped the limit.
     expect(flat.length).toBe(16);
-    expect(wire.length).toBeLessThanOrEqual(10);
+    expect(wire.length).toBeLessThanOrEqual(6);
   });
 
   it("cuts the estimated grammar by more than an order of magnitude", () => {
@@ -82,6 +83,14 @@ describe("the schema actually sent to the model is small enough to compile", () 
     expect(after).toBeLessThan(10_000);
   });
 
+  it("keeps real headroom under the largest size known to have worked", () => {
+    // ~2,100 is the size of the schema that produced a real evaluation before
+    // v6 added a field. Being merely smaller than the size that FAILED is not
+    // a margin; this pins it to comfortably under what actually succeeded, so
+    // the next field added does not silently re-cross the limit.
+    expect(grammarCost(schemaOf(evaluationWireSchema))).toBeLessThan(1_600);
+  });
+
   it("guards the projection schema against the same growth", () => {
     expect(grammarCost(schemaOf(projectionResultSchema))).toBeLessThan(10_000);
   });
@@ -89,9 +98,12 @@ describe("the schema actually sent to the model is small enough to compile", () 
   it("nests rather than drops — no field was lost to make it fit", () => {
     const flat = Object.keys(schemaOf(evaluationResultSchema).properties!);
     const wireSchema = schemaOf(evaluationWireSchema);
+    const GROUPS = ["overview", "analysis"];
     const wire = [
-      ...Object.keys(wireSchema.properties!).filter((k) => k !== "overview"),
-      ...Object.keys(wireSchema.properties!.overview!.properties!),
+      ...Object.keys(wireSchema.properties!).filter((k) => !GROUPS.includes(k)),
+      ...GROUPS.flatMap((g) =>
+        Object.keys(wireSchema.properties![g]!.properties!),
+      ),
     ];
     expect(wire.sort()).toEqual(flat.sort());
   });
@@ -116,14 +128,9 @@ describe("the wire envelope round-trips to the stored shape", () => {
         assessment: "Breadth counts here.",
       },
     ],
-    strengths: [{ title: "Sport", detail: "Six years.", relevantTo: ["all"] }],
-    weaknesses: [
-      { title: "No field evidence", detail: "Nothing yet.", severity: "significant" },
-    ],
     schoolFits: [
       {
         schoolName: "MIT",
-        country: "United States",
         course: "Computer Science",
         rubricUsed: "us-holistic",
         selectivity: "extremely_selective",
@@ -146,20 +153,26 @@ describe("the wire envelope round-trips to the stored shape", () => {
         bestFor: ["MIT"],
       },
     ],
-    actions: [
-      {
-        title: "Enter a CS competition",
-        detail: "Biggest gap.",
-        effort: "medium",
-        impact: "high",
-        timeframe: "this term",
-        appliesTo: ["all"],
-      },
-    ],
-    gaps: [
-      { title: "No field evidence", detail: "None.", timing: "now", appliesTo: ["all"] },
-    ],
-    verifyThese: ["Check the course pages."],
+    analysis: {
+      strengths: [{ title: "Sport", detail: "Six years.", relevantTo: ["all"] }],
+      weaknesses: [
+        { title: "No field evidence", detail: "Nothing yet.", severity: "significant" },
+      ],
+      actions: [
+        {
+          title: "Enter a CS competition",
+          detail: "Biggest gap.",
+          effort: "medium",
+          impact: "high",
+          timeframe: "this term",
+          appliesTo: ["all"],
+        },
+      ],
+      gaps: [
+        { title: "No field evidence", detail: "None.", timing: "now", appliesTo: ["all"] },
+      ],
+      verifyThese: ["Check the course pages."],
+    },
     overview: {
       headline: "Solid foundation.",
       summary: "A short honest paragraph.",
@@ -298,5 +311,46 @@ describe("reading JSON back out of a response", () => {
     expect(extractJsonObject("   ")).toBeNull();
     expect(extractJsonObject("I cannot help with that.")).toBeNull();
     expect(extractJsonObject("}{")).toBeNull();
+  });
+
+  it("does NOT cut a valid response in half over backticks inside a string", () => {
+    // The first version matched a code fence anywhere in the response. A
+    // student asking about Computer Science gets advice containing code, and
+    // this would have sliced the result apart and reported "not valid JSON".
+    const json = '{"howToStrengthen":"Publish it: ```py\\nprint(1)\\n``` in a repo."}';
+    expect(JSON.parse(extractJsonObject(json)!)).toEqual(JSON.parse(json));
+  });
+
+  it("stops at the end of the first object, not the last brace anywhere", () => {
+    const text = '{"a":1}\n\nHope this helps! {not json}';
+    expect(extractJsonObject(text)).toBe('{"a":1}');
+  });
+
+  it("is not confused by braces or escaped quotes inside strings", () => {
+    const json = '{"a":"} \\" { not structure","b":{"c":1}}';
+    expect(JSON.parse(extractJsonObject(json)!)).toEqual(JSON.parse(json));
+  });
+
+  it("returns null for an object that is never closed", () => {
+    // A response cut off mid-generation. Better to fail loudly than to hand
+    // back a fragment that parses into something half-empty.
+    expect(extractJsonObject('{"a":1,"b":')).toBeNull();
+  });
+});
+
+describe("keeping the evidence when a response can't be used", () => {
+  it("collapses whitespace so the excerpt reads on one line", () => {
+    expect(responseExcerpt("  hello\n\n   world  ")).toBe("hello world");
+  });
+
+  it("truncates, and says how much was cut", () => {
+    const excerpt = responseExcerpt("x".repeat(5000), 100);
+    expect(excerpt.length).toBeLessThan(200);
+    expect(excerpt).toContain("5000 chars total");
+  });
+
+  it("says so plainly rather than returning nothing", () => {
+    expect(responseExcerpt("")).toBe("(empty)");
+    expect(responseExcerpt("   \n ")).toBe("(empty)");
   });
 });

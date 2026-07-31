@@ -51,14 +51,40 @@ const OVERVIEW_KEYS = {
 export const evaluationOverviewSchema =
   evaluationResultSchema.pick(OVERVIEW_KEYS);
 
+/**
+ * The prose analysis: everything that is a list of findings rather than a
+ * score or a per-target judgment.
+ *
+ * Grouped for the same reason as overview. Adding one field to schoolFits in
+ * v6 took the estimated grammar from ~2,100 — a size that demonstrably
+ * compiled — to ~2,600, which is exactly the kind of creep that caused the
+ * outage in the first place. Pulling these five out drops the top level to six
+ * siblings and leaves the whole schema at roughly half of what was known to
+ * work, so there is real headroom rather than a number that merely looks
+ * smaller than the last failure.
+ */
+const ANALYSIS_KEYS = {
+  strengths: true,
+  weaknesses: true,
+  actions: true,
+  gaps: true,
+  verifyThese: true,
+} as const;
+
+export const evaluationAnalysisSchema =
+  evaluationResultSchema.pick(ANALYSIS_KEYS);
+
 export const evaluationWireSchema = evaluationResultSchema
-  .omit(OVERVIEW_KEYS)
-  .extend({ overview: evaluationOverviewSchema });
+  .omit({ ...OVERVIEW_KEYS, ...ANALYSIS_KEYS })
+  .extend({
+    analysis: evaluationAnalysisSchema,
+    overview: evaluationOverviewSchema,
+  });
 
 export type EvaluationWireResult = z.infer<typeof evaluationWireSchema>;
 
 /** Flatten the wire envelope back into the shape everything else expects. */
 export function fromWireResult(wire: EvaluationWireResult): EvaluationResult {
-  const { overview, ...rest } = wire;
-  return { ...rest, ...overview };
+  const { overview, analysis, ...rest } = wire;
+  return { ...rest, ...analysis, ...overview };
 }
