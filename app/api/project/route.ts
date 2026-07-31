@@ -34,6 +34,7 @@ import {
 } from "@/lib/validation/projection";
 import {
   isGrammarTooLargeError,
+  isStructuredOutputParseError,
   parseModelJson,
   renderRetryNote,
   renderSchemaInstructions,
@@ -79,6 +80,11 @@ async function requestProjection(
       .finalMessage();
     return { message, constrained: true };
   } catch (error) {
+    // As in the evaluation route: the SDK parses inside finalMessage(), so a
+    // malformed response throws from there. Return it as a failed attempt.
+    if (isStructuredOutputParseError(error)) {
+      return { parseError: (error as Error).message, constrained: true };
+    }
     if (!isGrammarTooLargeError(error)) throw error;
 
     console.warn(
@@ -217,7 +223,16 @@ export async function POST() {
     const prompt = buildUserPrompt(snapshot, previous);
 
     const attempt = async (text: string): Promise<ModelAttempt> => {
-      const { message, constrained } = await requestProjection(client, text);
+      const outcome = await requestProjection(client, text);
+      if ("parseError" in outcome) {
+        return {
+          text: "",
+          constrained: outcome.constrained,
+          stopReason: null,
+          parseError: outcome.parseError,
+        };
+      }
+      const { message, constrained } = outcome;
       // Neither a refusal nor a truncated response is a bad roll of the dice,
       // so neither is retried.
       if (message.stop_reason === "refusal") {
@@ -236,6 +251,8 @@ export async function POST() {
           .join(""),
         constrained,
         stopReason: message.stop_reason,
+        // Already parsed and validated by the SDK on the constrained path.
+        parsed: message.parsed_output ?? undefined,
       };
     };
 

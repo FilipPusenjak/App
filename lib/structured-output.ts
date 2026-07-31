@@ -146,7 +146,36 @@ export type ModelAttempt = {
   /** False when the grammar had to be dropped — the first thing to know. */
   constrained: boolean;
   stopReason: string | null;
+  /**
+   * The SDK's own parsed and validated output, when structured outputs
+   * produced one.
+   *
+   * zodOutputFormat() attaches a parse method to the format, and the SDK runs
+   * it over every text block inside finalMessage(). So on the constrained path
+   * the response has already been JSON-parsed and schema-checked with the very
+   * same schema before this code sees it. Re-deriving it from the raw text is
+   * a second, redundant parser that can only disagree with the first.
+   */
+  parsed?: unknown;
+  /**
+   * Set when the SDK's parser REJECTED the response.
+   *
+   * That rejection throws out of finalMessage(), which used to escape as a raw
+   * "Failed to parse structured output" with no path, no stop reason and no
+   * retry — it bypassed every recovery this module provides. Carrying it as an
+   * attempt instead puts it back on the normal path.
+   */
+  parseError?: string;
 };
+
+/** Did the SDK's structured-output parser reject the response? */
+export function isStructuredOutputParseError(error: unknown): boolean {
+  const message = (error as { message?: unknown } | null)?.message;
+  return (
+    typeof message === "string" &&
+    message.toLowerCase().includes("failed to parse structured output")
+  );
+}
 
 export type ParsedAttempt<T> =
   | { ok: true; data: T }
@@ -173,6 +202,28 @@ export function parseModelJson<T>(
   subject: string,
 ): ParsedAttempt<T> {
   const where = `${attempt.constrained ? "constrained" : "prompt-only"}, stop_reason: ${attempt.stopReason}`;
+
+  // The SDK already rejected it, and against this same schema. Repeating the
+  // work here would only produce a vaguer version of the same complaint.
+  if (attempt.parseError) {
+    return { ok: false, reason: `The ${subject} was rejected [${where}]: ${attempt.parseError}` };
+  }
+
+  // Already parsed and validated by the SDK on the way in. Re-check it against
+  // the schema anyway — cheap, and this module never stores anything it has
+  // not validated itself — but never re-derive it from the text.
+  if (attempt.parsed !== undefined) {
+    const parsed = schema.safeParse(attempt.parsed);
+    if (parsed.success) return { ok: true, data: parsed.data };
+    const issues = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => `${i.path.join(".") || "root"}: ${i.message}`)
+      .join("; ");
+    return {
+      ok: false,
+      reason: `The ${subject} did not match the expected schema [${where}] (${issues}).`,
+    };
+  }
 
   if (!attempt.text.trim()) {
     return { ok: false, reason: `The model returned an empty response [${where}].` };

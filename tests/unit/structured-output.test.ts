@@ -14,6 +14,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import {
   extractJsonObject,
   isGrammarTooLargeError,
+  isStructuredOutputParseError,
   parseModelJson,
   renderRetryNote,
   renderSchemaInstructions,
@@ -342,16 +343,20 @@ describe("reading JSON back out of a response", () => {
 });
 
 describe("turning one attempt into a result or a reason", () => {
+  /** Stands in for a Zod schema: an object is valid if it has an "a". */
   const schema = {
-    safeParse(value: unknown) {
-      const ok =
-        typeof value === "object" && value !== null && "a" in value;
-      return ok
-        ? ({ success: true, data: value } as const)
-        : ({
-            success: false,
-            error: { issues: [{ path: ["a"], message: "Required" }] },
-          } as const);
+    safeParse(
+      value: unknown,
+    ):
+      | { success: true; data: { a: unknown } }
+      | { success: false; error: { issues: { path: PropertyKey[]; message: string }[] } } {
+      if (typeof value === "object" && value !== null && "a" in value) {
+        return { success: true, data: value as { a: unknown } };
+      }
+      return {
+        success: false,
+        error: { issues: [{ path: ["a"], message: "Required" }] },
+      };
     },
   };
 
@@ -362,6 +367,61 @@ describe("turning one attempt into a result or a reason", () => {
   it("returns the validated value on a good response", () => {
     const out = parseModelJson(schema, attempt(), "model's response");
     expect(out.ok).toBe(true);
+  });
+
+  it("uses the SDK's own parse rather than re-deriving it from the text", () => {
+    // zodOutputFormat attaches a parse method that the SDK runs inside
+    // finalMessage(), so on the constrained path the response has already been
+    // JSON-parsed and schema-checked. A second parser here could only disagree
+    // with the first — as this text, which is not JSON at all, proves.
+    const out = parseModelJson(
+      schema,
+      attempt({ text: "not json in the slightest", parsed: { a: 1 } }),
+      "model's response",
+    );
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.data).toEqual({ a: 1 });
+  });
+
+  it("still validates what the SDK handed over", () => {
+    // Cheap, and nothing gets stored that this module has not checked itself.
+    const out = parseModelJson(
+      schema,
+      attempt({ parsed: { wrong: true } }),
+      "model's response",
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.reason).toContain("a: Required");
+  });
+
+  it("carries an SDK rejection into the normal failure path", () => {
+    // This used to escape finalMessage() as a raw error with no path, no stop
+    // reason and no retry — it bypassed every recovery in this module.
+    const out = parseModelJson(
+      schema,
+      {
+        text: "",
+        constrained: true,
+        stopReason: null,
+        parseError: "Failed to parse structured output: expected object",
+      },
+      "model's response",
+    );
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.reason).toContain("constrained");
+      expect(out.reason).toContain("expected object");
+    }
+  });
+
+  it("recognizes the SDK's rejection, and nothing else", () => {
+    expect(
+      isStructuredOutputParseError(
+        new Error("Failed to parse structured output as JSON: Unexpected end"),
+      ),
+    ).toBe(true);
+    expect(isStructuredOutputParseError(new Error("overloaded_error"))).toBe(false);
+    expect(isStructuredOutputParseError(null)).toBe(false);
   });
 
   it("names the path and stop reason on every failure", () => {

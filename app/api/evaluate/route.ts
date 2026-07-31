@@ -24,6 +24,7 @@ import {
 } from "@/lib/validation/evaluation-wire";
 import {
   isGrammarTooLargeError,
+  isStructuredOutputParseError,
   parseModelJson,
   renderRetryNote,
   renderSchemaInstructions,
@@ -93,6 +94,12 @@ async function requestEvaluation(
       .finalMessage();
     return { message, constrained: true };
   } catch (error) {
+    // The SDK parses and schema-checks the response inside finalMessage(), so
+    // a malformed one throws from there rather than reaching the caller as
+    // content. Hand it back as a failed attempt so the retry can act on it.
+    if (isStructuredOutputParseError(error)) {
+      return { parseError: (error as Error).message, constrained: true };
+    }
     if (!isGrammarTooLargeError(error)) throw error;
 
     console.warn(
@@ -208,7 +215,16 @@ export async function POST() {
     const prompt = buildUserPrompt(snapshot, diff);
 
     const attempt = async (text: string): Promise<ModelAttempt> => {
-      const { message, constrained } = await requestEvaluation(client, text);
+      const outcome = await requestEvaluation(client, text);
+      if ("parseError" in outcome) {
+        return {
+          text: "",
+          constrained: outcome.constrained,
+          stopReason: null,
+          parseError: outcome.parseError,
+        };
+      }
+      const { message, constrained } = outcome;
       // Neither of these is a bad roll of the dice, so neither is retried: a
       // refusal is a decision, and a response that ran out of tokens will
       // simply run out again.
@@ -228,6 +244,10 @@ export async function POST() {
           .join(""),
         constrained,
         stopReason: message.stop_reason,
+        // Present on the constrained path, where the SDK has already parsed
+        // and validated it; undefined on the prompt-only path, which falls
+        // back to reading the text.
+        parsed: message.parsed_output ?? undefined,
       };
     };
 
