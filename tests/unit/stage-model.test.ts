@@ -165,8 +165,10 @@ describe("scores are percentiles", () => {
     expect(SYSTEM_PROMPT).toMatch(/not the general population, and not the admitted class/);
   });
 
-  it("defines gradeRelativeScore as placement among same-stage students", () => {
-    expect(SYSTEM_PROMPT).toMatch(/stronger than roughly 90% of students in their year/);
+  it("defines gradeRelativeScore as placement among the student's own year", () => {
+    expect(SYSTEM_PROMPT).toMatch(
+      /stronger than roughly 90% of university-bound students in their year/,
+    );
   });
 
   it("says the two diverging is informative, not contradictory", () => {

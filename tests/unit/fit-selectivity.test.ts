@@ -24,8 +24,8 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { genericRubric, renderRubric, ukRubric, usRubric } from "@/lib/rubrics";
 
 describe("fitScore is defined at all — it never was", () => {
-  it("is on prompt v6", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v6");
+  it("is still in force on the active prompt", () => {
+    expect(PROMPT_VERSION).toBe("evaluation/v7");
   });
 
   it("says outright that fit is not the headline score repeated", () => {

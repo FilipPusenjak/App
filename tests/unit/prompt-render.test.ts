@@ -137,9 +137,9 @@ describe("renderRubricMapping", () => {
   });
 });
 
-describe("prompt v6 (the active version)", () => {
+describe("prompt v7 (the active version)", () => {
   it("has the expected version id — stored on every evaluation row", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v6");
+    expect(PROMPT_VERSION).toBe("evaluation/v7");
   });
 
   it("keeps the honesty and no-invented-statistics mandates", () => {
@@ -154,8 +154,10 @@ describe("prompt v6 (the active version)", () => {
     const combined = SYSTEM_PROMPT + buildUserPrompt(makeSnapshot());
     expect(combined).toMatch(/gradeRelativeScore/);
     expect(combined).toMatch(/overallScore/);
-    // The distinction itself, not just the field names.
-    expect(combined).toMatch(/same stage/i);
+    // The distinction itself, not just the field names: the two numbers must
+    // be described against DIFFERENT pools, which is what v7 fixed.
+    expect(combined).toMatch(/MOST SELECTIVE targets/);
+    expect(combined).toMatch(/university-bound students in their year/);
   });
 
   it("embeds the snapshot, rubric texts, and mapping", () => {

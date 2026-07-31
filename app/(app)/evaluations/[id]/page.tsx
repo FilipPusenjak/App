@@ -273,7 +273,10 @@ export default async function EvaluationPage({
               {result.gradeRelativeScore != null && (
                 <>
                   , while {Math.round(result.gradeRelativeScore)}/100 &ldquo;for
-                  your year&rdquo; compares you to students at your own stage
+                  your year&rdquo; means stronger than roughly{" "}
+                  {Math.round(result.gradeRelativeScore)}% of university-bound
+                  students in your own year — a much broader group than the
+                  applicants the first number compares you to
                 </>
               )}
               . As a rough guide, the more selective a course is, the closer to
