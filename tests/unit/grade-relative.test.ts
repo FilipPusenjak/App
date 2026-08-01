@@ -18,8 +18,8 @@ import { SYSTEM_PROMPT, PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { STAGE_TRACKS } from "@/lib/validation/evaluation";
 
 describe("gradeRelativeScore has one pool, and it is the broad one", () => {
-  it("is on prompt v9", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v9");
+  it("is still in force on the active prompt", () => {
+    expect(PROMPT_VERSION).toBe("evaluation/v10");
   });
 
   it("names the ordinary university-bound cohort", () => {

@@ -19,7 +19,8 @@ import {
 } from "@/lib/anthropic";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildSampleResult } from "@/lib/evaluation/sample";
-import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
+import { loadPreviousContext } from "@/lib/evaluation/previous";
+import { mergeItemAssessments } from "@/lib/evaluation/item-reuse";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import {
   SYSTEM_PROMPT,
@@ -218,7 +219,9 @@ export async function POST() {
   // The previous evaluation is fed back in so scores can't drift between runs
   // and can't fall when the student has only added work. Ownership-scoped, and
   // a malformed or missing previous row simply means no comparison.
-  const diff = await buildDiffAgainstPrevious(profile.id, snapshot);
+  // One load for both: the diff that keeps scores consistent, and the item
+  // assessments that can be carried over rather than paid for a second time.
+  const { diff, reuse } = await loadPreviousContext(profile.id, snapshot);
 
   const client = getAnthropicClient();
   const isSample = client === null;
@@ -253,7 +256,7 @@ export async function POST() {
   // 6b. Real evaluation.
   const startedAt = Date.now();
   try {
-    const prompt = buildUserPromptParts(snapshot, diff);
+    const prompt = buildUserPromptParts(snapshot, diff, reuse);
 
     // A correction is appended AFTER the variable part, so the cached prefix
     // is identical on the retry and the second attempt reads the cache rather
@@ -325,7 +328,19 @@ export async function POST() {
 
     // Flattened back into the shape the database, the UI and every previous
     // evaluation use. The wire envelope exists only to keep the grammar small.
-    const result: EvaluationResult = fromWireResult(outcome.data);
+    const flattened = fromWireResult(outcome.data);
+
+    // Splice the carried-over assessments back in, in snapshot order. A fresh
+    // assessment always wins, so a model that assessed an item anyway is
+    // believed over the stored copy.
+    const result: EvaluationResult = {
+      ...flattened,
+      itemAssessments: mergeItemAssessments(
+        snapshot,
+        flattened.itemAssessments,
+        reuse,
+      ),
+    };
     await prisma.evaluation.update({
       where: { id: evaluation.id },
       data: {

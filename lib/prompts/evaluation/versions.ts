@@ -74,6 +74,11 @@ export const VERSION_HISTORY: VersionEntry[] = [
     redefined: ["gradeRelativeScore"],
     why: "Bands read at the student's stage, so the upper ones are reachable in an early year.",
   },
+  {
+    version: "evaluation/v10",
+    redefined: [],
+    why: "Carries unchanged item assessments forward to cut cost. No score means anything different, so nothing is released.",
+  },
 ];
 
 /**

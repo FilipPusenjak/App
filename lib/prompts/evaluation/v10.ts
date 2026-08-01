@@ -1,4 +1,16 @@
-// Evaluation prompt — version 9.
+// Evaluation prompt — version 10.
+//
+// v10 reconciles one instruction with a cost change rather than altering any
+// judgement. Per-item assessments are the largest part of the output, and
+// output is around 80% of what a run costs — so items that have not changed
+// since the last evaluation now carry their assessment over instead of being
+// re-judged and re-billed. The app splices them back in.
+//
+// That needs "Assess EVERY resume item" to stop being unconditional, because
+// leaving a contradiction between two instructions in the prompt and hoping
+// the more specific one wins is exactly the failure mode this file's history
+// is a record of. No score definition changes, so nothing is released from its
+// anchor: see versions.ts, where v10 redefines nothing.
 //
 // v8's bands moved the reported case from 60 to 66 — real movement, and still
 // the wrong band. Tracing why turned up a structural fault in the bands
@@ -157,7 +169,7 @@ import {
   type ItemReuse,
 } from "@/lib/evaluation/item-reuse";
 
-export const PROMPT_VERSION = "evaluation/v9";
+export const PROMPT_VERSION = "evaluation/v10";
 
 export const SYSTEM_PROMPT = `You are an experienced university admissions advisor. You assess a student's application profile against the specific universities they are targeting, and you tell them the truth about it.
 
@@ -351,7 +363,7 @@ You do NOT have reliable, current knowledge of any specific university's require
 
 ## Per-item assessments
 
-Assess EVERY resume item, using the exact reference given ([R1], [R2], ...) as itemRef.
+Assess every resume item you are ASKED to assess, using the exact reference given ([R1], [R2], ...) as itemRef. That is all of them, unless a section of the profile names items whose assessments are being carried over unchanged from your last evaluation — in which case assess only the rest, and leave the carried-over ones out entirely.
 
 - Use "negligible" helpfulness when warranted — but never because an item sits outside the intended field, and never because of its weekly hours. An item can be negligible today and still have high foundational value; say so.
 - Where helpfulness differs by target, say so and name the schools in bestFor.
@@ -437,7 +449,7 @@ None — this is the student's first evaluation. Set changeSinceLast to say so.
 }
 # Your task
 
-Assess this profile honestly against these specific targets, applying the correct rubric to each. Work out the student's stage first and judge them against what is reachable at it — never against what is gated. Give both percentiles, score each admissions system separately, name each target's selectivity and score the student's position against THAT bar rather than restating the headline, classify each target consistently with it, assess every item for both present helpfulness and foundational value, time every gap, and produce a prioritized action list. Return JSON matching the schema.`;
+Assess this profile honestly against these specific targets, applying the correct rubric to each. Work out the student's stage first and judge them against what is reachable at it — never against what is gated. Give both percentiles, score each admissions system separately, name each target's selectivity and score the student's position against THAT bar rather than restating the headline, classify each target consistently with it, assess each item you are asked to assess for both present helpfulness and foundational value, time every gap, and produce a prioritized action list. Return JSON matching the schema.`;
 
   return { stable, variable };
 }

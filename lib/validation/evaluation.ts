@@ -171,7 +171,7 @@ export const FOUNDATIONAL_VALUES = ["high", "moderate", "low", "none"] as const;
 export const foundationalValueSchema = z.enum(FOUNDATIONAL_VALUES);
 export type FoundationalValue = (typeof FOUNDATIONAL_VALUES)[number];
 
-const itemAssessmentSchema = z.object({
+export const itemAssessmentSchema = z.object({
   /** Matches EvaluationSnapshot.resumeItems[].ref, e.g. "R1". */
   itemRef: z.string(),
   /** Echoed back so the UI degrades gracefully if a ref can't be resolved. */

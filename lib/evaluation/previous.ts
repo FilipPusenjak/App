@@ -7,6 +7,12 @@
 import { prisma } from "@/lib/db";
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import { scoresRedefinedSince } from "@/lib/prompts/evaluation/versions";
+import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
+import {
+  findReusableItemAssessments,
+  NO_REUSE,
+  type ItemReuse,
+} from "./item-reuse";
 import { buildDiff, type SnapshotDiff } from "./diff";
 import type { EvaluationSnapshot } from "./snapshot";
 
@@ -22,6 +28,21 @@ export async function buildDiffAgainstPrevious(
   profileId: string,
   current: EvaluationSnapshot,
 ): Promise<SnapshotDiff | null> {
+  return (await loadPreviousContext(profileId, current)).diff;
+}
+
+/**
+ * Everything the next run needs from the previous one: the diff that keeps
+ * scores consistent, and the per-item assessments that can be carried over
+ * instead of paid for again.
+ *
+ * One query for both — they read the same row, and the reuse rules depend on
+ * the same previous snapshot the diff is built from.
+ */
+export async function loadPreviousContext(
+  profileId: string,
+  current: EvaluationSnapshot,
+): Promise<{ diff: SnapshotDiff | null; reuse: ItemReuse }> {
   const previous = await prisma.evaluation.findFirst({
     where: { profileId, status: "completed", isSample: false },
     orderBy: { createdAt: "desc" },
@@ -33,7 +54,7 @@ export async function buildDiffAgainstPrevious(
     },
   });
 
-  if (!previous?.inputSnapshotJson) return null;
+  if (!previous?.inputSnapshotJson) return { diff: null, reuse: NO_REUSE };
 
   let previousSnapshot: EvaluationSnapshot;
   try {
@@ -47,10 +68,10 @@ export async function buildDiffAgainstPrevious(
       !Array.isArray(previousSnapshot.targets) ||
       typeof previousSnapshot.student !== "object"
     ) {
-      return null;
+      return { diff: null, reuse: NO_REUSE };
     }
   } catch {
-    return null;
+    return { diff: null, reuse: NO_REUSE };
   }
 
   const result = parseStoredResult(previous.resultJson);
@@ -60,7 +81,15 @@ export async function buildDiffAgainstPrevious(
     fitScores[fit.schoolName] = Math.round(fit.fitScore);
   }
 
-  return buildDiff(previousSnapshot, current, {
+  const reuse = findReusableItemAssessments(
+    previousSnapshot,
+    result?.itemAssessments ?? [],
+    current,
+    previous.promptVersion,
+    PROMPT_VERSION,
+  );
+
+  const diff = buildDiff(previousSnapshot, current, {
     overallScore: previous.overallScore ?? result?.overallScore ?? null,
     gradeRelativeScore: result?.gradeRelativeScore ?? null,
     fitScores,
@@ -70,4 +99,6 @@ export async function buildDiffAgainstPrevious(
     // cannot quietly move the others.
     rescoredKeys: scoresRedefinedSince(previous.promptVersion),
   });
+
+  return { diff, reuse };
 }
