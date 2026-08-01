@@ -18,8 +18,8 @@ import { SYSTEM_PROMPT, PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { STAGE_TRACKS } from "@/lib/validation/evaluation";
 
 describe("gradeRelativeScore has one pool, and it is the broad one", () => {
-  it("is on prompt v8", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v8");
+  it("is on prompt v9", () => {
+    expect(PROMPT_VERSION).toBe("evaluation/v9");
   });
 
   it("names the ordinary university-bound cohort", () => {
@@ -65,12 +65,47 @@ describe("gradeRelativeScore has one pool, and it is the broad one", () => {
     expect(SYSTEM_PROMPT).toMatch(/Below 30 — little evidence of either/);
   });
 
+  it("reads the bands at the student's stage — v9", () => {
+    // v8 got the reported case from 60 to 66 and no further, because its bands
+    // demanded "years-long commitments" from a student three months into
+    // secondary school. No member of their year could satisfy that, so the
+    // requirement could not discriminate between any of them.
+    expect(SYSTEM_PROMPT).toMatch(/Read those bands at the student's stage/);
+    expect(SYSTEM_PROMPT).toMatch(
+      /sustained FOR AS LONG AS THEY HAVE HAD/,
+    );
+    expect(SYSTEM_PROMPT).toMatch(
+      /their entire comparison group has had exactly the same number of months/,
+    );
+  });
+
+  it("says what sustained commitment looks like in the early years", () => {
+    expect(SYSTEM_PROMPT).toMatch(/things carried in from before secondary school/);
+    expect(SYSTEM_PROMPT).toMatch(/joined at the first opportunity and still running/);
+    expect(SYSTEM_PROMPT).toMatch(
+      /A Grade 9 student who joined several things in September and is genuinely active in them HAS sustained commitment/,
+    );
+  });
+
+  it("re-scales the top band too, not only the one below it", () => {
+    expect(SYSTEM_PROMPT).toMatch(
+      /for a final-year student it means years; for a Grade 9 student it means since before they arrived/,
+    );
+  });
+
   it("stops the bands being read as a floor", () => {
     expect(SYSTEM_PROMPT).toMatch(/Do not read that as a floor/);
     expect(SYSTEM_PROMPT).toMatch(
       /Top grades with nothing sustained alongside them is a 50s or 60s profile/,
     );
     expect(SYSTEM_PROMPT).toMatch(/a student coasting in easy courses is lower still/);
+    // The guard that keeps the stage-relative reading from becoming flattery.
+    expect(SYSTEM_PROMPT).toMatch(
+      /Joining things and doing nothing in them is not sustaining anything at any stage/,
+    );
+    expect(SYSTEM_PROMPT).toMatch(
+      /one-off experiences are not commitments however impressive they sound/,
+    );
   });
 });
 

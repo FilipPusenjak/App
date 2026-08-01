@@ -25,7 +25,7 @@ import { genericRubric, renderRubric, ukRubric, usRubric } from "@/lib/rubrics";
 
 describe("fitScore is defined at all — it never was", () => {
   it("is still in force on the active prompt", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v8");
+    expect(PROMPT_VERSION).toBe("evaluation/v9");
   });
 
   it("says outright that fit is not the headline score repeated", () => {
