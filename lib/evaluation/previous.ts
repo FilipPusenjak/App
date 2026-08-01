@@ -6,7 +6,7 @@
 // a real evaluation to one would be worse than having no anchor at all.
 import { prisma } from "@/lib/db";
 import { parseStoredResult } from "@/lib/validation/evaluation";
-import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
+import { scoresRedefinedSince } from "@/lib/prompts/evaluation/versions";
 import { buildDiff, type SnapshotDiff } from "./diff";
 import type { EvaluationSnapshot } from "./snapshot";
 
@@ -65,9 +65,9 @@ export async function buildDiffAgainstPrevious(
     gradeRelativeScore: result?.gradeRelativeScore ?? null,
     fitScores,
     promptVersion: previous.promptVersion,
-    // The previous run used a different prompt, so its numbers were produced
-    // under a different definition of what they mean. Holding the new run
-    // steady against them would carry the old calibration forward forever.
-    scaleChanged: previous.promptVersion !== PROMPT_VERSION,
+    // Only the scores whose definition actually changed since that run are
+    // released. The rest stay anchored, so a recalibration of one number
+    // cannot quietly move the others.
+    rescoredKeys: scoresRedefinedSince(previous.promptVersion),
   });
 }

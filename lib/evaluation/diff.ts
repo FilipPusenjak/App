@@ -16,6 +16,7 @@
 // drop: if nothing was removed or weakened, the score may not fall unless the
 // model names a specific addition that actively damages the profile.
 import type { EvaluationSnapshot } from "./snapshot";
+import type { ScoreKey } from "@/lib/prompts/evaluation/versions";
 
 export type PreviousScores = {
   overallScore: number | null;
@@ -25,18 +26,20 @@ export type PreviousScores = {
   /** Which prompt produced them, e.g. "evaluation/v6". */
   promptVersion?: string | null;
   /**
-   * True when the previous scores were produced by a DIFFERENT prompt version
-   * — meaning they are numbers on a scale that no longer exists.
+   * Which scores have been REDEFINED since those numbers were produced, and
+   * are therefore measurements of something that no longer exists.
    *
    * Consistency anchoring and recalibration are direct opposites, and without
-   * this flag anchoring silently wins: told "the profile is unchanged, so keep
-   * your scores the same" AND "here is a new definition of the score", a model
-   * follows the concrete instruction with a number attached and ignores the
-   * abstract one. A redefinition then has no effect on any existing user,
-   * which is exactly backwards — the students with history are the ones whose
-   * numbers most need correcting.
+   * this anchoring silently wins: told "the profile is unchanged, so keep your
+   * scores the same" AND "here is a new definition of the score", a model
+   * follows the concrete instruction with a number attached. A redefinition
+   * then has no effect on any existing user, which is exactly backwards.
+   *
+   * Per-score, because releasing every anchor together is its own bug — a
+   * version that redefined only gradeRelativeScore let a readiness score fall
+   * eight points for no reason anyone could name.
    */
-  scaleChanged?: boolean;
+  rescoredKeys?: ScoreKey[];
 };
 
 export type SnapshotDiff = {

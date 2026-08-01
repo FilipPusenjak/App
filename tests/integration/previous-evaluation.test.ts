@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
+import { SCORE_KEYS } from "@/lib/prompts/evaluation/versions";
 import {
   cleanupRun,
   createUserWithProfile,
@@ -271,7 +272,9 @@ describe.skipIf(!hasTestDb)("releasing the anchor when the scale changes", () =>
     const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
     expect(diff).not.toBeNull();
     expect(diff!.previousScores.promptVersion).toBe("evaluation/v6");
-    expect(diff!.previousScores.scaleChanged).toBe(true);
+    // v7-v9 redefined the year-relative score; overall and fit were last
+    // redefined by v6 itself, so they stay anchored.
+    expect(diff!.previousScores.rescoredKeys).toEqual(["gradeRelativeScore"]);
   });
 
   it("does NOT flag one produced by the prompt now running", async () => {
@@ -282,7 +285,7 @@ describe.skipIf(!hasTestDb)("releasing the anchor when the scale changes", () =>
     });
 
     const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
-    expect(diff!.previousScores.scaleChanged).toBe(false);
+    expect(diff!.previousScores.rescoredKeys).toEqual([]);
   });
 
   it("treats a row with no recorded version as a different scale", async () => {
@@ -291,6 +294,6 @@ describe.skipIf(!hasTestDb)("releasing the anchor when the scale changes", () =>
     await createEvaluation(profile.id, { createdAt: minutesAgo(10) });
 
     const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
-    expect(diff!.previousScores.scaleChanged).toBe(true);
+    expect(diff!.previousScores.rescoredKeys).toEqual([...SCORE_KEYS]);
   });
 });

@@ -6,6 +6,7 @@
 import { getRubric, renderRubric, rubricsForCountries } from "@/lib/rubrics";
 import type { EvaluationSnapshot } from "@/lib/evaluation/snapshot";
 import type { SnapshotDiff } from "@/lib/evaluation/diff";
+import { SCORE_KEYS, SCORE_LABELS, type ScoreKey } from "./versions";
 
 /** Compact, readable rendering of the student's data. */
 export function renderSnapshot(s: EvaluationSnapshot): string {
@@ -105,20 +106,23 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
     `Your previous evaluation was captured ${diff.previousAt.slice(0, 10)}.`,
   );
   lines.push("");
+  const rescored = p.rescoredKeys ?? [];
+  const isRescored = (key: ScoreKey) => rescored.includes(key);
+  const stable = SCORE_KEYS.filter((key) => !isRescored(key));
+  // Marks the individual numbers, so the model does not have to hold the list
+  // in its head while reading them.
+  const mark = (key: ScoreKey) => (isRescored(key) ? "  [REDEFINED — not a baseline]" : "");
+
+  lines.push("Scores from that run:");
   lines.push(
-    p.scaleChanged
-      ? "Scores from that run — FOR CONTEXT ONLY, see the warning below:"
-      : "Scores you gave last time:",
+    `- overallScore: ${p.overallScore ?? "not recorded"}${mark("overallScore")}`,
   );
   lines.push(
-    `- overallScore: ${p.overallScore ?? "not recorded"}`,
-  );
-  lines.push(
-    `- gradeRelativeScore: ${p.gradeRelativeScore ?? "not recorded"}`,
+    `- gradeRelativeScore: ${p.gradeRelativeScore ?? "not recorded"}${mark("gradeRelativeScore")}`,
   );
   const fits = Object.entries(p.fitScores);
   if (fits.length > 0) {
-    lines.push("- fitScore per school:");
+    lines.push(`- fitScore per school:${mark("fitScore")}`);
     for (const [school, score] of fits) {
       lines.push(`    ${school}: ${score}`);
     }
@@ -144,20 +148,42 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
 
   lines.push("");
 
-  // A redefinition of the scale and the stability rule are direct opposites.
-  // When the scale has changed, the stability rule is not merely unhelpful, it
-  // is wrong: it pins the new number to a measurement of something else.
-  if (p.scaleChanged) {
+  // A redefinition and the stability rule are direct opposites: for a
+  // redefined score the stability rule is not merely unhelpful, it pins the new
+  // number to a measurement of something else. But the release is PER SCORE.
+  // Releasing all of them together because one changed is how a readiness
+  // score fell eight points with nothing behind it.
+  if (rescored.length > 0) {
+    const names = rescored.map((key) => SCORE_LABELS[key]).join(", ");
     lines.push(
-      "THE SCORING DEFINITIONS HAVE CHANGED SINCE THAT EVALUATION. Those numbers were produced by an older version of these instructions, against a different definition of what each score measures. They are NOT a baseline.",
+      `THE DEFINITION OF ${names.toUpperCase()} HAS CHANGED SINCE THAT EVALUATION. Those numbers measured something else. They are NOT a baseline.`,
     );
     lines.push(
-      "Do NOT hold your scores near them, and do NOT treat a difference as drift needing justification. Work each score out from the definitions in your instructions as if scoring this profile for the first time. If the correct number under the current definitions is far from the old one, that IS the correct answer — the old number was measuring something else.",
+      "For those scores only: do NOT hold near the old number, and do NOT treat a difference as drift needing justification. Work each out from the definitions in your instructions as if scoring this profile for the first time. If the right answer under the current definitions is far from the old one, that IS the right answer.",
     );
     lines.push(
-      "The changes above are still exactly what the student did, so use them. But in changeSinceLast, say plainly that the way these scores are defined has changed, and that a move is a change in the measurement rather than a change in them.",
+      "In changeSinceLast, say plainly that the way those scores are defined has changed, so the student reads a move as a change in the measurement rather than a change in them.",
     );
+    if (stable.length > 0) {
+      lines.push("");
+      lines.push(
+        `${stable.map((key) => SCORE_LABELS[key]).join(" and ").toUpperCase()} ARE DEFINED EXACTLY AS BEFORE. The rules below apply to them in full, and a redefinition elsewhere is not a reason for them to move.`,
+      );
+    }
     lines.push("");
+  }
+
+  // Consistency rules. When some scores were redefined these govern the rest,
+  // which is why the block is scoped rather than skipped.
+  const scope =
+    rescored.length === 0
+      ? ""
+      : stable.length === 0
+        ? null
+        : ` This applies to ${stable.map((key) => SCORE_LABELS[key]).join(" and ")}.`;
+
+  if (scope === null) {
+    // Every score was redefined; there is nothing left to hold steady.
     lines.push(
       "Use changeSinceLast to tell the student plainly what moved, in which direction, and why — referring to what they actually changed.",
     );
@@ -166,7 +192,7 @@ export function renderPreviousContext(diff: SnapshotDiff | null): string | null 
 
   if (diff.unchanged) {
     lines.push(
-      "THE PROFILE IS UNCHANGED. Your scores must therefore stay essentially the same as last time (within a point or two). Drifting on identical input would tell the student their work changed something when it did not.",
+      `THE PROFILE IS UNCHANGED. Your scores must therefore stay essentially the same as last time (within a point or two). Drifting on identical input would tell the student their work changed something when it did not.${scope}`,
     );
   } else if (diff.onlyGained) {
     lines.push(
