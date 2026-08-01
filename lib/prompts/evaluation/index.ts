@@ -1,13 +1,15 @@
 // The currently-active evaluation prompt.
 //
-// v7 fixes gradeRelativeScore: its comparison pool was underspecified, the page
-// described a different one, and it was absorbing a stage penalty that every
-// student in the year is subject to equally. It also forbids the prose and the
-// number from contradicting each other — "best possible foundation" beside a
-// mid-range percentile is what prompted the fix.
+// v8 gives gradeRelativeScore concrete bands, and — just as importantly —
+// changes the version string. The previous-evaluation anchor is only released
+// when the recorded version differs from the running one, so v7's redefinition
+// could never reach a student who already had a v7 score. Bumping is what
+// forces the one clean re-derivation.
 //
-// v1-v6 are kept for attribution — evaluations record the version that produced
+// v1-v7 are kept for attribution — evaluations record the version that produced
 // them, so results from different prompts stay distinguishable.
 //
-// To iterate: add v8.ts and change these re-exports.
-export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v7";
+// To iterate: add v9.ts and change these re-exports. Remember that a change to
+// what a SCORE MEANS only takes effect for existing users if the version
+// changes with it.
+export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v8";

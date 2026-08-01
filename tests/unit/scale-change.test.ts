@@ -14,7 +14,9 @@
 //
 // Consistency and recalibration are opposites. The anchor has to be released
 // when the meaning of the number changes, and only then.
+import fs from "node:fs";
 import { describe, expect, it } from "vitest";
+import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { buildDiff } from "@/lib/evaluation/diff";
 import { renderPreviousContext } from "@/lib/prompts/evaluation/render";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
@@ -80,6 +82,37 @@ function scaleChanged() {
     scaleChanged: true,
   });
 }
+
+describe("the version string is what releases the anchor", () => {
+  it("gives every archived prompt a version matching its filename", async () => {
+    // The release compares version STRINGS, so a prompt file copied without
+    // bumping its version would leave the anchor welded shut and a
+    // recalibration silently inert — which is exactly what happened with v7.
+    const files = fs
+      .readdirSync(new URL("../../lib/prompts/evaluation/", import.meta.url))
+      .filter((f) => /^v\d+\.ts$/.test(f))
+      .sort();
+
+    expect(files.length).toBeGreaterThan(1);
+    const seen = new Set<string>();
+    for (const file of files) {
+      const mod = (await import(`@/lib/prompts/evaluation/${file.replace(/\.ts$/, "")}`)) as {
+        PROMPT_VERSION: string;
+      };
+      expect(mod.PROMPT_VERSION).toBe(`evaluation/${file.replace(/\.ts$/, "")}`);
+      expect(seen.has(mod.PROMPT_VERSION)).toBe(false);
+      seen.add(mod.PROMPT_VERSION);
+    }
+  });
+
+  it("ships the newest prompt as the active one", () => {
+    const files = fs
+      .readdirSync(new URL("../../lib/prompts/evaluation/", import.meta.url))
+      .filter((f) => /^v\d+\.ts$/.test(f))
+      .map((f) => Number(f.match(/^v(\d+)\.ts$/)![1]));
+    expect(PROMPT_VERSION).toBe(`evaluation/v${Math.max(...files)}`);
+  });
+});
 
 describe("when the definition of a score has changed", () => {
   const text = renderPreviousContext(scaleChanged())!;

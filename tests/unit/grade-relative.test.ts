@@ -18,8 +18,8 @@ import { SYSTEM_PROMPT, PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { STAGE_TRACKS } from "@/lib/validation/evaluation";
 
 describe("gradeRelativeScore has one pool, and it is the broad one", () => {
-  it("is on prompt v7", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v7");
+  it("is on prompt v8", () => {
+    expect(PROMPT_VERSION).toBe("evaluation/v8");
   });
 
   it("names the ordinary university-bound cohort", () => {
@@ -47,13 +47,30 @@ describe("gradeRelativeScore has one pool, and it is the broad one", () => {
   });
 
   it("anchors the reported case, so top grades plus real activities can't land mid-pack", () => {
+    // v8 replaced one sentence of guidance with bands, because the sentence
+    // was not enough to move a real student off 60.
     expect(SYSTEM_PROMPT).toMatch(
-      /Top-of-the-class grades plus a couple of activities genuinely sustained places a student well above its middle/,
+      /A student at or near the top of their class who is actually involved in things belongs HERE/,
     );
-    expect(SYSTEM_PROMPT).toMatch(/somewhere in the 70s or 80s, not near 50/);
+    expect(SYSTEM_PROMPT).toMatch(/70-85 — strong grades in demanding courses/);
     expect(SYSTEM_PROMPT).toMatch(
-      /you have quietly swapped in the selective-applicant pool again/,
+      /you have quietly swapped the selective-applicant pool back in/,
     );
+  });
+
+  it("gives a band for every level, not just the flattering one", () => {
+    expect(SYSTEM_PROMPT).toMatch(/85-95 — at or near the top of a demanding programme/);
+    expect(SYSTEM_PROMPT).toMatch(/50-65 — solid grades and some involvement/);
+    expect(SYSTEM_PROMPT).toMatch(/30-45 — grades or engagement noticeably behind their year/);
+    expect(SYSTEM_PROMPT).toMatch(/Below 30 — little evidence of either/);
+  });
+
+  it("stops the bands being read as a floor", () => {
+    expect(SYSTEM_PROMPT).toMatch(/Do not read that as a floor/);
+    expect(SYSTEM_PROMPT).toMatch(
+      /Top grades with nothing sustained alongside them is a 50s or 60s profile/,
+    );
+    expect(SYSTEM_PROMPT).toMatch(/a student coasting in easy courses is lower still/);
   });
 });
 
@@ -105,12 +122,10 @@ describe("the words and the number may not contradict each other", () => {
 
 describe("none of this is permission to inflate", () => {
   it("says so where the calibration is given", () => {
+    expect(SYSTEM_PROMPT).toMatch(/the low bands exist to be used/);
+    expect(SYSTEM_PROMPT).toMatch(/This is a real measurement, not encouragement/);
     expect(SYSTEM_PROMPT).toMatch(
-      /keep low numbers available for students who are genuinely behind their year/,
-    );
-    expect(SYSTEM_PROMPT).toMatch(/this is a real measurement, not encouragement/);
-    expect(SYSTEM_PROMPT).toMatch(
-      /Reserve 90\+ for something that also distinguishes them within that strong group/,
+      /90\+ needs something that distinguishes them even within the strong group/,
     );
   });
 
