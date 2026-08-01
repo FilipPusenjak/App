@@ -38,8 +38,38 @@ export const DEFAULT_PROJECTION_MODEL = "claude-sonnet-5";
  */
 export const DEFAULT_PROJECTION_EFFORT = "medium";
 
+/**
+ * How long a cached prompt prefix is kept.
+ *
+ * Nearly 90% of an evaluation's input is byte-identical on every run — the
+ * system prompt and the rubrics — so it is worth caching. The economics:
+ * reads cost 0.1x, but WRITES cost 1.25x at 5 minutes and 2x at an hour. So a
+ * student who runs once and stops pays slightly MORE than with no cache at
+ * all, and the choice of TTL is really a bet on how they use it.
+ *
+ * "1h" is the default because the real pattern is read the evaluation, edit
+ * the profile for a while, run it again — gaps that a 5-minute cache almost
+ * never survives. It pays from the third run in an hour; "5m" pays from the
+ * second, but only if the runs are minutes apart. Set ANTHROPIC_CACHE_TTL to
+ * "5m" if your runs are bursty, or "off" to disable caching entirely.
+ */
+export const DEFAULT_CACHE_TTL = "1h";
+
 export const getModel = () => process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 export const getEffort = () => process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT;
+
+/**
+ * The cache_control value to attach to a stable prompt block, or undefined
+ * when caching is switched off.
+ */
+export function getCacheControl():
+  | { type: "ephemeral"; ttl?: "5m" | "1h" }
+  | undefined {
+  const ttl = process.env.ANTHROPIC_CACHE_TTL || DEFAULT_CACHE_TTL;
+  if (ttl === "off") return undefined;
+  if (ttl === "5m") return { type: "ephemeral" };
+  return { type: "ephemeral", ttl: "1h" };
+}
 
 export const getProjectionModel = () =>
   process.env.ANTHROPIC_PROJECTION_MODEL || DEFAULT_PROJECTION_MODEL;

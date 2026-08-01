@@ -249,21 +249,23 @@ function renderPlans(s: ProjectionSnapshot): string {
     .join("\n");
 }
 
-export function buildUserPrompt(
+/** Split at the stability boundary for prompt caching — see the evaluation
+ *  prompt for the reasoning. The rubrics are the same bytes every run. */
+export function buildUserPromptParts(
   snapshot: ProjectionSnapshot,
   previous: PreviousProjection | null = null,
-): string {
+): { stable: string; variable: string } {
   const rubrics = rubricsForCountries(
     snapshot.profile.targets.map((t) => t.country),
   );
 
-  return `# Admissions rubrics in play
+  const stable = `# Admissions rubrics in play
 
 Judge each plan's value under the rubric of the system it would serve. Do not blend them.
 
-${rubrics.map(renderRubric).join("\n\n---\n\n")}
+${rubrics.map(renderRubric).join("\n\n---\n\n")}`;
 
-# Which rubric applies to which target
+  const variable = `# Which rubric applies to which target
 
 ${renderRubricMapping(snapshot.profile)}
 
@@ -286,4 +288,15 @@ ${renderPlans(snapshot)}
 # Your task
 
 Project what these plans would be worth if genuinely completed. Assess every plan, including the ones that are not worth doing. Score each admissions system separately, using the bands, keeping current readiness as instructed above. Give a sequencing order, name where this plan could go wrong, and account for any difference from your previous projection. Make unmistakably clear that none of it has happened yet. Return JSON matching the schema.`;
+
+  return { stable, variable };
+}
+
+/** The whole user prompt as one string — the shape tests and callers expect. */
+export function buildUserPrompt(
+  snapshot: ProjectionSnapshot,
+  previous: PreviousProjection | null = null,
+): string {
+  const { stable, variable } = buildUserPromptParts(snapshot, previous);
+  return `${stable}\n\n${variable}`;
 }

@@ -6,4 +6,9 @@
 //
 // v1 and v2 are kept for attribution — projections record the version that
 // produced them. To iterate: add v4.ts and change these re-exports.
-export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v3";
+export {
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  buildUserPromptParts,
+  PROMPT_VERSION,
+} from "./v3";

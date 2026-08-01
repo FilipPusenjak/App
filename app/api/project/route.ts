@@ -18,6 +18,7 @@ import {
   getAnthropicClient,
   getProjectionModel,
   getProjectionEffort,
+  getCacheControl,
 } from "@/lib/anthropic";
 import { buildProjectionSnapshot } from "@/lib/evaluation/projection-snapshot";
 import { buildSampleProjection } from "@/lib/evaluation/projection-sample";
@@ -25,7 +26,7 @@ import { buildPreviousProjectionContext } from "@/lib/evaluation/projection-prev
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import {
   SYSTEM_PROMPT,
-  buildUserPrompt,
+  buildUserPromptParts,
   PROMPT_VERSION,
 } from "@/lib/prompts/projection";
 import {
@@ -70,7 +71,7 @@ const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
  */
 async function requestProjection(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
-  prompt: string,
+  prompt: { stable: string; variable: string },
 ) {
   const effort = getProjectionEffort() as
     | "low"
@@ -78,15 +79,25 @@ async function requestProjection(
     | "high"
     | "xhigh"
     | "max";
+  const cache = getCacheControl();
+
+  // Same two stability boundaries as the evaluation route.
+  const system = [
+    { type: "text" as const, text: SYSTEM_PROMPT, ...(cache ? { cache_control: cache } : {}) },
+  ];
+  const content = [
+    { type: "text" as const, text: prompt.stable, ...(cache ? { cache_control: cache } : {}) },
+    { type: "text" as const, text: prompt.variable },
+  ];
 
   try {
     const message = await client.messages
       .stream({
         model: getProjectionModel(),
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system,
         output_config: { effort, format: OUTPUT_FORMAT },
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content }],
       })
       .finalMessage();
     return { message, constrained: true };
@@ -107,12 +118,18 @@ async function requestProjection(
       .stream({
         model: getProjectionModel(),
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system,
         output_config: { effort },
         messages: [
           {
             role: "user",
-            content: `${prompt}\n\n${renderSchemaInstructions(OUTPUT_FORMAT.schema)}`,
+            content: [
+              ...content,
+              {
+                type: "text" as const,
+                text: renderSchemaInstructions(OUTPUT_FORMAT.schema),
+              },
+            ],
           },
         ],
       })
@@ -231,10 +248,13 @@ export async function POST() {
 
   const startedAt = Date.now();
   try {
-    const prompt = buildUserPrompt(snapshot, previous);
+    const prompt = buildUserPromptParts(snapshot, previous);
 
-    const attempt = async (text: string): Promise<ModelAttempt> => {
-      const outcome = await requestProjection(client, text);
+    const attempt = async (extra = ""): Promise<ModelAttempt> => {
+      const outcome = await requestProjection(client, {
+        stable: prompt.stable,
+        variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
+      });
       if ("parseError" in outcome) {
         return {
           text: "",
@@ -269,7 +289,7 @@ export async function POST() {
 
     let outcome = parseModelJson(
       projectionResultSchema,
-      await attempt(prompt),
+      await attempt(),
       "projection",
     );
 
@@ -278,7 +298,7 @@ export async function POST() {
       console.warn("Projection response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
         projectionResultSchema,
-        await attempt(`${prompt}\n\n${renderRetryNote(outcome.reason)}`),
+        await attempt(renderRetryNote(outcome.reason)),
         "projection",
       );
       if (retried.ok) outcome = retried;

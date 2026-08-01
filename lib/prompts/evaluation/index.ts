@@ -12,4 +12,9 @@
 // To iterate: add v10.ts and change these re-exports. Remember that a change to
 // what a SCORE MEANS only takes effect for existing users if the version
 // changes with it.
-export { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "./v9";
+export {
+  SYSTEM_PROMPT,
+  buildUserPrompt,
+  buildUserPromptParts,
+  PROMPT_VERSION,
+} from "./v9";

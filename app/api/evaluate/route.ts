@@ -11,12 +11,21 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { getAnthropicClient, getModel, getEffort } from "@/lib/anthropic";
+import {
+  getAnthropicClient,
+  getModel,
+  getEffort,
+  getCacheControl,
+} from "@/lib/anthropic";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildSampleResult } from "@/lib/evaluation/sample";
 import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
-import { SYSTEM_PROMPT, buildUserPrompt, PROMPT_VERSION } from "@/lib/prompts/evaluation";
+import {
+  SYSTEM_PROMPT,
+  buildUserPromptParts,
+  PROMPT_VERSION,
+} from "@/lib/prompts/evaluation";
 import type { EvaluationResult } from "@/lib/validation/evaluation";
 import {
   evaluationWireSchema,
@@ -86,23 +95,36 @@ const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
  */
 async function requestEvaluation(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
-  prompt: string,
+  prompt: { stable: string; variable: string },
 ) {
   const effort = getEffort() as "low" | "medium" | "high" | "xhigh" | "max";
+  const cache = getCacheControl();
+
+  // Caching is a prefix match, so the breakpoints go at the two stability
+  // boundaries: the end of the system prompt, and the end of the rubrics. That
+  // covers ~89% of the input, all of it byte-identical between runs. Everything
+  // student-specific sits after the second breakpoint and is never cached.
+  const system = [
+    { type: "text" as const, text: SYSTEM_PROMPT, ...(cache ? { cache_control: cache } : {}) },
+  ];
+  const content = [
+    { type: "text" as const, text: prompt.stable, ...(cache ? { cache_control: cache } : {}) },
+    { type: "text" as const, text: prompt.variable },
+  ];
 
   try {
     const message = await client.messages
       .stream({
         model: getModel(),
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system,
         output_config: {
           effort,
           // Constrains generation to the schema's shape. We still validate the
           // response ourselves below rather than trusting it.
           format: OUTPUT_FORMAT,
         },
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content }],
       })
       .finalMessage();
     return { message, constrained: true };
@@ -124,12 +146,18 @@ async function requestEvaluation(
       .stream({
         model: getModel(),
         max_tokens: MAX_TOKENS,
-        system: SYSTEM_PROMPT,
+        system,
         output_config: { effort },
         messages: [
           {
             role: "user",
-            content: `${prompt}\n\n${renderSchemaInstructions(OUTPUT_FORMAT.schema)}`,
+            content: [
+              ...content,
+              {
+                type: "text" as const,
+                text: renderSchemaInstructions(OUTPUT_FORMAT.schema),
+              },
+            ],
           },
         ],
       })
@@ -225,10 +253,16 @@ export async function POST() {
   // 6b. Real evaluation.
   const startedAt = Date.now();
   try {
-    const prompt = buildUserPrompt(snapshot, diff);
+    const prompt = buildUserPromptParts(snapshot, diff);
 
-    const attempt = async (text: string): Promise<ModelAttempt> => {
-      const outcome = await requestEvaluation(client, text);
+    // A correction is appended AFTER the variable part, so the cached prefix
+    // is identical on the retry and the second attempt reads the cache rather
+    // than writing a new entry.
+    const attempt = async (extra = ""): Promise<ModelAttempt> => {
+      const outcome = await requestEvaluation(client, {
+        stable: prompt.stable,
+        variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
+      });
       if ("parseError" in outcome) {
         return {
           text: "",
@@ -266,7 +300,7 @@ export async function POST() {
 
     let outcome = parseModelJson(
       evaluationWireSchema,
-      await attempt(prompt),
+      await attempt(),
       "model's response",
     );
 
@@ -278,7 +312,7 @@ export async function POST() {
       console.warn("Evaluation response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
         evaluationWireSchema,
-        await attempt(`${prompt}\n\n${renderRetryNote(outcome.reason)}`),
+        await attempt(renderRetryNote(outcome.reason)),
         "model's response",
       );
       // Report the FIRST failure if both fail: it describes the original

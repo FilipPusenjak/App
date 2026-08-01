@@ -376,19 +376,31 @@ Return JSON matching the provided schema exactly.
 - verifyThese: every fact you were not certain about.
 - Write directly to the student in plain, concrete language. No preamble, no filler.`;
 
-export function buildUserPrompt(
+/**
+ * The user prompt, split at its stability boundary for prompt caching.
+ *
+ * `stable` is the rubric text: identical for every student with the same set
+ * of target countries, and identical across every run any of them makes. It is
+ * also most of the prompt — the rubrics are around 6,500 tokens against 1,500
+ * for a student's actual profile. `variable` is everything downstream of it.
+ *
+ * Caching is a PREFIX match, so this split only pays off while the stable part
+ * genuinely comes first and nothing volatile is interpolated into it. Keep the
+ * ordering when editing: anything student-specific belongs in `variable`.
+ */
+export function buildUserPromptParts(
   snapshot: EvaluationSnapshot,
   diff: SnapshotDiff | null = null,
-): string {
+): { stable: string; variable: string } {
   const previous = renderPreviousContext(diff);
 
-  return `# Admissions rubrics in play
+  const stable = `# Admissions rubrics in play
 
 Apply the matching rubric to each target school. Do not blend them. Each rubric includes a stage ladder — use it to judge what this student can reasonably have done by now.
 
-${renderRubricSection(snapshot)}
+${renderRubricSection(snapshot)}`;
 
-# Which rubric applies to which target
+  const variable = `# Which rubric applies to which target
 
 ${renderRubricMapping(snapshot)}
 
@@ -411,4 +423,15 @@ None — this is the student's first evaluation. Set changeSinceLast to say so.
 # Your task
 
 Assess this profile honestly against these specific targets, applying the correct rubric to each. Work out the student's stage first and judge them against what is reachable at it — never against what is gated. Give both percentiles, score each admissions system separately, name each target's selectivity and score the student's position against THAT bar rather than restating the headline, classify each target consistently with it, assess every item for both present helpfulness and foundational value, time every gap, and produce a prioritized action list. Return JSON matching the schema.`;
+
+  return { stable, variable };
+}
+
+/** The whole user prompt as one string — the shape tests and callers expect. */
+export function buildUserPrompt(
+  snapshot: EvaluationSnapshot,
+  diff: SnapshotDiff | null = null,
+): string {
+  const { stable, variable } = buildUserPromptParts(snapshot, diff);
+  return `${stable}\n\n${variable}`;
 }
