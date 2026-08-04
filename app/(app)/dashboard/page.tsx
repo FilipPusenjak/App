@@ -1,18 +1,42 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/session";
+import { getOrCreateProfile, getOwnedProfiles } from "@/lib/ownership";
+import { studentLabel } from "@/lib/students";
 
 export default async function DashboardPage() {
   // The (app) layout already guarantees a session; this is just to greet them.
-  const user = await getCurrentUser();
+  const [user, profiles, active] = await Promise.all([
+    getCurrentUser(),
+    getOwnedProfiles(),
+    getOrCreateProfile(),
+  ]);
+  const multiStudent = profiles.length > 1;
 
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">
         Welcome{user?.name ? `, ${user.name}` : ""}.
       </h1>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">
-        You&apos;re signed in. This is your private dashboard.
-      </p>
+      {multiStudent ? (
+        // Whose data is on screen. An account running several students needs
+        // this on the page itself — every link below acts on ONE of them, and
+        // a counselor who has lost track edits the wrong child's record.
+        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+          You&apos;re working on{" "}
+          <strong className="font-semibold text-foreground">
+            {studentLabel(active)}
+          </strong>
+          . Everything below applies to them —{" "}
+          <Link href="/students" className="underline underline-offset-2">
+            switch or manage students
+          </Link>
+          .
+        </p>
+      ) : (
+        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+          You&apos;re signed in. This is your private dashboard.
+        </p>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-3">
         <Link

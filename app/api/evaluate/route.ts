@@ -214,7 +214,12 @@ export async function POST() {
     );
   }
 
-  const snapshot = buildSnapshot(profile, user.countryOfOrigin ?? null);
+  // The STUDENT's home country, falling back to the account default. An
+  // account can hold several students and they do not share one.
+  const snapshot = buildSnapshot(
+    profile,
+    profile.countryOfOrigin ?? user.countryOfOrigin ?? null,
+  );
 
   // The previous evaluation is fed back in so scores can't drift between runs
   // and can't fall when the student has only added work. Ownership-scoped, and

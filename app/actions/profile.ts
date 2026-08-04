@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { requireUserId } from "@/lib/session";
 import {
   getOrCreateProfile,
   requireOwnedResumeItem,
@@ -69,19 +68,26 @@ export async function updateProfileAction(
     intendedMajor: optText(fd, "intendedMajor"),
     careerGoal: optText(fd, "careerGoal"),
     countryOfOrigin: text(fd, "countryOfOrigin"),
+    studentName: optText(fd, "studentName"),
   });
   if (!parsed.success) {
     return { fieldErrors: fieldErrorsFrom(parsed.error.issues) };
   }
 
-  const userId = await requireUserId();
   const profile = await getOrCreateProfile();
   const d = parsed.data;
 
-  // Profile fields (owned via profile.id, which came from the session).
+  // Every field belongs to the STUDENT, including country of origin: one
+  // account can run several students and they do not share a home country,
+  // which decides domestic vs international status and changes the assessment.
   await prisma.profile.update({
     where: { id: profile.id },
     data: {
+      // Only when the form actually carried the field. The profile form does
+      // not — renaming lives on the students page — and writing `?? null` for
+      // an absent field would silently erase the student's name every time
+      // someone saved their profile.
+      ...(fd.has("studentName") ? { studentName: d.studentName ?? null } : {}),
       gradeLevel: d.gradeLevel ?? null,
       schoolName: d.schoolName ?? null,
       schoolContext: d.schoolContext ?? null,
@@ -90,12 +96,8 @@ export async function updateProfileAction(
       gpaScale: d.gpaScale ?? null,
       intendedMajor: d.intendedMajor ?? null,
       careerGoal: d.careerGoal ?? null,
+      countryOfOrigin: d.countryOfOrigin ? d.countryOfOrigin : null,
     },
-  });
-  // countryOfOrigin lives on the User.
-  await prisma.user.update({
-    where: { id: userId },
-    data: { countryOfOrigin: d.countryOfOrigin ? d.countryOfOrigin : null },
   });
 
   revalidatePath("/profile");

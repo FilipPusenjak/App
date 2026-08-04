@@ -25,11 +25,11 @@ export async function createUserWithProfile(runTag: string, label: string) {
       email: `${runTag}-${label}@example.test`,
       name: `Test ${label}`,
       passwordHash: "not-a-real-hash",
-      profile: { create: {} },
+      profiles: { create: {} },
     },
-    include: { profile: true },
+    include: { profiles: true },
   });
-  return { user, profile: user.profile! };
+  return { user, profile: user.profiles[0]! };
 }
 
 /** Delete every user this run created (children cascade from User). */

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { logoutAction } from "@/app/actions/auth";
+import { StudentSwitcher } from "./student-switcher";
 
 // Guard for every route in the (app) group. If there's no session we redirect
 // to /login before rendering anything, so protected pages never leak.
@@ -23,7 +24,13 @@ export default async function AppLayout({
             further lines instead of pushing the page sideways. */}
         <div className="mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-x-5 gap-y-2 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-1">
-            <Link href="/dashboard" className="text-sm font-semibold">
+            {/* nowrap: the row is tight enough with the student switcher in
+                it that the brand was breaking mid-phrase. The nav wraps
+                instead, which is what it was already designed to do. */}
+            <Link
+              href="/dashboard"
+              className="whitespace-nowrap text-sm font-semibold"
+            >
               Application Profile Evaluator
             </Link>
             <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
@@ -42,12 +49,17 @@ export default async function AppLayout({
               <Link href="/evaluations" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Evaluations
               </Link>
+              <Link href="/students" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                Students
+              </Link>
               <Link href="/settings" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 Settings
               </Link>
             </nav>
           </div>
-          <div className="flex shrink-0 items-center gap-4">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+            {/* Renders nothing until the account holds a second student. */}
+            <StudentSwitcher />
             <span className="hidden text-sm text-zinc-500 sm:inline">
               {user.email}
             </span>

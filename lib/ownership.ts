@@ -4,20 +4,75 @@
 // these. Every query is scoped by the *authenticated* user's id (from the
 // session), never a client-supplied id. This is how "filter by the current user"
 // can't be forgotten: the callers never see a userId to pass or omit.
+//
+// An account holds MANY students (a counselor or tutoring agency runs several
+// from one login), and that changed who can hold a profile without changing
+// who can read one: every check below still routes through Profile.userId
+// against the session's user. The per-student scoping is a SEPARATE question,
+// answered by getOrCreateProfile resolving the active student — so a bug there
+// could show the wrong student of your own, never someone else's.
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 
 /**
- * The current user's profile, creating it on first access. (Signup creates only
- * a User; the Profile is materialized the first time they open their profile.)
+ * Every student this account holds, oldest first.
+ *
+ * An account owns its students outright — there is no sharing and no
+ * cross-account access — so "all profiles for this user" is the complete list
+ * and needs no further filtering.
+ */
+export const getOwnedProfiles = cache(async () => {
+  const userId = await requireUserId();
+  return prisma.profile.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+  });
+});
+
+/**
+ * The student currently being worked on, creating one on first access.
+ *
+ * The active id is stored on the user and is NEVER trusted on its own. It is
+ * resolved by looking for it among the profiles this account actually owns, so
+ * a stale id (the student was deleted) or a tampered one (someone else's id)
+ * simply is not found and falls back to the first student. That check is
+ * structural rather than a conditional someone could forget to write.
  */
 export const getOrCreateProfile = cache(async () => {
   const userId = await requireUserId();
-  const existing = await prisma.profile.findUnique({ where: { userId } });
-  if (existing) return existing;
-  return prisma.profile.create({ data: { userId } });
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      activeProfileId: true,
+      countryOfOrigin: true,
+      profiles: { orderBy: { createdAt: "asc" } },
+    },
+  });
+
+  const active =
+    user.profiles.find((p) => p.id === user.activeProfileId) ?? user.profiles[0];
+  if (active) return active;
+
+  // First ever visit: signup creates only a User.
+  return prisma.profile.create({
+    data: { userId, countryOfOrigin: user.countryOfOrigin },
+  });
 });
+
+/** A student profile owned by the current user, or null. */
+export async function findOwnedProfile(profileId: string) {
+  const userId = await requireUserId();
+  return prisma.profile.findFirst({ where: { id: profileId, userId } });
+}
+
+/** Assert ownership of a student profile before switching to or mutating it. */
+export async function requireOwnedProfile(profileId: string) {
+  const profile = await findOwnedProfile(profileId);
+  if (!profile) throw new Error("Student not found");
+  return profile;
+}
 
 /**
  * The current user's full profile with its children, for rendering the page.
@@ -31,21 +86,12 @@ export const getOrCreateProfile = cache(async () => {
  * shared constant loses Prisma's type inference for the returned relations.
  */
 export const getProfileWithRelations = cache(async () => {
-  const userId = await requireUserId();
+  // Ownership is established here; the lookup below is by primary key, which
+  // is safe precisely because this call already proved the profile is ours.
+  const { id } = await getOrCreateProfile();
 
-  const existing = await prisma.profile.findUnique({
-    where: { userId },
-    include: {
-      testScores: { orderBy: { createdAt: "asc" } },
-      resumeItems: { orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] },
-      targetSchools: { orderBy: { createdAt: "asc" } },
-    },
-  });
-  if (existing) return existing;
-
-  await getOrCreateProfile();
   return prisma.profile.findUniqueOrThrow({
-    where: { userId },
+    where: { id },
     include: {
       testScores: { orderBy: { createdAt: "asc" } },
       resumeItems: { orderBy: [{ startDate: "desc" }, { createdAt: "desc" }] },

@@ -243,22 +243,46 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
     });
   });
 
+  // The three profile-level helpers arrived with multi-student accounts, and
+  // are exercised in depth in multi-student.test.ts — including that a foreign
+  // profile id can neither be resolved as active nor looked up. Repeated here
+  // because this file is the one that must fail when a helper is added without
+  // an isolation test behind it.
+  describe("student profiles", () => {
+    it("never returns another account's profile", async () => {
+      const a = await createUserWithProfile(runTag, "profile-a");
+      const b = await createUserWithProfile(runTag, "profile-b");
+
+      sessionUser.id = a.user.id;
+      expect(await ownership.findOwnedProfile(b.profile.id)).toBeNull();
+      await expect(
+        ownership.requireOwnedProfile(b.profile.id),
+      ).rejects.toThrow();
+      expect((await ownership.getOwnedProfiles()).map((p) => p.id)).toEqual([
+        a.profile.id,
+      ]);
+    });
+  });
+
   describe("completeness", () => {
     it("covers every exported ownership helper — extend this file when adding one", () => {
       expect(Object.keys(ownership).sort()).toEqual(
         [
           "findOwnedEvaluation",
           "findOwnedPlannedItem",
+          "findOwnedProfile",
           "findOwnedProjection",
           "findOwnedResumeItem",
           "findOwnedTargetSchool",
           "getOrCreateProfile",
           "getOwnedEvaluations",
           "getOwnedPlannedItems",
+          "getOwnedProfiles",
           "getOwnedProjections",
           "getOwnedTargets",
           "getProfileWithRelations",
           "requireOwnedPlannedItem",
+          "requireOwnedProfile",
           "requireOwnedResumeItem",
           "requireOwnedTargetSchool",
           "requireOwnedTestScore",

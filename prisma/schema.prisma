@@ -29,7 +29,11 @@ model User {
   email           String   @unique
   passwordHash    String
   name            String?
-  countryOfOrigin String? // home country (ISO code); affects domestic vs international status
+  // The account's DEFAULT home country, set at signup. Each student profile
+  // carries its own, since a counselor's students do not share one and the
+  // domestic-vs-international distinction is material to an evaluation. This
+  // is what a new student inherits.
+  countryOfOrigin String? // ISO code
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -38,9 +42,20 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
 
-  // One profile per user for now. Relaxing this to many (e.g. a counselor with
-  // several students) later is additive and won't break existing data.
-  profile Profile?
+  // MANY profiles per user, one per student.
+  //
+  // A counselor or tutoring agency runs several students from one account, so
+  // an account holds a list of student profiles rather than being a student.
+  // Students do not log in; the account owns their records outright, which is
+  // what keeps the privacy rule intact — every query still filters by ONE
+  // authenticated user id, and no sharing or cross-account access exists to
+  // get wrong. A solo student is just an account with one profile.
+  profiles Profile[]
+
+  // Which student the account is currently working on. Nullable, and never
+  // trusted on its own: resolving it checks the profile still belongs to this
+  // user, so a stale or tampered value falls back rather than leaking.
+  activeProfileId String?
 }
 
 // ---------------------------------------------------------------------------
@@ -48,9 +63,18 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Profile {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  // NOT unique: one account holds many students. Every ownership check in
+  // lib/ownership still routes through this column, so widening it changed
+  // who can hold a profile without changing who can read one.
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // What the account calls this student. Null on the profile a solo student
+  // made before this existed, where "your profile" is the honest label.
+  studentName   String?
+  // This student's home country, overriding the account default. Affects
+  // domestic vs international status, which changes the assessment.
+  countryOfOrigin String? // ISO code
   gradeLevel    String? // e.g. "Grade 11", "Year 12"
   // School context. Not all schools are equally rigorous, and a GPA means very
   // little without knowing what was available to earn it — which courses the
@@ -68,6 +92,8 @@ model Profile {
   resumeItems   ResumeItem[]
   testScores    TestScore[]
   targetSchools TargetSchool[]
+
+  @@index([userId])
   evaluations   Evaluation[]
   plannedItems  PlannedItem[]
   projections   Projection[]

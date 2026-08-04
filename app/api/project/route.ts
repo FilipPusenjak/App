@@ -204,7 +204,7 @@ export async function POST() {
 
   const snapshot = buildProjectionSnapshot(
     profile,
-    user.countryOfOrigin ?? null,
+    profile.countryOfOrigin ?? user.countryOfOrigin ?? null,
     plannedItems,
     {
       evaluationId: baseEvaluation?.id ?? null,

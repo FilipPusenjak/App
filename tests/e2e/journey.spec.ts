@@ -107,29 +107,65 @@ test("a student's full journey", async ({ page }) => {
   const raw = await exportResponse.text();
   expect(raw).not.toContain("passwordHash");
 
+  // The export is per STUDENT: an account can hold several, and one that
+  // quietly covered only the selected student would be a backup that isn't.
   const data = JSON.parse(raw) as {
+    formatVersion: number;
     account: { email: string };
-    testScores: unknown[];
-    resumeItems: { title: string }[];
-    targetSchools: { name: string }[];
-    evaluations: { isSample: boolean }[];
-    plannedItems: { title: string }[];
-    projections: { isSample: boolean }[];
+    students: {
+      studentName: string | null;
+      testScores: unknown[];
+      resumeItems: { title: string }[];
+      targetSchools: { name: string }[];
+      evaluations: { isSample: boolean }[];
+      plannedItems: { title: string }[];
+      projections: { isSample: boolean }[];
+    }[];
   };
+  expect(data.formatVersion).toBe(2);
   expect(data.account.email).toBe(email);
-  expect(data.testScores).toHaveLength(1);
-  expect(data.targetSchools[0]!.name).toBe("University of Cambridge");
-  expect(data.evaluations).toHaveLength(1);
-  expect(data.evaluations[0]!.isSample).toBe(true);
+  expect(data.students).toHaveLength(1);
+
+  const student = data.students[0]!;
+  expect(student.testScores).toHaveLength(1);
+  expect(student.targetSchools[0]!.name).toBe("University of Cambridge");
+  expect(student.evaluations).toHaveLength(1);
+  expect(student.evaluations[0]!.isSample).toBe(true);
   // Plans and projections are exported, and kept in their own buckets.
-  expect(data.plannedItems.map((p) => p.title)).toEqual([
+  expect(student.plannedItems.map((p) => p.title)).toEqual([
     "Start a programming club",
   ]);
-  expect(data.projections).toHaveLength(1);
+  expect(student.projections).toHaveLength(1);
   // THE ISOLATION GUARANTEE: a plan must never appear among achievements.
-  expect(data.resumeItems.map((i) => i.title)).not.toContain(
+  expect(student.resumeItems.map((i) => i.title)).not.toContain(
     "Start a programming club",
   );
+
+  // ── 5b. A second student, and the isolation between them ────────────────
+  await page.goto("/students");
+  await page.fill('input[name="studentName"]', "Second Student");
+  await page.getByRole("button", { name: "Add student" }).click();
+  await expect(page.getByText("Added Second Student.")).toBeVisible();
+
+  // Adding switches to them, and their profile must be EMPTY — not a copy of
+  // the first student's.
+  await page.goto("/profile");
+  await expect(page.locator('input[name="gradeLevel"]')).toHaveValue("");
+  await page.goto("/evaluations");
+  await expect(page.getByText("No evaluations yet.")).toBeVisible();
+
+  // And the export now carries both, each with their own contents.
+  const bothRaw = await (await page.request.get("/api/export")).text();
+  const both = JSON.parse(bothRaw) as {
+    students: { studentName: string | null; evaluations: unknown[] }[];
+  };
+  expect(both.students).toHaveLength(2);
+  expect(both.students.map((s) => s.studentName)).toEqual([
+    null,
+    "Second Student",
+  ]);
+  expect(both.students[0]!.evaluations).toHaveLength(1);
+  expect(both.students[1]!.evaluations).toHaveLength(0);
 
   // ── 6. Delete the account (retype-the-email confirmation) ───────────────
   await page.goto("/settings");

@@ -18,14 +18,16 @@ async function main() {
   await prisma.user.deleteMany({ where: { email: SEED_EMAIL } });
 
   const user = await prisma.user.create({
-    include: { profile: true },
+    include: { profiles: true },
     data: {
       email: SEED_EMAIL,
       passwordHash,
       name: "Ada Sample",
       countryOfOrigin: "SG", // Singapore — an international applicant to US/UK
-      profile: {
+      profiles: {
         create: {
+          studentName: "Ada Sample",
+          countryOfOrigin: "SG",
           gradeLevel: "Grade 11",
           curriculum: "ib",
           gpa: 3.9,
@@ -135,7 +137,7 @@ async function main() {
   });
 
   console.log(
-    `Seeded user "${user.email}" (profile id: ${user.profile?.id}).\n` +
+    `Seeded user "${user.email}" (profile id: ${user.profiles[0]?.id}).\n` +
       `  Login for later milestones -> ${SEED_EMAIL} / ${SEED_PASSWORD}`,
   );
 }
