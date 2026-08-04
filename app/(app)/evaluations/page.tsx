@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
 import {
   buildProgress,
@@ -241,6 +242,30 @@ export default async function EvaluationsPage() {
                         {e.model ? ` · ${e.model}` : ""}
                         {e.promptVersion ? ` · ${e.promptVersion}` : ""}
                       </p>
+                      {/* What this run actually cost. Shown per run because
+                          "it feels like it's getting more expensive" is not
+                          something anyone can act on, and because a cache
+                          write with no read is a LOSS that is otherwise
+                          indistinguishable from a saving. */}
+                      {(() => {
+                        const cost = formatUsd(estimateCost(e, e.model));
+                        if (!cost) return null;
+                        const cache = cacheVerdict(e);
+                        return (
+                          <p className="mt-1 text-xs text-zinc-400">
+                            {cost}
+                            {e.inputTokens != null && e.outputTokens != null
+                              ? ` · ${e.inputTokens.toLocaleString()} in / ${e.outputTokens.toLocaleString()} out`
+                              : ""}
+                            {cache.state === "hit"
+                              ? ` · cache hit, saved ${formatUsd(cache.savedUsd)}`
+                              : ""}
+                            {cache.state === "write-only"
+                              ? ` · cache written but not read (${formatUsd(cache.savedUsd)})`
+                              : ""}
+                          </p>
+                        );
+                      })()}
                       {e.status === "pending" && (
                         <p className="mt-1 text-xs text-zinc-500">
                           Started just now — an evaluation takes up to a

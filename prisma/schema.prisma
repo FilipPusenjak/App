@@ -222,6 +222,18 @@ model Evaluation {
   createdAt    DateTime @default(now())
   completedAt  DateTime?
 
+  // What this run actually cost, straight from the API's usage block.
+  //
+  // Recorded because "it feels like it's costing more" is not something either
+  // a user or a developer can act on. Cache reads and writes are separated
+  // because they are priced differently — a write costs 2x base and a read
+  // 0.1x, so a run that only ever WRITES the cache is more expensive than one
+  // with no caching at all, and without these columns that is invisible.
+  inputTokens       Int?
+  outputTokens      Int?
+  cacheWriteTokens  Int?
+  cacheReadTokens   Int?
+
   @@index([profileId])
 }
 

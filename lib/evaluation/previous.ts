@@ -42,7 +42,12 @@ export async function buildDiffAgainstPrevious(
 export async function loadPreviousContext(
   profileId: string,
   current: EvaluationSnapshot,
-): Promise<{ diff: SnapshotDiff | null; reuse: ItemReuse }> {
+): Promise<{
+  diff: SnapshotDiff | null;
+  reuse: ItemReuse;
+  /** When the previous run happened — decides whether a cache entry survives. */
+  lastRunAt: Date | null;
+}> {
   const previous = await prisma.evaluation.findFirst({
     where: { profileId, status: "completed", isSample: false },
     orderBy: { createdAt: "desc" },
@@ -51,10 +56,15 @@ export async function loadPreviousContext(
       resultJson: true,
       overallScore: true,
       promptVersion: true,
+      createdAt: true,
     },
   });
 
-  if (!previous?.inputSnapshotJson) return { diff: null, reuse: NO_REUSE };
+  const lastRunAt = previous?.createdAt ?? null;
+
+  if (!previous?.inputSnapshotJson) {
+    return { diff: null, reuse: NO_REUSE, lastRunAt };
+  }
 
   let previousSnapshot: EvaluationSnapshot;
   try {
@@ -68,10 +78,10 @@ export async function loadPreviousContext(
       !Array.isArray(previousSnapshot.targets) ||
       typeof previousSnapshot.student !== "object"
     ) {
-      return { diff: null, reuse: NO_REUSE };
+      return { diff: null, reuse: NO_REUSE, lastRunAt };
     }
   } catch {
-    return { diff: null, reuse: NO_REUSE };
+    return { diff: null, reuse: NO_REUSE, lastRunAt };
   }
 
   const result = parseStoredResult(previous.resultJson);
@@ -100,5 +110,5 @@ export async function loadPreviousContext(
     rescoredKeys: scoresRedefinedSince(previous.promptVersion),
   });
 
-  return { diff, reuse };
+  return { diff, reuse, lastRunAt };
 }

@@ -153,34 +153,72 @@ describe("the projection prompt splits the same way", () => {
   });
 });
 
-describe("the cache TTL is a deliberate choice, not a default", () => {
+// A cache WRITE costs 2x base input and a read 0.1x, so an entry nobody reads
+// is an ~89% surcharge on the cached portion — not a saving. Shipping caching
+// as an unconditional default made every run more expensive for anyone who
+// evaluates occasionally instead of in bursts, which is most people. These
+// tests pin the rule that replaced it: write only when a read is plausible.
+describe("a cache entry is written only when one can be read back", () => {
   const original = process.env.ANTHROPIC_CACHE_TTL;
-  const withTtl = (value: string | undefined) => {
+  const withSetting = <T>(value: string | undefined, run: () => T): T => {
     if (value === undefined) delete process.env.ANTHROPIC_CACHE_TTL;
     else process.env.ANTHROPIC_CACHE_TTL = value;
     try {
-      return getCacheControl();
+      return run();
     } finally {
       if (original === undefined) delete process.env.ANTHROPIC_CACHE_TTL;
       else process.env.ANTHROPIC_CACHE_TTL = original;
     }
   };
+  const ago = (ms: number) => new Date(Date.now() - ms);
 
-  it("defaults to an hour, matching how a student actually iterates", () => {
-    // Read the result, edit the profile, run again — gaps a 5-minute cache
-    // almost never survives.
-    expect(DEFAULT_CACHE_TTL).toBe("1h");
-    expect(withTtl(undefined)).toEqual({ type: "ephemeral", ttl: "1h" });
+  it("does NOT write on a run with no previous run to have warmed it", () => {
+    // The first evaluation would otherwise pay 2x for an entry that expires
+    // unused far more often than not.
+    expect(withSetting(undefined, () => getCacheControl(null))).toBeUndefined();
   });
 
-  it("allows the short TTL for bursty use", () => {
-    // Writes cost 1.25x at 5 minutes against 2x at an hour, so this pays from
-    // the second run rather than the third.
-    expect(withTtl("5m")).toEqual({ type: "ephemeral" });
+  it("does NOT write when the last run was too long ago", () => {
+    // The exact case that was costing money: run, read it, come back tomorrow.
+    expect(
+      withSetting(undefined, () => getCacheControl(ago(6 * 60 * 60 * 1000))),
+    ).toBeUndefined();
+  });
+
+  it("DOES write when the last run is recent enough that an entry survives", () => {
+    expect(withSetting(undefined, () => getCacheControl(ago(60_000)))).toEqual({
+      type: "ephemeral",
+      ttl: "1h",
+    });
+  });
+
+  it("leaves a margin rather than betting on the last second of the window", () => {
+    // An entry that expired moments ago costs 2x instead of the 0.1x it was
+    // gambling on, so the edge of the window is not treated as a hit.
+    expect(
+      withSetting(undefined, () => getCacheControl(ago(59 * 60 * 1000))),
+    ).toBeUndefined();
+    expect(DEFAULT_CACHE_TTL).toBe("1h");
+  });
+
+  it("honours the shorter window when asked for it", () => {
+    expect(withSetting("5m", () => getCacheControl(ago(60_000)))).toEqual({
+      type: "ephemeral",
+    });
+    // 4 minutes is inside an hour but outside five.
+    expect(
+      withSetting("5m", () => getCacheControl(ago(4.9 * 60 * 1000))),
+    ).toBeUndefined();
+  });
+
+  it("can be forced on for steady multi-user traffic", () => {
+    expect(withSetting("always", () => getCacheControl(null))).toEqual({
+      type: "ephemeral",
+      ttl: "1h",
+    });
   });
 
   it("can be turned off entirely", () => {
-    // A student who runs once and stops pays the write premium for nothing.
-    expect(withTtl("off")).toBeUndefined();
+    expect(withSetting("off", () => getCacheControl(ago(60_000)))).toBeUndefined();
   });
 });

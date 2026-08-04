@@ -97,9 +97,13 @@ const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
 async function requestEvaluation(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
   prompt: { stable: string; variable: string },
+  lastRunAt: Date | null,
 ) {
   const effort = getEffort() as "low" | "medium" | "high" | "xhigh" | "max";
-  const cache = getCacheControl();
+  // Only writes a cache entry when one plausibly still exists to be read.
+  // Writing unconditionally costs 2x on the cached portion, which is a loss on
+  // every run for anyone who evaluates occasionally rather than in bursts.
+  const cache = getCacheControl(lastRunAt);
 
   // Caching is a prefix match, so the breakpoints go at the two stability
   // boundaries: the end of the system prompt, and the end of the rubrics. That
@@ -226,7 +230,10 @@ export async function POST() {
   // a malformed or missing previous row simply means no comparison.
   // One load for both: the diff that keeps scores consistent, and the item
   // assessments that can be carried over rather than paid for a second time.
-  const { diff, reuse } = await loadPreviousContext(profile.id, snapshot);
+  const { diff, reuse, lastRunAt } = await loadPreviousContext(
+    profile.id,
+    snapshot,
+  );
 
   const client = getAnthropicClient();
   const isSample = client === null;
@@ -260,6 +267,12 @@ export async function POST() {
 
   // 6b. Real evaluation.
   const startedAt = Date.now();
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheWriteTokens: 0,
+    cacheReadTokens: 0,
+  };
   try {
     const prompt = buildUserPromptParts(snapshot, diff, reuse);
 
@@ -267,10 +280,14 @@ export async function POST() {
     // is identical on the retry and the second attempt reads the cache rather
     // than writing a new entry.
     const attempt = async (extra = ""): Promise<ModelAttempt> => {
-      const outcome = await requestEvaluation(client, {
-        stable: prompt.stable,
-        variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
-      });
+      const outcome = await requestEvaluation(
+        client,
+        {
+          stable: prompt.stable,
+          variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
+        },
+        lastRunAt,
+      );
       if ("parseError" in outcome) {
         return {
           text: "",
@@ -293,6 +310,13 @@ export async function POST() {
           `The evaluation ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or reduce the size of your profile.`,
         );
       }
+      // Accumulated rather than assigned: a retry is a second billed request,
+      // and reporting only the last one would understate what the run cost.
+      usage.inputTokens += message.usage.input_tokens ?? 0;
+      usage.outputTokens += message.usage.output_tokens ?? 0;
+      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+
       return {
         text: message.content
           .map((block) => (block.type === "text" ? block.text : ""))
@@ -353,6 +377,7 @@ export async function POST() {
         resultJson: JSON.stringify(result),
         overallScore: Math.round(result.overallScore),
         completedAt: new Date(),
+        ...usage,
       },
     });
 
@@ -364,7 +389,14 @@ export async function POST() {
     // happened in their history rather than losing the attempt silently.
     await prisma.evaluation.update({
       where: { id: evaluation.id },
-      data: { status: "failed", error: messageText, completedAt: new Date() },
+      // A failed run still cost whatever it burned before failing, and that
+      // is exactly the spend someone chasing a bill needs to see.
+      data: {
+        status: "failed",
+        error: messageText,
+        completedAt: new Date(),
+        ...usage,
+      },
     });
     console.error("Evaluation failed:", error);
     return NextResponse.json(

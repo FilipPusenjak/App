@@ -47,28 +47,63 @@ export const DEFAULT_PROJECTION_EFFORT = "medium";
  * student who runs once and stops pays slightly MORE than with no cache at
  * all, and the choice of TTL is really a bet on how they use it.
  *
- * "1h" is the default because the real pattern is read the evaluation, edit
- * the profile for a while, run it again — gaps that a 5-minute cache almost
- * never survives. It pays from the third run in an hour; "5m" pays from the
- * second, but only if the runs are minutes apart. Set ANTHROPIC_CACHE_TTL to
- * "5m" if your runs are bursty, or "off" to disable caching entirely.
+ * "1h" is the window, but whether an entry is written at all now depends on
+ * whether one plausibly still exists to read — see getCacheControl. Set
+ * ANTHROPIC_CACHE_TTL to "5m" for a shorter window, "always" to write on every
+ * run regardless, or "off" to disable caching entirely.
  */
 export const DEFAULT_CACHE_TTL = "1h";
 
 export const getModel = () => process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 export const getEffort = () => process.env.ANTHROPIC_EFFORT || DEFAULT_EFFORT;
 
+/** How long an entry survives, for deciding whether one still exists. */
+export const CACHE_TTL_MS: Record<"5m" | "1h", number> = {
+  "5m": 5 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+};
+
 /**
  * The cache_control value to attach to a stable prompt block, or undefined
- * when caching is switched off.
+ * when a cache entry should NOT be written.
+ *
+ * `lastRunAt` is the decisive argument and the reason this is not a constant.
+ * A cache WRITE costs 2x base input; a read costs 0.1x. So writing an entry
+ * nobody reads is an 89% surcharge on the cached portion, and for someone who
+ * runs an evaluation, reads it, and comes back tomorrow, EVERY run is that
+ * surcharge. Caching shipped as an unconditional default and made those runs
+ * substantially more expensive — the opposite of the intent.
+ *
+ * So an entry is written only when one plausibly still exists to be read: the
+ * previous run was recent enough to be inside the TTL. Cold, occasional runs
+ * pay base price and no premium; a counselor working through several students,
+ * or anyone iterating, gets the hit and the saving.
+ *
+ * Set ANTHROPIC_CACHE_TTL to "off" to disable entirely, or "always" to write
+ * unconditionally (worth it only under steady traffic from many users).
  */
-export function getCacheControl():
-  | { type: "ephemeral"; ttl?: "5m" | "1h" }
-  | undefined {
-  const ttl = process.env.ANTHROPIC_CACHE_TTL || DEFAULT_CACHE_TTL;
-  if (ttl === "off") return undefined;
-  if (ttl === "5m") return { type: "ephemeral" };
-  return { type: "ephemeral", ttl: "1h" };
+export function getCacheControl(
+  lastRunAt: Date | null | undefined,
+): { type: "ephemeral"; ttl?: "5m" | "1h" } | undefined {
+  const setting = process.env.ANTHROPIC_CACHE_TTL || DEFAULT_CACHE_TTL;
+  if (setting === "off") return undefined;
+
+  const ttl = setting === "5m" ? "5m" : "1h";
+  const control =
+    ttl === "5m"
+      ? ({ type: "ephemeral" } as const)
+      : ({ type: "ephemeral", ttl: "1h" } as const);
+
+  if (setting === "always") return control;
+
+  // No previous run means nothing to read back: a first evaluation would pay
+  // the write premium for an entry that expires unused far more often than not.
+  if (!lastRunAt) return undefined;
+
+  // Written with a margin, because an entry that expired seconds ago is a
+  // write at 2x rather than the read it was gambling on.
+  const elapsed = Date.now() - lastRunAt.getTime();
+  return elapsed < CACHE_TTL_MS[ttl] * 0.9 ? control : undefined;
 }
 
 export const getProjectionModel = () =>

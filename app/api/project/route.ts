@@ -72,6 +72,7 @@ const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
 async function requestProjection(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
   prompt: { stable: string; variable: string },
+  lastRunAt: Date | null,
 ) {
   const effort = getProjectionEffort() as
     | "low"
@@ -79,7 +80,8 @@ async function requestProjection(
     | "high"
     | "xhigh"
     | "max";
-  const cache = getCacheControl();
+  // Same rule as the evaluation route: no write unless a read is plausible.
+  const cache = getCacheControl(lastRunAt);
 
   // Same two stability boundaries as the evaluation route.
   const system = [
@@ -218,6 +220,14 @@ export async function POST() {
   // can't produce different numbers — the inconsistency this version fixes.
   const previous = await buildPreviousProjectionContext(profile.id, snapshot);
 
+  // When this profile last ran a projection, for the same cache decision.
+  const lastProjection = await prisma.projection.findFirst({
+    where: { profileId: profile.id, isSample: false },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  const lastProjectionAt = lastProjection?.createdAt ?? null;
+
   const client = getAnthropicClient();
   const isSample = client === null;
 
@@ -251,10 +261,14 @@ export async function POST() {
     const prompt = buildUserPromptParts(snapshot, previous);
 
     const attempt = async (extra = ""): Promise<ModelAttempt> => {
-      const outcome = await requestProjection(client, {
-        stable: prompt.stable,
-        variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
-      });
+      const outcome = await requestProjection(
+        client,
+        {
+          stable: prompt.stable,
+          variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
+        },
+        lastProjectionAt,
+      );
       if ("parseError" in outcome) {
         return {
           text: "",
