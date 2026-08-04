@@ -35,8 +35,21 @@ describe("getRubric", () => {
     expect(getRubric("gb").id).toBe("uk-course-specific");
   });
 
+  it("applies the EU rubric across the bloc", () => {
+    // Politically these differ; as admissions systems they share a shape, and
+    // it is the shape the rubric describes.
+    for (const code of ["DE", "IE", "NL", "FR", "SE", "PL"]) {
+      expect(getRubric(code).id).toBe("eu-qualification-led");
+    }
+    // Switzerland and Norway are not EU members but admit the same way.
+    expect(getRubric("CH").id).toBe("eu-qualification-led");
+    expect(getRubric("NO").id).toBe("eu-qualification-led");
+    // The UK left more than the union: its admissions are a different system.
+    expect(getRubric("GB").id).toBe("uk-course-specific");
+  });
+
   it("falls back to the generic rubric for unknown countries", () => {
-    expect(getRubric("DE").id).toBe("generic");
+    expect(getRubric("JP").id).toBe("generic");
     expect(getRubric("XX").id).toBe("generic");
   });
 
@@ -52,7 +65,8 @@ describe("hasCountryRubric", () => {
     expect(hasCountryRubric("US")).toBe(true);
     expect(hasCountryRubric("GB")).toBe(true);
     expect(hasCountryRubric("UK")).toBe(true);
-    expect(hasCountryRubric("DE")).toBe(false);
+    expect(hasCountryRubric("DE")).toBe(true);
+    expect(hasCountryRubric("JP")).toBe(false);
     expect(hasCountryRubric(null)).toBe(false);
   });
 });
@@ -82,8 +96,14 @@ describe("rubricsForCountries", () => {
   });
 
   it("returns one rubric per distinct system", () => {
-    const ids = rubricsForCountries(["US", "GB", "DE", "FR"]).map((r) => r.id);
-    expect(ids).toEqual(["us-holistic", "uk-course-specific", "generic"]);
+    // DE and FR are one system here, so they collapse to a single rubric.
+    const ids = rubricsForCountries(["US", "GB", "DE", "FR", "JP"]).map((r) => r.id);
+    expect(ids).toEqual([
+      "us-holistic",
+      "uk-course-specific",
+      "eu-qualification-led",
+      "generic",
+    ]);
   });
 
   it("returns nothing for no targets", () => {

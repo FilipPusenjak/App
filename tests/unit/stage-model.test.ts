@@ -9,6 +9,7 @@
 // and that modelling it did NOT turn the evaluation into flattery.
 import { describe, expect, it } from "vitest";
 import {
+  euRubric,
   genericRubric,
   renderRubric,
   ukRubric,
@@ -19,7 +20,7 @@ import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/prompts/evaluation";
 import { SYSTEM_PROMPT as PROJECTION_PROMPT } from "@/lib/prompts/projection";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 
-const ALL: Rubric[] = [usRubric, ukRubric, genericRubric];
+const ALL: Rubric[] = [usRubric, ukRubric, euRubric, genericRubric];
 
 function snapshot(gradeLevel: string) {
   return buildSnapshot(

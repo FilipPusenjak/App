@@ -39,8 +39,11 @@ const profile = {
   targetSchools: [
     { name: "Oxford", country: "GB", course: "Medicine", classification: null, priority: null, notes: null },
     { name: "Cornell", country: "US", course: "Biology", classification: null, priority: null, notes: null },
-    // The target that exposed the phantom-rubric bug: Ireland has no rubric.
-    { name: "Trinity College Dublin", country: "IE", course: "Medicine", classification: null, priority: null, notes: null },
+    // The target that exposed the phantom-rubric bug. Ireland has had a rubric
+    // since the EU one shipped, so the guard now uses a country that genuinely
+    // has none — the bug was inventing "the Ireland rubric" out of a country
+    // name, and that is just as available for Japan.
+    { name: "University of Tokyo", country: "JP", course: "Medicine", classification: null, priority: null, notes: null },
   ],
 };
 
@@ -174,8 +177,8 @@ describe("projections are anchored across runs", () => {
 describe("rubric mapping names the rubric actually applied", () => {
   it("does not invent a national rubric for a country that has none", () => {
     const prompt = buildUserPrompt(snapshotWithMeasured());
-    expect(prompt).not.toMatch(/Ireland rubric/);
-    expect(prompt).toContain("Trinity College Dublin (Ireland) ->");
+    expect(prompt).not.toMatch(/Japan rubric/);
+    expect(prompt).toContain("University of Tokyo (Japan) ->");
     expect(prompt).toMatch(/no country-specific rubric exists for this country/i);
   });
 

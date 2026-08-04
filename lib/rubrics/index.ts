@@ -6,6 +6,7 @@
 import type { Rubric } from "./types";
 import { usRubric } from "./us";
 import { ukRubric } from "./uk";
+import { euRubric } from "./eu";
 import { genericRubric } from "./generic";
 
 export type {
@@ -14,7 +15,25 @@ export type {
   RubricStage,
   DimensionWeight,
 } from "./types";
-export { usRubric, ukRubric, genericRubric };
+export { usRubric, ukRubric, euRubric, genericRubric };
+
+/**
+ * Countries the EU rubric applies to.
+ *
+ * EU members plus the EEA and Switzerland: not politically one bloc, but one
+ * admissions SHAPE — a recognised leaving qualification, grades in the required
+ * subjects, and the language of instruction. The rubric itself is emphatic that
+ * the specifics differ by country; what it captures is the shape they share.
+ *
+ * The UK is deliberately NOT here. It left more than the union — its
+ * course-specific, personal-statement-led admissions are a genuinely different
+ * system, and it has its own rubric.
+ */
+const EU_COUNTRIES = [
+  "AT", "BE", "BG", "CH", "CY", "CZ", "DE", "DK", "EE", "ES",
+  "FI", "FR", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT",
+  "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK",
+] as const;
 
 const REGISTRY: Record<string, Rubric> = {
   US: usRubric,
@@ -23,7 +42,10 @@ const REGISTRY: Record<string, Rubric> = {
   // obvious thing to type and appeared in early seed data. Alias it so a UK
   // target can never silently fall through to the generic rubric.
   UK: ukRubric,
+  ...Object.fromEntries(EU_COUNTRIES.map((code) => [code, euRubric])),
 };
+
+export { EU_COUNTRIES };
 
 /** The rubric for a country code, falling back to the cautious generic one. */
 export function getRubric(countryCode: string | null | undefined): Rubric {
@@ -36,7 +58,7 @@ export function hasCountryRubric(countryCode: string | null | undefined) {
   return Boolean(countryCode && REGISTRY[countryCode.toUpperCase()]);
 }
 
-const ALL_RUBRICS = [usRubric, ukRubric, genericRubric];
+const ALL_RUBRICS = [usRubric, ukRubric, euRubric, genericRubric];
 
 /**
  * Look a rubric up by its id. Stored results record the rubric id that produced

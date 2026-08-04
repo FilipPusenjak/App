@@ -105,9 +105,19 @@ describe("renderRubricSection", () => {
     expect(text).not.toContain("id: generic");
   });
 
-  it("falls back to the generic rubric for countries without one", () => {
+  it("uses the EU rubric across the bloc, not just for one country", () => {
+    // Switzerland is not in the EU but shares the shape the rubric describes,
+    // which is why the mapping is by admissions system rather than politics.
     const text = renderRubricSection(
       makeSnapshot({ targets: [{ name: "ETH Zürich", country: "CH", course: "CS" }] }),
+    );
+    expect(text).toContain("id: eu-qualification-led");
+    expect(text).not.toContain("id: generic");
+  });
+
+  it("falls back to the generic rubric for countries without one", () => {
+    const text = renderRubricSection(
+      makeSnapshot({ targets: [{ name: "Tokyo", country: "JP", course: "CS" }] }),
     );
     expect(text).toContain("id: generic");
   });
@@ -126,9 +136,12 @@ describe("renderRubricMapping", () => {
     // The real bug: this used to read "Trinity -> Ireland rubric", naming a
     // rubric that does not exist, while supplying the generic one. The model
     // then produced a section contradicting itself about generic targets.
+    // Ireland has had a real rubric since the EU one shipped, so the guard
+    // moved to a country that still has none — inventing a rubric out of a
+    // country name works just as well for Japan.
     const text = renderRubricMapping(
       makeSnapshot({
-        targets: [{ name: "Trinity College Dublin", country: "IE", course: "Medicine" }],
+        targets: [{ name: "University of Tokyo", country: "JP", course: "Medicine" }],
       }),
     );
     expect(text).toContain("[id: generic]");
