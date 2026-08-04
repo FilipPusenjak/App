@@ -21,7 +21,7 @@ Either works; **Neon** is the simplest if you are not on Vercel yet.
 string from the dashboard. It looks like:
 
 ```
-postgresql://user:password@ep-something.eu-central-1.aws.neon.tech/neondb?sslmode=require
+postgresql://user:password@ep-something.eu-central-1.aws.neon.tech/neondb?sslmode=verify-full
 ```
 
 **Vercel Postgres** — create the database from your Vercel project's Storage tab
@@ -155,6 +155,8 @@ Two things worth knowing:
 
 | Symptom | Cause |
 |---|---|
+| Pages error after a `git pull`, mentioning an unknown field or argument | The generated Prisma client is stale — a pulled schema change added columns your local client does not know about. `npm run dev` now regenerates it first; if you started the server another way, run `npm run db:sync`. |
+| `SECURITY WARNING: The SSL modes 'prefer', 'require'...` on startup | Your `DATABASE_URL` uses `sslmode=require`. Change it to `sslmode=verify-full`, which is what the driver does today anyway — see `.env.example`. Left alone it becomes a real downgrade when `pg` v9 lands. |
 | Locked out after failed logins | Wait 15 minutes, or reset the password with `npm run set-password` (see above), which clears the lock. |
 | A page errors with Prisma P2021 "table does not exist" | The database is behind the code. `npm run db:deploy` applies pending migrations; `npm run dev` and `npm run build` now do it for you. |
 | An evaluation stays "Running…" | It was interrupted (usually a function timeout). It is marked failed automatically after 5 minutes; just run it again. |
