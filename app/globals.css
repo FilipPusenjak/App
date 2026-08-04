@@ -1,21 +1,69 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Palette — a muted light blue.
+
+   The whole interface was neutral grey on white. Rather than rewrite the
+   colour classes on every component, the ZINC RAMP ITSELF is redefined here as
+   a blue-tinted grey: `text-zinc-500`, `bg-zinc-900`, `hover:text-zinc-900` and
+   the rest keep working and simply come out cooler. One file, no component
+   churn, and no risk of a page being missed and left grey.
+
+   Muted is the point — low chroma, so it reads as a considered neutral rather
+   than a blue theme. The page sits on a soft tint and cards stay white, which
+   is what gives them lift; on a white page a white card has to be drawn with
+   borders and shadows instead.
+
+   Contrast was measured against the surface each step actually sits on, not
+   assumed. zinc-500 secondary text is 5.2:1 on a white card and 4.8:1 on the
+   tinted page, both clear of the 4.5:1 floor. zinc-400 — the smallest
+   metadata text, such as the rubric line under each school — was darkened from
+   the value the ramp wanted so it lands at 4.4:1 on a card rather than 3.2:1;
+   the stock grey it replaces was 2.3:1, which was never legible enough for
+   text a student is expected to read.
+
+   The page tint is deliberately not deeper than this. A stronger blue looked
+   better in isolation and pushed zinc-500 body text to 4.5:1 exactly, which is
+   no margin at all — the tint is the thing that gives, not the legibility.
+   zinc-50 went the other way, to near-white: at its ramp value it was within
+   1.02 of the page and panels using it vanished entirely.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #eef3f9;
+  --foreground: #16202c;
+  /* Cards and other raised surfaces. */
+  --surface: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
 }
 
+@theme {
+  --color-zinc-50: #fbfdfe;
+  --color-zinc-100: #e7eef6;
+  --color-zinc-200: #d2dfec;
+  --color-zinc-300: #b0c2d6;
+  --color-zinc-400: #6b7a8f;
+  --color-zinc-500: #5b6e85;
+  --color-zinc-600: #47586d;
+  --color-zinc-700: #364656;
+  --color-zinc-800: #273443;
+  --color-zinc-900: #1a2532;
+  --color-zinc-950: #111923;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Deep blue-grey rather than near-black, so the tint is consistent in
+       both themes instead of only appearing in one. */
+    --background: #0e161f;
+    --foreground: #e4ecf5;
+    --surface: #1a2532;
   }
 }
 
@@ -38,7 +86,7 @@ body {
   --series-1: #2a78d6;
   --series-1-fill: rgba(42, 120, 214, 0.16);
   --chart-grid: rgba(0, 0, 0, 0.08);
-  --chart-axis-text: #52525b;
+  --chart-axis-text: #47586d;
   --chart-surface: #ffffff;
 }
 
@@ -47,8 +95,8 @@ body {
     --series-1: #3987e5;
     --series-1-fill: rgba(57, 135, 229, 0.2);
     --chart-grid: rgba(255, 255, 255, 0.12);
-    --chart-axis-text: #a1a1aa;
-    --chart-surface: #141413;
+    --chart-axis-text: #93a5b9;
+    --chart-surface: #1a2532;
   }
 }
 
@@ -56,8 +104,8 @@ body {
   --series-1: #3987e5;
   --series-1-fill: rgba(57, 135, 229, 0.2);
   --chart-grid: rgba(255, 255, 255, 0.12);
-  --chart-axis-text: #a1a1aa;
-  --chart-surface: #141413;
+  --chart-axis-text: #93a5b9;
+  --chart-surface: #1a2532;
 }
 
 .score-trend .trend-line {

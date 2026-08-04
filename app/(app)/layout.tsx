@@ -15,7 +15,9 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-black/10 dark:border-white/15">
+      {/* Sits on the raised surface rather than the tinted page, so the nav
+          reads as a bar instead of dissolving into the background. */}
+      <header className="border-b border-black/10 bg-surface dark:border-white/15">
         {/* Wraps rather than overflowing: the nav alone is wider than a phone
             screen, so on narrow viewports the brand and links stack onto
             further lines instead of pushing the page sideways. */}
