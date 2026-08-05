@@ -67,8 +67,13 @@ test("a student's full journey", async ({ page }) => {
   }).toPass({ timeout: 90_000 });
 
   // The sample must be labelled as such, never passable as a real assessment.
+  // Asserted across the bold/plain boundary: a plain space typed after
+  // </strong> in JSX is dropped by the compiler, so these disclaimers ran
+  // together as "…evaluation.No Anthropic…" until the space was made explicit.
   await expect(
-    page.getByText("This is a sample, not an AI evaluation."),
+    page.getByText(
+      "This is a sample, not an AI evaluation. No Anthropic API key",
+    ),
   ).toBeVisible();
   await expect(page.getByText("University of Cambridge").first()).toBeVisible();
 
@@ -82,6 +87,9 @@ test("a student's full journey", async ({ page }) => {
   await page.getByRole("button", { name: "Add plan" }).click();
   await page.waitForURL("**/plans");
   await expect(page.getByText("Start a programming club")).toBeVisible();
+  await expect(
+    page.getByText("Plans don't count toward your scores. Nothing here"),
+  ).toBeVisible();
 
   // Same hydration caveat as the evaluation button.
   await expect(async () => {
@@ -93,9 +101,13 @@ test("a student's full journey", async ({ page }) => {
   }).toPass({ timeout: 90_000 });
 
   // The disclaimer that keeps a projection from reading as an achievement.
-  await expect(page.getByText("None of this has happened yet.")).toBeVisible();
   await expect(
-    page.getByText("This is a sample, not an AI projection."),
+    page.getByText("None of this has happened yet. Every number below"),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "This is a sample, not an AI projection. No Anthropic API key",
+    ),
   ).toBeVisible();
 
   // ── 5. Export — same session, complete, and free of credentials ─────────

@@ -38,22 +38,25 @@ export default async function DashboardPage() {
         </p>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-3">
+      {/* Stacked full width on a phone: wrapped, ragged-width buttons read as
+          debris, and a 32px-tall link is not a touch target. Back to a wrapping
+          row from tablet up. */}
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <Link
           href="/profile"
-          className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 sm:py-2 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
         >
           Build your profile
         </Link>
         <Link
           href="/targets"
-          className="inline-flex items-center rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          className="inline-flex items-center justify-center rounded-md border border-black/15 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-black/5 sm:py-2 dark:border-white/20 dark:hover:bg-white/10"
         >
           Set your targets
         </Link>
         <Link
           href="/evaluations"
-          className="inline-flex items-center rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          className="inline-flex items-center justify-center rounded-md border border-black/15 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-black/5 sm:py-2 dark:border-white/20 dark:hover:bg-white/10"
         >
           Evaluate my profile
         </Link>

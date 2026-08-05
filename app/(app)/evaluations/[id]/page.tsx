@@ -216,9 +216,10 @@ export default async function EvaluationPage({
 
       {evaluation.isSample && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          <strong>This is a sample, not an AI evaluation.</strong> No Anthropic
-          API key is configured, so the app produced placeholder output to show
-          the feature working end to end. Add <code>ANTHROPIC_API_KEY</code> to{" "}
+          <strong>This is a sample, not an AI evaluation.</strong>{" "}
+          No Anthropic API key is configured, so the app produced placeholder
+          output to show the feature working end to end. Add{" "}
+          <code>ANTHROPIC_API_KEY</code> to{" "}
           <code>.env.local</code>, restart the server, and run again for a real
           assessment.
         </div>

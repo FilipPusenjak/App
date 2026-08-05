@@ -68,10 +68,12 @@ export default async function PlansPage() {
 
       {/* The whole point of keeping plans separate, stated where it matters. */}
       <p className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-        <strong>Plans don&apos;t count toward your scores.</strong> Nothing here
-        touches your evaluations or your progress chart — that history stays a
-        record of what you&apos;ve actually done. When you finish something,
-        mark it done and it becomes a real resume item.
+        {/* Explicit space: a plain one written after </strong> is swallowed by
+            the JSX transform, and the sentence renders as "scores.Nothing". */}
+        <strong>Plans don&apos;t count toward your scores.</strong>{" "}
+        Nothing here touches your evaluations or your progress chart — that
+        history stays a record of what you&apos;ve actually done. When you
+        finish something, mark it done and it becomes a real resume item.
       </p>
 
       <Card

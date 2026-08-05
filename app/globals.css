@@ -39,8 +39,10 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  /* Nunito Sans, self-hosted by next/font, ahead of the system stack it falls
+     back to for the moment before it paints. */
+  --font-sans: var(--font-sans-custom), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 @theme {

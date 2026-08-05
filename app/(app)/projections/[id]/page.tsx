@@ -162,17 +162,17 @@ export default async function ProjectionPage({
       {/* The load-bearing disclaimer. A projection is very easy to misread as
           an achievement, which is exactly what would make it harmful. */}
       <p className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-        <strong>None of this has happened yet.</strong> Every number below is
-        conditional on you actually doing the work, and doing it well. Planning
-        something is worth nothing on an application — this is a map, not a
-        result. Your real scores are unchanged.
+        <strong>None of this has happened yet.</strong>{" "}
+        Every number below is conditional on you actually doing the work, and
+        doing it well. Planning something is worth nothing on an application —
+        this is a map, not a result. Your real scores are unchanged.
       </p>
 
       {projection.isSample && (
         <p className="rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-          <strong>This is a sample, not an AI projection.</strong> No Anthropic
-          API key is configured, so the app produced placeholder output to show
-          the feature working end to end.
+          <strong>This is a sample, not an AI projection.</strong>{" "}
+          No Anthropic API key is configured, so the app produced placeholder
+          output to show the feature working end to end.
         </p>
       )}
 
