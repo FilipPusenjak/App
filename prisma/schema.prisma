@@ -63,40 +63,62 @@ model User {
 // ---------------------------------------------------------------------------
 
 model Profile {
-  id     String @id @default(cuid())
+  id              String   @id @default(cuid())
   // NOT unique: one account holds many students. Every ownership check in
   // lib/ownership still routes through this column, so widening it changed
   // who can hold a profile without changing who can read one.
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // What the account calls this student. Null on the profile a solo student
   // made before this existed, where "your profile" is the honest label.
-  studentName   String?
+  studentName     String?
   // This student's home country, overriding the account default. Affects
   // domestic vs international status, which changes the assessment.
   countryOfOrigin String? // ISO code
-  gradeLevel    String? // e.g. "Grade 11", "Year 12"
+  gradeLevel      String? // e.g. "Grade 11", "Year 12"
   // School context. Not all schools are equally rigorous, and a GPA means very
   // little without knowing what was available to earn it — which courses the
   // school offers, how it grades, whether it ranks.
-  schoolName    String?
-  schoolContext String?
-  curriculum    String? // Zod enum: pre_ib | ib | ap | a_levels | gcse | other
-  gpa           Float?
-  gpaScale      String? // "4.0", "45" (IB), "letter", ...
-  intendedMajor String?
-  careerGoal    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  schoolName      String?
+  // The RESOLVED school, once the free text above has been matched to a row in
+  // School. Nullable and kept alongside schoolName rather than replacing it:
+  // the typed name is what the student wrote and what the evaluation reads, and
+  // an unmatched school must degrade to "no discovery cohort" rather than
+  // silently attaching the student to the wrong one.
+  schoolId        String?
+  school          School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  // Expected year of leaving school. Discovery groups by year to compare like
+  // with like; gradeLevel alone cannot do that, since "Grade 11" means a
+  // different cohort each September.
+  graduationYear  Int?
+  schoolContext   String?
+  curriculum      String? // Zod enum: pre_ib | ib | ap | a_levels | gcse | other
+  gpa             Float?
+  gpaScale        String? // "4.0", "45" (IB), "letter", ...
+  intendedMajor   String?
+  /// intendedMajor normalized to the shared subject taxonomy, so "students
+  /// aiming at a similar subject" can be a query rather than a string match.
+  /// Zod enum, see lib/discovery/majors.ts. Null when the free text does not
+  /// map, which keeps that student out of every subject cohort rather than
+  /// putting them into the wrong one.
+  majorCategory   String?
+  careerGoal      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  resumeItems   ResumeItem[]
-  testScores    TestScore[]
-  targetSchools TargetSchool[]
+  resumeItems      ResumeItem[]
+  testScores       TestScore[]
+  targetSchools    TargetSchool[]
+  evaluations      Evaluation[]
+  plannedItems     PlannedItem[]
+  projections      Projection[]
+  discoveryConsent DiscoveryConsent?
 
   @@index([userId])
-  evaluations   Evaluation[]
-  plannedItems  PlannedItem[]
-  projections   Projection[]
+  @@index([schoolId])
+  /// The discovery cohort query: students at one school, aiming at a similar
+  /// subject, leaving in a given year.
+  @@index([schoolId, majorCategory, graduationYear])
 }
 
 /// Something the student INTENDS to do but has not done.
@@ -129,7 +151,7 @@ model PlannedItem {
 /// from ResumeItem — a projection is a hypothetical, and no query that builds
 /// the student's real history should have to remember to filter it out.
 model Projection {
-  id     String @id @default(cuid())
+  id        String  @id @default(cuid())
   profileId String
   profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
@@ -171,7 +193,156 @@ model ResumeItem {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // --- Activity Discovery -------------------------------------------------
+  // Discovery aggregates the resume items students ALREADY keep, rather than
+  // asking them to maintain a second parallel list. So the normalization and
+  // rung fields hang off this row.
+  //
+  // All nullable, all optional in the UI. A student who never opts in and
+  // never fills these in is unaffected, and an aggregate simply counts only
+  // what it actually has.
+
+  /// Which entry in the shared taxonomy this maps to, once normalized.
+  /// Null means unmapped: either not yet processed, or sent to review. An
+  /// unmapped item is NEVER aggregated — the whole k-anonymity guarantee rests
+  /// on counting shared categories, and free text is not shared.
+  canonicalActivityId String?
+  canonicalActivity   CanonicalActivity? @relation(fields: [canonicalActivityId], references: [id], onDelete: SetNull)
+  /// How far the student actually got. Zod enum: participant | contributor |
+  /// officer | initiator | regional | national.
+  rungLevel           String?
+  /// School years the activity spanned, e.g. 9 and 11. Kept separately from
+  /// startDate/endDate because the useful answer is "students here start this
+  /// in Grade 10", which a calendar date cannot give without knowing the year
+  /// group at the time.
+  startGrade          Int?
+  endGrade            Int?
+
   @@index([profileId])
+  @@index([canonicalActivityId])
+}
+
+// ---------------------------------------------------------------------------
+// Activity Discovery
+//
+// Shows a student what extracurriculars others at their school, aiming at a
+// similar subject, have actually done — as anonymized aggregates, never as a
+// leaderboard. The disclosure rules live in lib/discovery/policy.ts; these are
+// the tables they read.
+// ---------------------------------------------------------------------------
+
+/// A school, shared across profiles.
+///
+/// Exists so "students at my school" can mean something. Profile.schoolName
+/// stays as the free text the student typed; this is the resolved entity, and
+/// resolution is deliberately a separate step that can fail safely.
+///
+/// Not US-shaped: this app runs US, UK and EU rubrics, so the location fields
+/// are country-first and ncesId is one optional external identifier among
+/// whatever others get added, rather than the primary key of the world.
+model School {
+  id      String  @id @default(cuid())
+  name    String
+  /// ISO country code. Required — a school name alone is not unique globally.
+  country String
+  /// State, province, county or equivalent. Naming varies by country.
+  region  String?
+  city    String?
+  /// US National Center for Education Statistics id, where one exists.
+  ncesId  String? @unique
+
+  /// Used by the "schools like yours" rung of the widening ladder. Kept coarse
+  /// on purpose: fine-grained attributes would let a caller narrow a cohort
+  /// until it resolved to one person.
+  /// Zod enum: state | private | independent | international | selective | other
+  schoolType String?
+  /// Zod enum: small | medium | large. Bands, not counts.
+  sizeBand   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profiles Profile[]
+
+  /// One row per school per country — the same name recurs across countries.
+  @@unique([name, country, region])
+  @@index([country, region])
+}
+
+/// The shared activity taxonomy.
+///
+/// Aggregation counts students per canonical activity, so this list is the
+/// vocabulary the whole feature speaks. It is curated and append-only by
+/// humans: see the note on isApproved.
+model CanonicalActivity {
+  id          String @id @default(cuid())
+  slug        String @unique
+  displayName String
+  /// Zod enum: research | clinical | service | leadership | competition |
+  /// arts | athletics | work | independent
+  category    String
+  description String
+
+  /// Activities that name a single person — a named fellowship, a national
+  /// team place, a one-winner award. These need double the usual support
+  /// before they are shown, because five students "doing research" is a
+  /// category while five holding the same named fellowship is a list of names.
+  isHighlyIdentifying Boolean @default(false)
+
+  /// Only approved entries are ever aggregated or offered to the classifier.
+  ///
+  /// This is the guard against the worst failure mode in the pipeline: if a
+  /// single student's free text could become a canonical activity, that
+  /// activity IS that student's entry verbatim and every k-anonymity promise
+  /// collapses. The model may only classify INTO this list; adding to it is a
+  /// human action.
+  isApproved Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  resumeItems ResumeItem[]
+
+  @@index([category])
+}
+
+/// Memoized normalization, so the same free text is classified once.
+///
+/// Keyed by a hash of the normalized text and NEVER by anything identifying:
+/// this table is deliberately not joinable back to a student. Two students who
+/// write "Science Olympiad" share one row, which is the point.
+model NormalizationCache {
+  id                  String   @id @default(cuid())
+  rawTextHash         String   @unique
+  canonicalActivityId String?
+  /// 0..1. Results below the floor are routed to review rather than trusted.
+  confidence          Float
+  /// Which prompt/model produced this, so a taxonomy or prompt change can
+  /// invalidate past classifications rather than inheriting them silently.
+  modelVersion        String
+  createdAt           DateTime @default(now())
+}
+
+/// Opt-in to contribute this student's activities to aggregates.
+///
+/// Per STUDENT, not per account. A counselor running twelve students is making
+/// twelve separate decisions about twelve children's records, and revoking for
+/// one must not revoke for the others.
+///
+/// Default is off by absence: no row means no consent. Viewing discovery is
+/// NOT gated on this — gating would make consent the price of access, which is
+/// not meaningful consent, least of all from a minor.
+model DiscoveryConsent {
+  id        String    @id @default(cuid())
+  profileId String    @unique
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  grantedAt DateTime  @default(now())
+  /// Set on revocation rather than deleting the row, so the decision has a
+  /// history. Aggregates read `revokedAt: null`, so revocation takes effect on
+  /// the next query with no backfill needed.
+  revokedAt DateTime?
+
+  @@index([revokedAt])
 }
 
 model TestScore {
@@ -219,7 +390,7 @@ model Evaluation {
 
   overallScore Int? // 0-100 headline, denormalized for the progress chart
   error        String? // populated when status = failed
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   completedAt  DateTime?
 
   // What this run actually cost, straight from the API's usage block.
@@ -229,10 +400,10 @@ model Evaluation {
   // because they are priced differently — a write costs 2x base and a read
   // 0.1x, so a run that only ever WRITES the cache is more expensive than one
   // with no caching at all, and without these columns that is invisible.
-  inputTokens       Int?
-  outputTokens      Int?
-  cacheWriteTokens  Int?
-  cacheReadTokens   Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheWriteTokens Int?
+  cacheReadTokens  Int?
 
   @@index([profileId])
 }

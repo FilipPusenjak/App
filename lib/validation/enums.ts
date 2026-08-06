@@ -84,3 +84,97 @@ export const TEST_SCORE_KIND_LABELS: Record<TestScoreKind, string> = {
   toefl: "TOEFL",
   other: "Other",
 };
+
+// ---------------------------------------------------------------------------
+// Activity Discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * How far a student actually got in an activity.
+ *
+ * Ordered from least to most involved, and deliberately about DEPTH rather
+ * than prestige: "started the thing" outranks "attended the thing" because
+ * that is the distinction a student reading this can act on. The two
+ * competitive rungs sit at the end because they are the ones that carry
+ * external validation.
+ */
+export const ACTIVITY_RUNGS = [
+  "participant",
+  "contributor",
+  "officer",
+  "initiator",
+  "regional",
+  "national",
+] as const;
+export const activityRungSchema = z.enum(ACTIVITY_RUNGS);
+export type ActivityRung = (typeof ACTIVITY_RUNGS)[number];
+export const ACTIVITY_RUNG_LABELS: Record<ActivityRung, string> = {
+  participant: "Took part",
+  contributor: "Contributed regularly",
+  officer: "Held a role",
+  initiator: "Started or founded it",
+  regional: "Regional level",
+  national: "National level",
+};
+
+/** Categories of the shared activity taxonomy. */
+export const ACTIVITY_CATEGORIES = [
+  "research",
+  "clinical",
+  "service",
+  "leadership",
+  "competition",
+  "arts",
+  "athletics",
+  "work",
+  "independent",
+] as const;
+export const activityCategorySchema = z.enum(ACTIVITY_CATEGORIES);
+export type ActivityCategory = (typeof ACTIVITY_CATEGORIES)[number];
+export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  research: "Research",
+  clinical: "Clinical & healthcare",
+  service: "Service & volunteering",
+  leadership: "Leadership",
+  competition: "Competitions",
+  arts: "Arts",
+  athletics: "Athletics",
+  work: "Work & internships",
+  independent: "Independent projects",
+};
+
+/**
+ * School type, for the "schools like yours" rung of the widening ladder.
+ *
+ * Coarse on purpose. Finer attributes would let a caller narrow a cohort until
+ * it resolved to one person, which is the attack the whole feature is built
+ * against.
+ */
+export const SCHOOL_TYPES = [
+  "state",
+  "private",
+  "independent",
+  "international",
+  "selective",
+  "other",
+] as const;
+export const schoolTypeSchema = z.enum(SCHOOL_TYPES);
+export type SchoolType = (typeof SCHOOL_TYPES)[number];
+export const SCHOOL_TYPE_LABELS: Record<SchoolType, string> = {
+  state: "State / public",
+  private: "Private",
+  independent: "Independent",
+  international: "International",
+  selective: "Selective / grammar",
+  other: "Other",
+};
+
+/** Bands, never counts — for the same reason activity counts are bucketed. */
+export const SCHOOL_SIZE_BANDS = ["small", "medium", "large"] as const;
+export const schoolSizeBandSchema = z.enum(SCHOOL_SIZE_BANDS);
+export type SchoolSizeBand = (typeof SCHOOL_SIZE_BANDS)[number];
+export const SCHOOL_SIZE_BAND_LABELS: Record<SchoolSizeBand, string> = {
+  small: "Under 500 students",
+  medium: "500–1,500 students",
+  large: "Over 1,500 students",
+};
