@@ -90,10 +90,9 @@ npm run lint && npx tsc --noEmit && npm test
 
 1. Go to <https://vercel.com>, sign in with GitHub, and **Add New → Project**.
 2. Import the `App` repository.
-3. **Set the production branch.** Vercel defaults to `main`, which is empty —
-   under Settings → Git, set the production branch to
-   `claude/student-profile-evaluator-4hw0c4` (or merge that branch into `main`
-   first, which is tidier long term).
+3. **Nothing to change about the branch.** `main` is the production branch and
+   is up to date, which is what Vercel defaults to. Work continues on feature
+   branches, which Vercel builds as previews; merge into `main` to release.
 4. Add the environment variables below, then **Deploy**.
 
 Migrations run automatically: `npm run build` is
@@ -146,6 +145,24 @@ user (20s cooldown, 10 billable per hour), and you can cap spending in the
 Anthropic console under **Settings → Limits**.
 
 ---
+
+### The 60-second ceiling
+
+Both AI routes declare `maxDuration = 60` (`app/api/evaluate/route.ts`,
+`app/api/project/route.ts`). That is the whole request budget on a serverless
+host — model call, retry and all — and an evaluation of a full profile runs
+close to it.
+
+When it overruns, the platform kills the function mid-flight. The run is lost,
+the tokens are still billed, and the row sits on "Running…" until the sweep
+marks it failed and invites you to run it again. Nothing is corrupted and the
+profile is untouched, but it is a wasted call.
+
+If your plan allows a longer limit, raising both numbers is a one-line change
+each — the retry budget follows `maxDuration` automatically. **Check your plan's
+actual ceiling first: setting a value above it does not fail the build, it just
+gets capped, so you would believe you had headroom you do not have.** Dropping
+`ANTHROPIC_EFFORT` to `low` is the other lever; it trades thoroughness for speed.
 
 ### What is already hardened
 
