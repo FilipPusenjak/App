@@ -255,6 +255,8 @@ Two things worth knowing:
 | An evaluation stays "Running…" | It was interrupted (usually a function timeout). It is marked failed automatically after 5 minutes; just run it again. |
 | Build fails on `prisma migrate deploy` | `DATABASE_URL` missing/wrong in Vercel, or the database rejects connections. |
 | "DATABASE_URL is not set" locally | No `.env` file, or it is in the wrong folder. |
-| Login works locally but not deployed | `AUTH_SECRET` not set in Vercel. |
+| Login works locally but not deployed | `AUTH_SECRET` not set in Vercel. The build now stops on this rather than deploying a site that loads fine and cannot log anyone in — if an older deploy is live and broken this way, the symptom is `MissingSecret` in the function logs and a failing login form on a page that otherwise renders normally. |
+| Build stops with "required configuration is missing" | Working as intended — the named variable is not set where the app is hosted. Add it and redeploy. |
+| The deploy succeeded but is missing recent work | Vercel builds the **production branch**, which is `main`. Work pushed only to a feature branch builds as a preview, not production. Merge into `main` to release it. |
 | Signup says "not on the invite list" | Working as intended — add the address to `SIGNUP_ALLOWED_EMAILS` and redeploy. |
 | Evaluations return sample output | `ANTHROPIC_API_KEY` not set in Vercel. |
