@@ -6,7 +6,11 @@
 // a real evaluation to one would be worse than having no anchor at all.
 import { prisma } from "@/lib/db";
 import { parseStoredResult } from "@/lib/validation/evaluation";
-import { scoresRedefinedSince } from "@/lib/prompts/evaluation/versions";
+import {
+  scoresRedefinedSince,
+  SCORE_KEYS,
+  type ScoreKey,
+} from "@/lib/prompts/evaluation/versions";
 import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import {
   findReusableItemAssessments,
@@ -47,6 +51,15 @@ export async function loadPreviousContext(
   reuse: ItemReuse;
   /** When the previous run happened — decides whether a cache entry survives. */
   lastRunAt: Date | null;
+  /**
+   * Scores whose anchor has been RELEASED since the previous run, because a
+   * prompt version redefined them. Empty when the anchor is fully intact.
+   * Decides which model judges this run (see model-choice.ts) as well as what
+   * the prompt is allowed to move.
+   */
+  releasedScores: ScoreKey[];
+  /** The model that produced the previous run, for reporting a change of judge. */
+  previousModel: string | null;
 }> {
   const previous = await prisma.evaluation.findFirst({
     where: { profileId, status: "completed", isSample: false },
@@ -57,14 +70,26 @@ export async function loadPreviousContext(
       overallScore: true,
       promptVersion: true,
       createdAt: true,
+      model: true,
     },
   });
 
   const lastRunAt = previous?.createdAt ?? null;
+  const previousModel = previous?.model ?? null;
 
-  if (!previous?.inputSnapshotJson) {
-    return { diff: null, reuse: NO_REUSE, lastRunAt };
-  }
+  // Nothing usable to anchor to — no previous run, or one whose snapshot can't
+  // be read. Every score counts as released: there is no prior number to hold
+  // this run to, which is also what makes it a baseline run rather than a
+  // follow-up. Stated outright rather than left for the caller to infer.
+  const noAnchor = {
+    diff: null,
+    reuse: NO_REUSE,
+    lastRunAt,
+    releasedScores: [...SCORE_KEYS],
+    previousModel,
+  };
+
+  if (!previous?.inputSnapshotJson) return noAnchor;
 
   let previousSnapshot: EvaluationSnapshot;
   try {
@@ -78,10 +103,10 @@ export async function loadPreviousContext(
       !Array.isArray(previousSnapshot.targets) ||
       typeof previousSnapshot.student !== "object"
     ) {
-      return { diff: null, reuse: NO_REUSE, lastRunAt };
+      return noAnchor;
     }
   } catch {
-    return { diff: null, reuse: NO_REUSE, lastRunAt };
+    return noAnchor;
   }
 
   const result = parseStoredResult(previous.resultJson);
@@ -99,16 +124,20 @@ export async function loadPreviousContext(
     PROMPT_VERSION,
   );
 
+  // Only the scores whose definition actually changed since that run are
+  // released. The rest stay anchored, so a recalibration of one number cannot
+  // quietly move the others. The same list decides which model judges this run:
+  // a released score has to be re-derived from scratch, and that is the
+  // judgement worth paying the baseline model for.
+  const releasedScores = scoresRedefinedSince(previous.promptVersion);
+
   const diff = buildDiff(previousSnapshot, current, {
     overallScore: previous.overallScore ?? result?.overallScore ?? null,
     gradeRelativeScore: result?.gradeRelativeScore ?? null,
     fitScores,
     promptVersion: previous.promptVersion,
-    // Only the scores whose definition actually changed since that run are
-    // released. The rest stay anchored, so a recalibration of one number
-    // cannot quietly move the others.
-    rescoredKeys: scoresRedefinedSince(previous.promptVersion),
+    rescoredKeys: releasedScores,
   });
 
-  return { diff, reuse, lastRunAt };
+  return { diff, reuse, lastRunAt, releasedScores, previousModel };
 }

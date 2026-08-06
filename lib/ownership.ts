@@ -166,6 +166,36 @@ export async function findOwnedEvaluation(id: string) {
   });
 }
 
+/**
+ * The model that judged the real evaluation immediately before this one, for
+ * the same student — or null when this was the first.
+ *
+ * Exists so a page can say outright when the judge changed between two runs.
+ * Follow-up evaluations run on a cheaper model anchored to the previous
+ * scores, which keeps them comparable; a student comparing two numbers is
+ * still owed the fact that a different model produced them.
+ *
+ * Ownership-scoped like everything else: the userId filter is on the query,
+ * and `profileId` is read from a row already proven to belong to the caller.
+ */
+export async function findPrecedingEvaluationModel(evaluation: {
+  profileId: string;
+  createdAt: Date;
+}): Promise<string | null> {
+  const userId = await requireUserId();
+  const previous = await prisma.evaluation.findFirst({
+    where: {
+      profile: { id: evaluation.profileId, userId },
+      status: "completed",
+      isSample: false,
+      createdAt: { lt: evaluation.createdAt },
+    },
+    orderBy: { createdAt: "desc" },
+    select: { model: true },
+  });
+  return previous?.model ?? null;
+}
+
 /** The current user's planned ("things I intend to do") items. */
 export async function getOwnedPlannedItems() {
   const profile = await getOrCreateProfile();

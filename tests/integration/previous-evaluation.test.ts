@@ -6,7 +6,10 @@
 // rows degrade to "no comparison" rather than throwing.
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { buildDiffAgainstPrevious } from "@/lib/evaluation/previous";
+import {
+  buildDiffAgainstPrevious,
+  loadPreviousContext,
+} from "@/lib/evaluation/previous";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import { SCORE_KEYS } from "@/lib/prompts/evaluation/versions";
@@ -96,6 +99,7 @@ function createEvaluation(
     resultJson?: string | null;
     overallScore?: number | null;
     promptVersion?: string;
+    model?: string | null;
   },
 ) {
   return prisma.evaluation.create({
@@ -107,6 +111,7 @@ function createEvaluation(
       resultJson: opts.resultJson ?? storedResult(40, 65, 30),
       overallScore: opts.overallScore ?? 40,
       promptVersion: opts.promptVersion,
+      model: opts.model,
       createdAt: opts.createdAt,
     },
   });
@@ -295,5 +300,88 @@ describe.skipIf(!hasTestDb)("releasing the anchor when the scale changes", () =>
 
     const diff = await buildDiffAgainstPrevious(profile.id, snapshot(["Old item"]));
     expect(diff!.previousScores.rescoredKeys).toEqual([...SCORE_KEYS]);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// What the route needs in order to pick a model.
+//
+// The policy itself is unit-tested; these check it is fed the truth. Getting
+// this wrong is not a crashed request — it is a cheap model quietly judging a
+// score it was supposed to derive from scratch, which shows up as an
+// unexplained number weeks later.
+// ---------------------------------------------------------------------------
+describe.skipIf(!hasTestDb)("inputs to the model choice", () => {
+  afterAll(async () => {
+    await cleanupRun(runTag);
+    await prisma.$disconnect();
+  });
+
+  it("releases every score when there is no previous run, so the first is a baseline", async () => {
+    const { profile } = await createUserWithProfile(runTag, "mc-first");
+    const ctx = await loadPreviousContext(profile.id, snapshot(["New item"]));
+    expect(ctx.diff).toBeNull();
+    expect(ctx.releasedScores).toEqual([...SCORE_KEYS]);
+    expect(ctx.previousModel).toBeNull();
+  });
+
+  it("releases nothing when the previous run used the current prompt version", async () => {
+    // The anchor is intact, so a follow-up on the cheaper model is reproducing
+    // a calibration rather than inventing one.
+    const { profile } = await createUserWithProfile(runTag, "mc-anchored");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(30),
+      promptVersion: PROMPT_VERSION,
+      model: "claude-opus-5",
+    });
+    const ctx = await loadPreviousContext(profile.id, snapshot(["New item"]));
+    expect(ctx.diff).not.toBeNull();
+    expect(ctx.releasedScores).toEqual([]);
+    expect(ctx.previousModel).toBe("claude-opus-5");
+  });
+
+  it("releases the redefined scores when the previous run predates a recalibration", async () => {
+    const { profile } = await createUserWithProfile(runTag, "mc-released");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(30),
+      promptVersion: "evaluation/v8",
+      model: "claude-opus-5",
+    });
+    const ctx = await loadPreviousContext(profile.id, snapshot(["New item"]));
+    expect(ctx.releasedScores).toContain("gradeRelativeScore");
+  });
+
+  it("releases everything when the previous snapshot cannot be read", async () => {
+    // No usable anchor, so this must not be treated as a follow-up just because
+    // a row happens to exist at the current prompt version.
+    const { profile } = await createUserWithProfile(runTag, "mc-corrupt");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(30),
+      promptVersion: PROMPT_VERSION,
+      snapshotJson: "{ not json",
+      model: "claude-opus-5",
+    });
+    const ctx = await loadPreviousContext(profile.id, snapshot(["New item"]));
+    expect(ctx.diff).toBeNull();
+    expect(ctx.releasedScores).toEqual([...SCORE_KEYS]);
+  });
+
+  it("ignores a sample run when reporting the previous model", async () => {
+    // Samples are placeholder text; anchoring or attributing to one would be
+    // worse than having nothing.
+    const { profile } = await createUserWithProfile(runTag, "mc-sample");
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(30),
+      promptVersion: PROMPT_VERSION,
+      model: "claude-opus-5",
+    });
+    await createEvaluation(profile.id, {
+      createdAt: minutesAgo(5),
+      isSample: true,
+      model: null,
+    });
+    const ctx = await loadPreviousContext(profile.id, snapshot(["New item"]));
+    expect(ctx.previousModel).toBe("claude-opus-5");
   });
 });

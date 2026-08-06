@@ -39,6 +39,35 @@ export const DEFAULT_PROJECTION_MODEL = "claude-sonnet-5";
 export const DEFAULT_PROJECTION_EFFORT = "medium";
 
 /**
+ * Model for follow-up evaluations — runs after the first, where the previous
+ * scores are fed back in as an anchor.
+ *
+ * The anchor is what makes this safe rather than a way of quietly changing the
+ * judge: an anchored run reproduces a calibration the baseline model already
+ * set. See lib/evaluation/model-choice.ts for the rule, including the two
+ * cases that fall back to the baseline model.
+ *
+ * Set ANTHROPIC_FOLLOWUP_MODEL to "off" to run every evaluation on the full
+ * model.
+ */
+export const DEFAULT_FOLLOWUP_MODEL = "claude-sonnet-5";
+
+/**
+ * Effort for follow-up evaluations. Deliberately the SAME as a baseline run:
+ * the model changes or it doesn't, and dropping effort at the same time would
+ * make an unexplained score movement impossible to attribute to either.
+ */
+export const getFollowupEffort = () =>
+  process.env.ANTHROPIC_FOLLOWUP_EFFORT || getEffort();
+
+/** The follow-up model, or null when follow-up runs are disabled. */
+export function getFollowupModel(): string | null {
+  const configured = process.env.ANTHROPIC_FOLLOWUP_MODEL?.trim();
+  if (configured === "off") return null;
+  return configured || DEFAULT_FOLLOWUP_MODEL;
+}
+
+/**
  * How long a cached prompt prefix is kept.
  *
  * Nearly 90% of an evaluation's input is byte-identical on every run — the

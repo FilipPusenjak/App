@@ -4,7 +4,10 @@
 // route to run an evaluation for the currently authenticated user. The profile
 // is loaded through the ownership helpers, so there is no way for a client to
 // request an evaluation of someone else's data — no id is accepted from the
-// request body at all.
+// request body at all. The one thing the body may carry is `full`, a boolean
+// asking for a baseline run on the strong model instead of an anchored
+// follow-up — a preference about this account's own evaluation, spent against
+// this account's own rate limit.
 import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
@@ -15,8 +18,15 @@ import {
   getAnthropicClient,
   getModel,
   getEffort,
+  getFollowupModel,
+  getFollowupEffort,
   getCacheControl,
 } from "@/lib/anthropic";
+import {
+  chooseEvaluationModel,
+  type Effort,
+  type ModelChoice,
+} from "@/lib/evaluation/model-choice";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildSampleResult } from "@/lib/evaluation/sample";
 import { loadPreviousContext } from "@/lib/evaluation/previous";
@@ -98,8 +108,9 @@ async function requestEvaluation(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
   prompt: { stable: string; variable: string },
   lastRunAt: Date | null,
+  choice: ModelChoice,
 ) {
-  const effort = getEffort() as "low" | "medium" | "high" | "xhigh" | "max";
+  const { model, effort } = choice;
   // Only writes a cache entry when one plausibly still exists to be read.
   // Writing unconditionally costs 2x on the cached portion, which is a loss on
   // every run for anyone who evaluates occasionally rather than in bursts.
@@ -120,7 +131,7 @@ async function requestEvaluation(
   try {
     const message = await client.messages
       .stream({
-        model: getModel(),
+        model,
         max_tokens: MAX_TOKENS,
         system,
         output_config: {
@@ -149,7 +160,7 @@ async function requestEvaluation(
 
     const message = await client.messages
       .stream({
-        model: getModel(),
+        model,
         max_tokens: MAX_TOKENS,
         system,
         output_config: { effort },
@@ -171,7 +182,25 @@ async function requestEvaluation(
   }
 }
 
-export async function POST() {
+/**
+ * The optional request body. Deliberately tiny: one boolean, no identifiers.
+ * Anything unparseable is treated as an ordinary run rather than rejected —
+ * a malformed body should not cost someone their evaluation.
+ */
+async function readForceBaseline(request: Request): Promise<boolean> {
+  try {
+    const body: unknown = await request.json();
+    return (
+      typeof body === "object" &&
+      body !== null &&
+      (body as { full?: unknown }).full === true
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function POST(request: Request) {
   // 1. Authenticated users only.
   const user = await getCurrentUser();
   if (!user?.id) {
@@ -230,10 +259,23 @@ export async function POST() {
   // a malformed or missing previous row simply means no comparison.
   // One load for both: the diff that keeps scores consistent, and the item
   // assessments that can be carried over rather than paid for a second time.
-  const { diff, reuse, lastRunAt } = await loadPreviousContext(
+  const { diff, reuse, lastRunAt, releasedScores } = await loadPreviousContext(
     profile.id,
     snapshot,
   );
+
+  // Which model judges this run. A follow-up with its anchor intact reproduces
+  // a calibration the baseline model already set, so it can run cheaper; a
+  // first run, or one where a score's anchor has been released, cannot.
+  const choice = chooseEvaluationModel({
+    hasAnchor: diff !== null,
+    releasedScores,
+    forceBaseline: await readForceBaseline(request),
+    baselineModel: getModel(),
+    baselineEffort: getEffort() as Effort,
+    followupModel: getFollowupModel(),
+    followupEffort: getFollowupEffort() as Effort,
+  });
 
   const client = getAnthropicClient();
   const isSample = client === null;
@@ -244,7 +286,7 @@ export async function POST() {
       profileId: profile.id,
       status: "pending",
       promptVersion: PROMPT_VERSION,
-      model: isSample ? null : getModel(),
+      model: isSample ? null : choice.model,
       isSample,
       inputSnapshotJson: JSON.stringify(snapshot),
     },
@@ -287,6 +329,7 @@ export async function POST() {
           variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
         },
         lastRunAt,
+        choice,
       );
       if ("parseError" in outcome) {
         return {

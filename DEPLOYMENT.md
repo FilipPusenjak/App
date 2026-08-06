@@ -115,6 +115,8 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_API_KEY` | For real evaluations | Without it the app produces clearly-labelled sample output instead. |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5`. |
 | `ANTHROPIC_EFFORT` | No | `low` \| `medium` \| `high` \| `xhigh` \| `max`. Defaults to `medium`. |
+| `ANTHROPIC_FOLLOWUP_MODEL` | No | Model for anchored follow-up runs. Defaults to `claude-sonnet-5`; `off` runs every evaluation on the full model. See below. |
+| `ANTHROPIC_FOLLOWUP_EFFORT` | No | Defaults to the same effort as a baseline run. |
 | `ANTHROPIC_CACHE_TTL` | No | `1h` \| `5m` \| `off`. Defaults to `1h`. Cache **writes** cost more than plain input, so this is a bet on how often you re-run — see `.env.example`. |
 | `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
 | `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
@@ -145,6 +147,29 @@ user (20s cooldown, 10 billable per hour), and you can cap spending in the
 Anthropic console under **Settings → Limits**.
 
 ---
+
+### What an evaluation costs, and why the second one costs less
+
+The first evaluation of a student runs on the full model and sets the
+calibration. Every later run is a **follow-up**: the previous scores go back in
+as an anchor, unchanged resume items carry their assessments forward instead of
+being re-judged, and the model answers "what did this change" rather than
+"judge this from nothing". That smaller job runs on a cheaper model.
+
+The anchor is the whole reason this is safe. An anchored run is reproducing a
+calibration the strong model already set, not inventing its own — so the cheaper
+model is used **only** where the anchor is intact. Two cases go back to the full
+model on their own:
+
+- **No previous real run.** Nothing to anchor to, and this run becomes the
+  baseline every later one inherits.
+- **A prompt version redefined a score**, releasing its anchor. That number has
+  to be worked out from scratch, which is the judgement worth paying for.
+
+You can also ask for a full run from the evaluations page ("Run a full
+evaluation instead"), and any run judged by a different model than the one
+before it says so on its own page. Set `ANTHROPIC_FOLLOWUP_MODEL=off` to turn
+the whole behaviour off.
 
 ### The 60-second ceiling
 

@@ -40,6 +40,7 @@ import {
   findOwnedProjection,
   findOwnedResumeItem,
   findOwnedTargetSchool,
+  findPrecedingEvaluationModel,
   getOrCreateProfile,
   getOwnedEvaluations,
   getOwnedPlannedItems,
@@ -127,6 +128,50 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
       await expect(findOwnedEvaluation(a.evaluation.id)).resolves.toMatchObject({
         id: a.evaluation.id,
       });
+    });
+
+    it("will not read B's evaluation history to report a preceding model", async () => {
+      // This helper takes a profileId rather than looking one up, so it is the
+      // easiest of the lot to write without an ownership filter. Handed B's
+      // real profile id while signed in as A, it must find nothing — otherwise
+      // it leaks which model judged another student's run, and confirms that
+      // that student exists at all.
+      //
+      // Both users need a REAL run seeded here: the shared fixture's
+      // evaluation is a sample, which this helper skips, so asserting against
+      // it would pass whether or not the ownership filter existed.
+      const realRun = (profileId: string, model: string) =>
+        prisma.evaluation.create({
+          data: {
+            profileId,
+            status: "completed",
+            isSample: false,
+            model,
+            promptVersion: "evaluation/v10",
+            inputSnapshotJson: "{}",
+            createdAt: new Date(Date.now() - 60 * 60 * 1000),
+          },
+        });
+      await Promise.all([
+        realRun(a.profile.id, "model-belonging-to-a"),
+        realRun(b.profile.id, "model-belonging-to-b"),
+      ]);
+
+      // A's own history reads back — proving the query finds rows at all, so
+      // the assertion below is about ownership rather than about an empty table.
+      await expect(
+        findPrecedingEvaluationModel({
+          profileId: a.profile.id,
+          createdAt: new Date(),
+        }),
+      ).resolves.toBe("model-belonging-to-a");
+
+      await expect(
+        findPrecedingEvaluationModel({
+          profileId: b.profile.id,
+          createdAt: new Date(),
+        }),
+      ).resolves.toBeNull();
     });
 
     it("refuses B's resume item, even with B's real id", async () => {
@@ -274,6 +319,7 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
           "findOwnedProjection",
           "findOwnedResumeItem",
           "findOwnedTargetSchool",
+          "findPrecedingEvaluationModel",
           "getOrCreateProfile",
           "getOwnedEvaluations",
           "getOwnedPlannedItems",

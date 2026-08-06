@@ -77,6 +77,13 @@ export default async function EvaluationsPage() {
   const totalChange =
     points.length > 1 && latest && first ? latest.overall - first.overall : null;
 
+  // A real completed run exists, so the next ordinary one would be an anchored
+  // follow-up on the cheaper model — which is when offering a full re-run
+  // starts to mean something.
+  const canFollowUp = evaluations.some(
+    (e) => e.status === "completed" && !e.isSample,
+  );
+
   const noTargets = profile.targetSchools.length === 0;
   const noContent =
     profile.resumeItems.length === 0 && profile.testScores.length === 0;
@@ -99,6 +106,7 @@ export default async function EvaluationsPage() {
         <RunEvaluationButton
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
+          canFollowUp={canFollowUp}
         />
       </div>
 
