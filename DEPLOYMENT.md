@@ -67,6 +67,25 @@ echo 'ANTHROPIC_API_KEY="sk-ant-..."' >> .env.local
 
 ---
 
+## Step 2b — Check it before you ship it
+
+```bash
+npm run test:e2e:prod
+```
+
+This builds the app the way the host will and drives the full student journey
+through a real browser against `next start`. It is the only check that exercises
+what actually gets deployed: `next dev` and a production build are not the same
+app — the build minifies, prerenders what it can, and hides the error detail dev
+shows you, so a green `npm run test:e2e` is not evidence the shipped bundle
+works. Run the rest too if you have a minute:
+
+```bash
+npm run lint && npx tsc --noEmit && npm test
+```
+
+---
+
 ## Step 3 — Deploy to Vercel
 
 1. Go to <https://vercel.com>, sign in with GitHub, and **Add New → Project**.
@@ -77,9 +96,10 @@ echo 'ANTHROPIC_API_KEY="sk-ant-..."' >> .env.local
    first, which is tidier long term).
 4. Add the environment variables below, then **Deploy**.
 
-Migrations run automatically: the build command is
-`prisma migrate deploy && next build`, so every deploy applies pending
-migrations to the production database before building.
+Migrations run automatically: `npm run build` is
+`prisma generate && prisma migrate deploy && next build`, so every deploy
+regenerates the Prisma client and applies pending migrations to the production
+database before building. Nothing to configure — Vercel runs `npm run build`.
 
 ---
 
@@ -96,8 +116,15 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_API_KEY` | For real evaluations | Without it the app produces clearly-labelled sample output instead. |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5`. |
 | `ANTHROPIC_EFFORT` | No | `low` \| `medium` \| `high` \| `xhigh` \| `max`. Defaults to `medium`. |
+| `ANTHROPIC_CACHE_TTL` | No | `1h` \| `5m` \| `off`. Defaults to `1h`. Cache **writes** cost more than plain input, so this is a bet on how often you re-run — see `.env.example`. |
+| `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
+| `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
+| `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
+| `PROJECTION_MAX_PER_HOUR` | No | Default 20. |
+| `MAX_FAILED_LOGINS` | No | Default 10 before the account locks. |
+| `LOGIN_LOCKOUT_MINUTES` | No | Default 15. There is no reset email, so a lockout is waited out or cleared with `npm run set-password`. |
 | `DATABASE_POOL_MAX` | No | Default 5. Keep small on serverless. |
 
 `AUTH_TRUST_HOST` is not needed on Vercel — it detects the host itself.
@@ -120,10 +147,34 @@ Anthropic console under **Settings → Limits**.
 
 ---
 
+### What is already hardened
+
+You do not need to configure any of this — it ships in the code:
+
+- **Security headers** on every response (`next.config.ts`): `frame-ancestors
+  'none'` and `X-Frame-Options: DENY` so no other site can iframe a signed-in
+  student and trick them into clicking through their own forms; `nosniff`;
+  `Referrer-Policy` so evaluation URLs never leak off-site; a `Permissions-Policy`
+  refusing camera, microphone and location; and HSTS for a year.
+- **Every database read is scoped to the signed-in account** through the
+  ownership helpers, and nothing is public or shareable.
+- **Rate limits** per user on evaluations and projections, and a login lockout
+  after repeated failures.
+
+The one thing NOT yet configured is a script-src Content-Security-Policy — it
+needs per-request nonces threaded through the root layout. Worth doing, not a
+blocker.
+
+---
+
 ## After the first deploy
 
 - **Create your account immediately** so you are the first user, then confirm the
   allowlist blocks anything else.
+- **One account can hold several students.** If you are running this for more
+  than one person, add them under **Students**; each keeps a separate profile,
+  target list, plans and evaluation history, and everything else in the app acts
+  on whichever student is selected.
 - **Check the deploy log** if the build fails — a migration error almost always
   means `DATABASE_URL` is missing or points somewhere unreachable.
 - **Your local and production databases are separate.** Data entered locally does

@@ -18,6 +18,15 @@ import { defineConfig } from "@playwright/test";
 const PORT = 3100;
 const BASE_URL = `http://localhost:${PORT}`;
 
+// E2E_TARGET=prod runs the journey against a real production build instead of
+// the dev server — the pre-deploy check. `next dev` and `next start` are not
+// the same app: the production build minifies, prerenders what it can, and
+// swallows the error detail dev shows you. A green dev run is not evidence
+// that what you are about to ship works.
+//
+// Requires `npm run build` to have been run first; this only starts the server.
+const PROD = process.env.E2E_TARGET === "prod";
+
 export default defineConfig({
   testDir: "tests/e2e",
   // One journey, executed in order — parallelism buys nothing here.
@@ -26,8 +35,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
   // `next dev` compiles routes on first visit, so first paint of each page
-  // can take several seconds — give assertions room.
-  expect: { timeout: 15_000 },
+  // can take several seconds — give assertions room. A production build serves
+  // them immediately and needs no such allowance.
+  expect: { timeout: PROD ? 10_000 : 15_000 },
   globalSetup: "./tests/e2e/global-setup.ts",
   use: {
     baseURL: BASE_URL,
@@ -39,7 +49,9 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `npx next dev --port ${PORT}`,
+    command: PROD
+      ? `npx next start --port ${PORT}`
+      : `npx next dev --port ${PORT}`,
     url: `${BASE_URL}/login`,
     reuseExistingServer: false,
     timeout: 120_000,
