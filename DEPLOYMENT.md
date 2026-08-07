@@ -171,23 +171,29 @@ evaluation instead"), and any run judged by a different model than the one
 before it says so on its own page. Set `ANTHROPIC_FOLLOWUP_MODEL=off` to turn
 the whole behaviour off.
 
-### The 60-second ceiling
+### How long a run may take
 
-Both AI routes declare `maxDuration = 60` (`app/api/evaluate/route.ts`,
+Both AI routes declare `maxDuration = 300` (`app/api/evaluate/route.ts`,
 `app/api/project/route.ts`). That is the whole request budget on a serverless
-host — model call, retry and all — and an evaluation of a full profile runs
-close to it.
+host — model call, retry and all. It was 60, which an Opus evaluation of a full
+profile does not fit into; those runs were killed mid-stream, billed, and lost.
 
-When it overruns, the platform kills the function mid-flight. The run is lost,
-the tokens are still billed, and the row sits on "Running…" until the sweep
-marks it failed and invites you to run it again. Nothing is corrupted and the
-profile is untouched, but it is a wasted call.
+**Your plan caps this, and the cap is not visible to the app.** Next passes the
+number to the host through the build output; if the host enforces something
+lower, nothing says so. That is why the safety net is a separate setting:
 
-If your plan allows a longer limit, raising both numbers is a one-line change
-each — the retry budget follows `maxDuration` automatically. **Check your plan's
-actual ceiling first: setting a value above it does not fail the build, it just
-gets capped, so you would believe you had headroom you do not have.** Dropping
-`ANTHROPIC_EFFORT` to `low` is the other lever; it trades thoroughness for speed.
+| Variable | What it does |
+|---|---|
+| `EVAL_TIME_BUDGET_SECONDS` | What the evaluation route *believes* it has. Defaults to `maxDuration`. |
+| `PROJECTION_TIME_BUDGET_SECONDS` | The same, for projections. |
+
+If runs are still being killed, set these to the ceiling your plan really
+enforces. The route then aborts itself just before that point and records a run
+explaining what happened — rather than being killed mid-stream and surfacing
+five minutes later as "the server stopped waiting for the model".
+
+The other lever is a shorter run: `ANTHROPIC_EFFORT=low` trades thoroughness for
+speed and fits comfortably in a minute.
 
 ### What is already hardened
 
@@ -252,7 +258,7 @@ Two things worth knowing:
 | `SECURITY WARNING: The SSL modes 'prefer', 'require'...` on startup | Your `DATABASE_URL` uses `sslmode=require`. Change it to `sslmode=verify-full`, which is what the driver does today anyway — see `.env.example`. Left alone it becomes a real downgrade when `pg` v9 lands. |
 | Locked out after failed logins | Wait 15 minutes, or reset the password with `npm run set-password` (see above), which clears the lock. |
 | A page errors with Prisma P2021 "table does not exist" | The database is behind the code. `npm run db:deploy` applies pending migrations; `npm run dev` and `npm run build` now do it for you. |
-| An evaluation stays "Running…" | It was interrupted (usually a function timeout). It is marked failed automatically after 5 minutes; just run it again. |
+| An evaluation stays "Running…" | It was interrupted (usually a function timeout). A run that overruns its own budget now aborts itself and says so immediately; anything else abandoned is swept after 15 minutes. Just run it again. |
 | Build fails on `prisma migrate deploy` | `DATABASE_URL` missing/wrong in Vercel, or the database rejects connections. |
 | `P1002 ... Timed out trying to acquire a postgres advisory lock` | Migrations take a session-scoped advisory lock, which a transaction-mode pooler (Neon's `-pooler` host, PgBouncer) cannot hold — the lock is taken on one backend and looked for on another. Migrations now run over a direct connection automatically when one of `DIRECT_URL`, `DATABASE_URL_UNPOOLED` or `POSTGRES_URL_NON_POOLING` is set; Neon and Vercel Postgres set one of those for you. If none is present, add `DIRECT_URL` with your provider's **direct** (non-pooled) string. **This error is also often transient** — a cold/suspended database, or two deploys racing to migrate. Retry once before changing anything. |
 | "DATABASE_URL is not set" locally | No `.env` file, or it is in the wrong folder. |

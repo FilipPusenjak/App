@@ -63,11 +63,18 @@ const MAX_TOKENS = 32000;
  * mid-stream in production — the tokens are paid for, but the answer is lost —
  * while working perfectly on localhost, where no such limit exists.
  *
- * 60s is the ceiling on Vercel's Hobby plan; platforms that allow more will
- * honor a larger number here, and any run that still overruns is recovered by
- * the stale-pending sweep rather than being left "pending" forever.
+ * This has to be a literal — the platform reads it out of the build output, so
+ * it cannot come from the environment.
+ *
+ * 300 rather than 60, because an Opus evaluation of a full profile does not fit
+ * in a minute and was being killed mid-stream. It is NOT necessarily what your
+ * plan permits: hosts cap this at their own limit, and the cap is not
+ * observable from here. That is exactly why the abort budget below is a
+ * separate, environment-tunable number — if the real ceiling is lower than
+ * this, set EVAL_TIME_BUDGET_SECONDS to it and the run still ends with an
+ * explanation instead of being killed.
  */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * The wall clock a retry has to fit inside.
@@ -82,8 +89,26 @@ export const maxDuration = 60;
  * still fit, since overrunning maxDuration loses the run entirely, which is
  * the outcome the retry exists to prevent.
  */
+/**
+ * The wall clock this route actually believes it has, in seconds.
+ *
+ * Deliberately NOT just maxDuration. A host silently capping maxDuration at a
+ * lower value would leave the app budgeting for time it does not have, and the
+ * self-abort — the thing that turns a lost run into an explained one — would
+ * never fire. Set EVAL_TIME_BUDGET_SECONDS to the ceiling your plan really
+ * enforces and the safety net follows it.
+ */
+function budgetSeconds(): number {
+  const configured = Number.parseInt(
+    process.env.EVAL_TIME_BUDGET_SECONDS ?? "",
+    10,
+  );
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  return maxDuration;
+}
+
 const RETRY_BUDGET_MS =
-  process.env.NODE_ENV === "production" ? maxDuration * 1000 : Infinity;
+  process.env.NODE_ENV === "production" ? budgetSeconds() * 1000 : Infinity;
 
 /** Would a second attempt, taking about as long as the first, still fit? */
 /**
@@ -462,7 +487,7 @@ export async function POST(request: Request) {
     // Our own deadline, not the model's failure. Say what happened and what
     // would change it, rather than reporting an abort nobody can act on.
     const messageText = isDeadlineAbort(error)
-      ? `This evaluation needed longer than the ${maxDuration}s this deployment allows, so it was stopped before the platform killed it. Nothing was saved and the profile is unchanged. A shorter run fixes it: set ANTHROPIC_EFFORT=low, or raise maxDuration in app/api/evaluate/route.ts if your hosting plan permits more than ${maxDuration}s.`
+      ? `This evaluation needed longer than the ${budgetSeconds()}s this deployment allows, so it was stopped before the platform killed it. Nothing was saved and the profile is unchanged. Either shorten the run (ANTHROPIC_EFFORT=low) or give it longer, if your hosting plan permits more.`
       : error instanceof Error
         ? error.message
         : "Unknown error.";

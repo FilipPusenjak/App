@@ -17,9 +17,17 @@
  * Must stay comfortably longer than the route's own execution ceiling
  * (`maxDuration` in app/api/evaluate/route.ts), so the sweep can never kill a
  * run that is still legitimately in progress — only ones whose server is no
- * longer listening. A unit test enforces that margin.
+ * longer listening. A unit test enforces that margin, and caught this exact
+ * mistake: raising maxDuration from 60s to 300s without touching this left the
+ * sweep able to fire at 5 minutes on a function still entitled to run, marking
+ * a live evaluation failed and then having the real result land on top of it.
+ *
+ * 15 minutes keeps the 2x margin over a 300s ceiling. The cost of being
+ * generous is a longer wait before an abandoned run is reported — and that
+ * matters far less now, because a run that overruns its own budget aborts
+ * itself and records the reason immediately, rather than waiting to be swept.
  */
-export const STALE_PENDING_MINUTES = 5;
+export const STALE_PENDING_MINUTES = 15;
 
 export const STALE_PENDING_MESSAGE =
   "This evaluation was interrupted before it finished — the server stopped " +

@@ -44,16 +44,30 @@ import {
 
 const MAX_TOKENS = 16000;
 
-/** Same reasoning as the evaluation route: platform defaults are too short. */
-export const maxDuration = 60;
+/**
+ * Same reasoning as the evaluation route, and the same caveat: this is a
+ * literal the platform reads from the build output, it is capped by whatever
+ * the plan actually allows, and that cap is not observable from here.
+ */
+export const maxDuration = 300;
 
 /**
  * As in the evaluation route: maxDuration is a serverless limit, so in
  * development there is no budget and the retry always runs. A fixed deadline
  * here meant it never ran at all on a real projection.
  */
+/** As in the evaluation route — see the note there on why this is separate. */
+function budgetSeconds(): number {
+  const configured = Number.parseInt(
+    process.env.PROJECTION_TIME_BUDGET_SECONDS ?? "",
+    10,
+  );
+  if (Number.isFinite(configured) && configured > 0) return configured;
+  return maxDuration;
+}
+
 const RETRY_BUDGET_MS =
-  process.env.NODE_ENV === "production" ? maxDuration * 1000 : Infinity;
+  process.env.NODE_ENV === "production" ? budgetSeconds() * 1000 : Infinity;
 
 /** Would a second attempt, taking about as long as the first, still fit? */
 function retryFits(startedAt: number): boolean {
