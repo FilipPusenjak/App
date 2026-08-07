@@ -76,14 +76,44 @@ export default async function SettingsPage() {
               Not connected — every evaluation returns clearly-labelled sample
               output instead of a real assessment.
             </p>
-            <p className="mt-3 rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
-              No <code>ANTHROPIC_API_KEY</code> is set for this deployment. If
-              you believe you have set one, the name has to match exactly and it
-              has to be enabled for the environment you are looking at — and the
-              app only picks up a change on the next deploy, not immediately.
-              An <em>invalid</em> key looks different from this: runs fail with
-              a 401 rather than falling back to samples.
-            </p>
+            <div className="mt-3 space-y-3 rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              <p>
+                No <code>ANTHROPIC_API_KEY</code> is set for this deployment.
+                It has to be enabled for the environment you are looking at, and
+                the app only picks it up on the next deploy — a failed build
+                leaves the previous deployment serving, so nothing changes.
+                An <em>invalid</em> key looks different from this: runs fail
+                with a 401 rather than falling back to samples.
+              </p>
+              {ai.expectedNameIsEmpty && (
+                <p>
+                  <strong className="font-semibold">
+                    The variable exists but is empty.
+                  </strong>{" "}
+                  Something is set under that exact name with no usable value —
+                  delete it and add it again, watching the value field as you
+                  paste.
+                </p>
+              )}
+              {ai.nearMissEnvNames.length > 0 && (
+                <div>
+                  <p>
+                    <strong className="font-semibold">
+                      Found variables with a similar name:
+                    </strong>{" "}
+                    these are NOT the one the app reads. A trailing space, or a
+                    character copied invisibly from a document, makes a name
+                    that looks identical and is a different variable. Quoted
+                    here so any stray whitespace is visible:
+                  </p>
+                  <ul className="mt-1 space-y-0.5 font-mono text-xs">
+                    {ai.nearMissEnvNames.map((name) => (
+                      <li key={name}>{JSON.stringify(name)}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </>
         )}
       </section>

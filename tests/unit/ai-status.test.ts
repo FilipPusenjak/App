@@ -40,7 +40,13 @@ describe("AI status", () => {
     const status = getAiStatus();
     expect(status.live).toBe(true);
     expect(Object.keys(status).sort()).toEqual(
-      ["baselineModel", "followupModel", "live"].sort(),
+      [
+        "baselineModel",
+        "expectedNameIsEmpty",
+        "followupModel",
+        "live",
+        "nearMissEnvNames",
+      ].sort(),
     );
   });
 
@@ -75,5 +81,50 @@ describe("AI status", () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-x");
     vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "off");
     expect(getAiStatus().followupModel).toBeNull();
+  });
+});
+
+describe("catching a name that only looks right", () => {
+  it("flags a trailing space in the variable name", () => {
+    // Invisible in a dashboard, and a different variable entirely. This is the
+    // failure that is otherwise impossible to see from the outside.
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY ", "sk-ant-x");
+    const status = getAiStatus();
+    expect(status.live).toBe(false);
+    expect(status.nearMissEnvNames).toContain("ANTHROPIC_API_KEY ");
+  });
+
+  it("flags a zero-width character in the name", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY​", "sk-ant-x");
+    expect(getAiStatus().nearMissEnvNames).toContain("ANTHROPIC_API_KEY​");
+  });
+
+  it("flags an outright misspelling", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_APIKEY", "sk-ant-x");
+    expect(getAiStatus().nearMissEnvNames).toContain("ANTHROPIC_APIKEY");
+  });
+
+  it("does not list the correct name as a near miss", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-x");
+    expect(getAiStatus().nearMissEnvNames).not.toContain("ANTHROPIC_API_KEY");
+  });
+
+  it("reports an empty value under the right name separately from a missing one", () => {
+    // "Set to nothing" and "not set" look the same in a dashboard and need
+    // different fixes, so they are reported apart.
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    expect(getAiStatus().expectedNameIsEmpty).toBe(true);
+  });
+
+  it("never leaks a value while reporting a name", () => {
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY ", "sk-ant-SECRETLEAKCANARY");
+    const serialized = JSON.stringify(getAiStatus());
+    expect(serialized).toContain("ANTHROPIC_API_KEY ");
+    expect(serialized).not.toContain("SECRETLEAKCANARY");
+    expect(serialized).not.toContain("sk-ant");
   });
 });
