@@ -42,6 +42,7 @@ describe("AI status", () => {
     expect(Object.keys(status).sort()).toEqual(
       [
         "baselineModel",
+        "configPresence",
         "expectedNameIsEmpty",
         "followupModel",
         "live",
@@ -126,5 +127,47 @@ describe("catching a name that only looks right", () => {
     expect(serialized).toContain("ANTHROPIC_API_KEY ");
     expect(serialized).not.toContain("SECRETLEAKCANARY");
     expect(serialized).not.toContain("sk-ant");
+  });
+});
+
+describe("comparing which configuration the runtime can see", () => {
+  it("distinguishes one missing variable from a build that predates them all", () => {
+    // The whole point. These two look identical from outside and need opposite
+    // responses: fix the variable, or rebuild.
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "someone@example.com");
+    vi.stubEnv("DATABASE_URL", "postgresql://localhost/db");
+    const byName = Object.fromEntries(
+      getAiStatus().configPresence.map((c) => [c.name, c.present]),
+    );
+    expect(byName.SIGNUP_ALLOWED_EMAILS).toBe(true);
+    expect(byName.DATABASE_URL).toBe(true);
+    expect(byName.ANTHROPIC_API_KEY).toBe(false);
+  });
+
+  it("treats a whitespace-only value as missing", () => {
+    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "   ");
+    const byName = Object.fromEntries(
+      getAiStatus().configPresence.map((c) => [c.name, c.present]),
+    );
+    expect(byName.SIGNUP_ALLOWED_EMAILS).toBe(false);
+  });
+
+  it("reports presence without ever reporting a value", () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://user:HUNTER2@host/db");
+    vi.stubEnv("AUTH_SECRET", "SUPERSECRETSESSIONKEY");
+    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "private.person@example.com");
+    const serialized = JSON.stringify(getAiStatus());
+    expect(serialized).not.toContain("HUNTER2");
+    expect(serialized).not.toContain("SUPERSECRETSESSIONKEY");
+    expect(serialized).not.toContain("private.person@example.com");
+    expect(serialized).toContain("DATABASE_URL");
+  });
+
+  it("checks a fixed list, so nothing unexpected can be enumerated into it", () => {
+    vi.stubEnv("SOME_UNRELATED_SECRET", "nope");
+    const names = getAiStatus().configPresence.map((c) => c.name);
+    expect(names).not.toContain("SOME_UNRELATED_SECRET");
+    expect(names).toContain("ANTHROPIC_API_KEY");
   });
 });

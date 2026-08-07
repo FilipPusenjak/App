@@ -97,6 +97,28 @@ export default async function SettingsPage() {
                   paste.
                 </p>
               )}
+              {/* Presence of the other expected variables, as a comparison.
+                  One visible and another missing is a per-variable problem;
+                  none visible means this build predates all of them and needs
+                  rebuilding, not reconfiguring. Names and yes/no only. */}
+              <div>
+                <p className="font-semibold">
+                  What this deployment can see:
+                </p>
+                <ul className="mt-1 space-y-0.5 font-mono text-xs">
+                  {ai.configPresence.map((c) => (
+                    <li key={c.name}>
+                      {c.present ? "present" : "MISSING"} — {c.name}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1">
+                  If some are present and{" "}
+                  <code>ANTHROPIC_API_KEY</code> is not, the variable itself is
+                  the problem. If they are all missing, this build is older than
+                  the changes and needs redeploying.
+                </p>
+              </div>
               {ai.nearMissEnvNames.length > 0 && (
                 <div>
                   <p>

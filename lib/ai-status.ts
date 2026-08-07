@@ -17,6 +17,30 @@ import { getAnthropicClient, getFollowupModel, getModel } from "@/lib/anthropic"
 /** The variable the app reads. Anything else matching is a near miss. */
 const EXPECTED = "ANTHROPIC_API_KEY";
 
+/**
+ * Configuration this app expects, reported as present/absent only.
+ *
+ * The point is comparison, not inspection. If one of these is visible and
+ * another is not, the runtime is receiving SOME configuration and the missing
+ * one is genuinely missing — a per-variable problem. If none is visible, the
+ * deployment predates every one of them and the answer is a rebuild, not a
+ * variable. Those two look identical from outside and need opposite responses.
+ *
+ * VERCEL_ENV is included as a control: the host sets it itself, so if it is
+ * absent while others are present, the build is not on the host it appears
+ * to be on.
+ *
+ * A fixed list of NAMES, checked for presence. No value is read, and no name
+ * is discovered by enumeration, so nothing unexpected can appear here.
+ */
+const EXPECTED_CONFIG = [
+  "DATABASE_URL",
+  "AUTH_SECRET",
+  "SIGNUP_ALLOWED_EMAILS",
+  "ANTHROPIC_API_KEY",
+  "VERCEL_ENV",
+] as const;
+
 export type AiStatus = {
   /** True when a key is configured and evaluations will call the model. */
   live: boolean;
@@ -39,6 +63,8 @@ export type AiStatus = {
   nearMissEnvNames: string[];
   /** True when the exact expected name exists but holds nothing usable. */
   expectedNameIsEmpty: boolean;
+  /** Which expected configuration is visible to the runtime. Names only. */
+  configPresence: { name: string; present: boolean }[];
 };
 
 export function getAiStatus(): AiStatus {
@@ -58,5 +84,9 @@ export function getAiStatus(): AiStatus {
     nearMissEnvNames,
     expectedNameIsEmpty:
       EXPECTED in process.env && !process.env[EXPECTED]?.trim(),
+    configPresence: EXPECTED_CONFIG.map((name) => ({
+      name,
+      present: Boolean(process.env[name]?.trim()),
+    })),
   };
 }
