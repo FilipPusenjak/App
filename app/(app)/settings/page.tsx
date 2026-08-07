@@ -7,6 +7,7 @@ import {
   getProfileWithRelations,
 } from "@/lib/ownership";
 import { getAiStatus } from "@/lib/ai-status";
+import { getDeploymentInfo } from "@/lib/deployment-info";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function SettingsPage() {
@@ -21,6 +22,7 @@ export default async function SettingsPage() {
   ]);
 
   const ai = getAiStatus();
+  const deployment = getDeploymentInfo();
 
   const counts = [
     { label: "resume items", n: profile.resumeItems.length },
@@ -117,6 +119,37 @@ export default async function SettingsPage() {
           </>
         )}
       </section>
+
+      {/* Which build is answering. Without this, "the deployment is X" and
+          "this page came from X" are different claims that look the same —
+          a stale production alias, a preview URL in another tab, or a cached
+          page all serve a build you are not looking at in the dashboard. */}
+      {(deployment.commit || deployment.environment) && (
+        <p className="text-xs text-zinc-400">
+          Serving{" "}
+          {deployment.commit && (
+            <>
+              commit{" "}
+              <span className="font-mono text-zinc-500">
+                {deployment.commit}
+              </span>
+            </>
+          )}
+          {deployment.commit && deployment.environment ? " · " : ""}
+          {deployment.environment && (
+            <>
+              <span className="font-medium text-zinc-500">
+                {deployment.environment}
+              </span>{" "}
+              environment
+            </>
+          )}
+          {deployment.branch ? ` · ${deployment.branch}` : ""}
+          {deployment.environment && deployment.environment !== "production"
+            ? " — environment variables are scoped per environment, so this may not match production."
+            : ""}
+        </p>
+      )}
 
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
         <h2 className="text-lg font-semibold">Your data</h2>
