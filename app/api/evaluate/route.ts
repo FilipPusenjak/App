@@ -86,6 +86,32 @@ const RETRY_BUDGET_MS =
   process.env.NODE_ENV === "production" ? maxDuration * 1000 : Infinity;
 
 /** Would a second attempt, taking about as long as the first, still fit? */
+/**
+ * How long the model call itself is allowed, leaving room to record the result.
+ *
+ * Without this the platform kills the function mid-stream: the tokens are
+ * billed, the answer is lost, the row stays "pending", and five minutes later
+ * the stale sweep reports something vague about the server no longer waiting.
+ * The run fails either way — but aborting ourselves means we know WHY, can say
+ * so immediately, and can say what to change.
+ *
+ * 85% of the budget, so the abort, the database write and the response all fit
+ * inside what is left.
+ */
+const MODEL_DEADLINE_FRACTION = 0.85;
+
+function remainingModelBudgetMs(startedAt: number): number {
+  if (!Number.isFinite(RETRY_BUDGET_MS)) return Number.POSITIVE_INFINITY;
+  return RETRY_BUDGET_MS * MODEL_DEADLINE_FRACTION - (Date.now() - startedAt);
+}
+
+/** True when an error is our own deadline firing rather than an API failure. */
+function isDeadlineAbort(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const name = (error as { name?: unknown }).name;
+  return name === "AbortError" || name === "TimeoutError";
+}
+
 function retryFits(startedAt: number): boolean {
   const elapsed = Date.now() - startedAt;
   return elapsed * 2 < RETRY_BUDGET_MS;
@@ -109,6 +135,7 @@ async function requestEvaluation(
   prompt: { stable: string; variable: string },
   lastRunAt: Date | null,
   choice: ModelChoice,
+  signal: AbortSignal | undefined,
 ) {
   const { model, effort } = choice;
   // Only writes a cache entry when one plausibly still exists to be read.
@@ -141,13 +168,15 @@ async function requestEvaluation(
           format: OUTPUT_FORMAT,
         },
         messages: [{ role: "user", content }],
-      })
+      }, { signal })
       .finalMessage();
     return { message, constrained: true };
   } catch (error) {
     // The SDK parses and schema-checks the response inside finalMessage(), so
     // a malformed one throws from there rather than reaching the caller as
     // content. Hand it back as a failed attempt so the retry can act on it.
+    // Our own deadline is not a model failure and must not be retried into.
+    if (isDeadlineAbort(error)) throw error;
     if (isStructuredOutputParseError(error)) {
       return { parseError: (error as Error).message, constrained: true };
     }
@@ -176,7 +205,7 @@ async function requestEvaluation(
             ],
           },
         ],
-      })
+      }, { signal })
       .finalMessage();
     return { message, constrained: false };
   }
@@ -322,6 +351,7 @@ export async function POST(request: Request) {
     // is identical on the retry and the second attempt reads the cache rather
     // than writing a new entry.
     const attempt = async (extra = ""): Promise<ModelAttempt> => {
+      const budgetMs = remainingModelBudgetMs(startedAt);
       const outcome = await requestEvaluation(
         client,
         {
@@ -330,6 +360,9 @@ export async function POST(request: Request) {
         },
         lastRunAt,
         choice,
+        Number.isFinite(budgetMs)
+          ? AbortSignal.timeout(Math.max(budgetMs, 1_000))
+          : undefined,
       );
       if ("parseError" in outcome) {
         return {
@@ -426,8 +459,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ id: evaluation.id, isSample: false });
   } catch (error) {
-    const messageText =
-      error instanceof Error ? error.message : "Unknown error.";
+    // Our own deadline, not the model's failure. Say what happened and what
+    // would change it, rather than reporting an abort nobody can act on.
+    const messageText = isDeadlineAbort(error)
+      ? `This evaluation needed longer than the ${maxDuration}s this deployment allows, so it was stopped before the platform killed it. Nothing was saved and the profile is unchanged. A shorter run fixes it: set ANTHROPIC_EFFORT=low, or raise maxDuration in app/api/evaluate/route.ts if your hosting plan permits more than ${maxDuration}s.`
+      : error instanceof Error
+        ? error.message
+        : "Unknown error.";
     // Record the failure against the evaluation so the user can see what
     // happened in their history rather than losing the attempt silently.
     await prisma.evaluation.update({
