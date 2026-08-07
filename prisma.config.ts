@@ -3,6 +3,11 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+// NOTE: there is no `directUrl` here on purpose. @prisma/config 7.9.0 types
+// datasource as `{ url?, shadowDatabaseUrl? }` — `directUrl` is not a field it
+// has, and adding it is a type error rather than a working setting, whatever
+// a guide written against another version says. Migrations get their direct
+// connection from scripts/migrate-deploy.mjs instead.
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {

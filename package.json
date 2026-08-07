@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "db:sync": "prisma generate && prisma migrate deploy",
+    "db:sync": "prisma generate && node scripts/migrate-deploy.mjs",
     "dev": "npm run db:sync && next dev",
     "dev:clean": "npm run db:sync && (lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
     "dev:fresh": "rm -rf .next && npm run db:sync && (lsof -ti:3000 | xargs kill 2>/dev/null || true); next dev",
@@ -22,7 +22,7 @@
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
     "set-password": "tsx scripts/set-password.ts",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "node scripts/migrate-deploy.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
