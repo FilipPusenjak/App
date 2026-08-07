@@ -8,6 +8,8 @@ import {
 } from "@/lib/ownership";
 import { getAiStatus } from "@/lib/ai-status";
 import { getDeploymentInfo } from "@/lib/deployment-info";
+import { getSpendStatus } from "@/lib/spending-account";
+import { formatUsd } from "@/lib/cost";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function SettingsPage() {
@@ -23,6 +25,7 @@ export default async function SettingsPage() {
 
   const ai = getAiStatus();
   const deployment = getDeploymentInfo();
+  const spend = await getSpendStatus();
 
   const counts = [
     { label: "resume items", n: profile.resumeItems.length },
@@ -71,6 +74,30 @@ export default async function SettingsPage() {
                 </span>
               </li>
             </ul>
+
+            {/* The budget, shown before it bites rather than only when a run
+                is refused. The figure is an estimate from recorded token
+                counts, not the bill — saying so is the difference between a
+                guard rail and a number someone will treat as accounting. */}
+            {!spend.unlimited && (
+              <div className="mt-4 border-t border-black/10 pt-3 dark:border-white/15">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  AI budget for this account:{" "}
+                  <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                    {formatUsd(spend.spentUsd) ?? "$0.00"} of{" "}
+                    {formatUsd(spend.limitUsd)}
+                  </span>{" "}
+                  used{spend.allowed ? "" : " — new runs are paused"}.
+                </p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  An estimate from recorded token counts, not your Anthropic
+                  bill. It covers every student on this account, and counts
+                  failed runs, which still spend. Set a hard limit in the
+                  Anthropic console as well — that is the one that cannot be
+                  exceeded.
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <>

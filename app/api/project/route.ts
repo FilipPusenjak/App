@@ -14,6 +14,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations, getOwnedPlannedItems } from "@/lib/ownership";
 import { projectionRateLimiter } from "@/lib/rate-limit";
+import { spendLimitMessage } from "@/lib/spending";
+import { getSpendStatus } from "@/lib/spending-account";
 import {
   getAnthropicClient,
   getProjectionModel,
@@ -175,6 +177,17 @@ export async function POST() {
     );
   }
 
+  // Spending cap for the whole account. The rate limits bound how FAST credits
+  // burn; this bounds the total. A projection is a real API call on the same
+  // credits, so it is gated by the same budget.
+  const spend = await getSpendStatus();
+  if (!spend.allowed) {
+    return NextResponse.json(
+      { error: spendLimitMessage(spend) },
+      { status: 402 },
+    );
+  }
+
   const [profile, plannedItems] = await Promise.all([
     getProfileWithRelations(),
     getOwnedPlannedItems(),
@@ -271,6 +284,15 @@ export async function POST() {
   }
 
   const startedAt = Date.now();
+  // Accumulated rather than assigned: a retry is a second billed request, and
+  // reporting only the last one would understate what the run cost — which
+  // matters now that this figure feeds the per-account spending cap.
+  const usage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheWriteTokens: 0,
+    cacheReadTokens: 0,
+  };
   try {
     const prompt = buildUserPromptParts(snapshot, previous);
 
@@ -304,6 +326,12 @@ export async function POST() {
           `The projection ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or shorten your plan list.`,
         );
       }
+
+      usage.inputTokens += message.usage.input_tokens ?? 0;
+      usage.outputTokens += message.usage.output_tokens ?? 0;
+      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+
       return {
         text: message.content
           .map((block) => (block.type === "text" ? block.text : ""))
@@ -342,6 +370,7 @@ export async function POST() {
         status: "completed",
         resultJson: JSON.stringify(result),
         completedAt: new Date(),
+        ...usage,
       },
     });
 
@@ -351,7 +380,14 @@ export async function POST() {
       error instanceof Error ? error.message : "Unknown error.";
     await prisma.projection.update({
       where: { id: projection.id },
-      data: { status: "failed", error: messageText, completedAt: new Date() },
+      // A failed run still burned whatever it burned before failing, and that
+      // spend counts against the account's budget like any other.
+      data: {
+        status: "failed",
+        error: messageText,
+        completedAt: new Date(),
+        ...usage,
+      },
     });
     console.error("Projection failed:", error);
     return NextResponse.json(

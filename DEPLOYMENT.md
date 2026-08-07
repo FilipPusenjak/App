@@ -120,6 +120,7 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_CACHE_TTL` | No | `1h` \| `5m` \| `off`. Defaults to `1h`. Cache **writes** cost more than plain input, so this is a bet on how often you re-run — see `.env.example`. |
 | `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
 | `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
+| `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 2; `0` disables. An estimate, not your bill — see below. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
 | `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
@@ -142,9 +143,18 @@ SIGNUP_ALLOWED_EMAILS=you@example.com
 Add more addresses separated by commas to let specific people in. Leaving it
 empty means open registration — fine locally, risky in production.
 
-Two further safety nets are already in place: evaluations are rate limited per
-user (20s cooldown, 10 billable per hour), and you can cap spending in the
-Anthropic console under **Settings → Limits**.
+Three further safety nets are in place:
+
+- **A per-account spending cap**, `ACCOUNT_SPEND_LIMIT_USD`, default **$2**.
+  Once an account has spent that, its evaluations and projections are refused
+  with an explanation. It covers every student on the account and counts failed
+  runs, which still burn tokens. Two honest caveats: the figure is an estimate
+  from recorded token counts against a price table in this repo — not your bill,
+  and it will drift — and it can overshoot by one run, because a run's cost is
+  not knowable until it finishes. The overshoot is bounded by a single run.
+- **Rate limits** per user (20s cooldown, 10 billable evaluations per hour).
+- **The Anthropic console's own limit**, under **Settings → Limits**. Set this
+  as well. It is the only one that genuinely cannot be exceeded.
 
 ---
 

@@ -14,6 +14,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
+import { spendLimitMessage } from "@/lib/spending";
+import { getSpendStatus } from "@/lib/spending-account";
 import {
   getAnthropicClient,
   getModel,
@@ -275,6 +277,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: message },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+
+  // Spending cap for the whole account. The rate limits bound how FAST credits
+  // burn; this bounds the total. Checked before the call, so a refusal costs
+  // nothing — see lib/spending.ts for why it can overshoot by one run.
+  const spend = await getSpendStatus();
+  if (!spend.allowed) {
+    return NextResponse.json(
+      { error: spendLimitMessage(spend) },
+      { status: 402 },
     );
   }
 

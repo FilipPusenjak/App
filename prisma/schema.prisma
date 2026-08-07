@@ -172,6 +172,14 @@ model Projection {
   error             String?
   createdAt         DateTime  @default(now())
   completedAt       DateTime?
+  // What this run cost, same columns and same reason as Evaluation. A
+  // projection is a real API call on the account's credits, so leaving it
+  // unrecorded would make the per-account spending cap undercount — and a cap
+  // that quietly misses a whole category of spend is worse than none.
+  inputTokens       Int?
+  outputTokens      Int?
+  cacheWriteTokens  Int?
+  cacheReadTokens   Int?
 
   @@index([profileId])
 }
