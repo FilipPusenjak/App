@@ -53,10 +53,13 @@ describe("AI status", () => {
 
   it("never returns the key or any part of it", () => {
     // A prefix on a page is a prefix in every screenshot of that page.
-    const key = "sk-ant-SECRETVALUE123456";
+    // The canary must not be a substring of any legitimate variable NAME:
+    // the output contains "AUTH_SECRET", so a canary containing "SECRET" fails
+    // on the name rather than on a leak.
+    const key = "sk-ant-ZZLEAKCANARYZZ123456";
     vi.stubEnv("ANTHROPIC_API_KEY", key);
     const serialized = JSON.stringify(getAiStatus());
-    expect(serialized).not.toContain("SECRET");
+    expect(serialized).not.toContain("ZZLEAKCANARYZZ");
     expect(serialized).not.toContain("sk-ant");
     for (let n = 6; n <= key.length; n++) {
       expect(serialized).not.toContain(key.slice(0, n));
