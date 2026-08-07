@@ -6,6 +6,7 @@ import {
   getOwnedProjections,
   getProfileWithRelations,
 } from "@/lib/ownership";
+import { getAiStatus } from "@/lib/ai-status";
 import { DeleteAccountForm } from "./delete-account-form";
 
 export default async function SettingsPage() {
@@ -18,6 +19,8 @@ export default async function SettingsPage() {
     getOwnedPlannedItems(),
     getOwnedProjections(),
   ]);
+
+  const ai = getAiStatus();
 
   const counts = [
     { label: "resume items", n: profile.resumeItems.length },
@@ -38,6 +41,52 @@ export default async function SettingsPage() {
           Signed in as {user.email}.
         </p>
       </div>
+
+      {/* Whether this deployment can actually reach the model.
+          Without this the only way to find out was to spend an evaluation and
+          read the result: a red 401 meant the key was present and wrong, a
+          sample banner meant it was missing entirely, and those need opposite
+          fixes. Never shows the key, or any part of it. */}
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold">AI evaluations</h2>
+        {ai.live ? (
+          <>
+            <p className="mt-0.5 text-sm text-zinc-500">
+              Connected. Evaluations call the model and return a real
+              assessment.
+            </p>
+            <ul className="mt-3 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <li>
+                First evaluation of a student:{" "}
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {ai.baselineModel}
+                </span>
+              </li>
+              <li>
+                Later, anchored runs:{" "}
+                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {ai.followupModel ?? ai.baselineModel}
+                </span>
+              </li>
+            </ul>
+          </>
+        ) : (
+          <>
+            <p className="mt-0.5 text-sm text-zinc-500">
+              Not connected — every evaluation returns clearly-labelled sample
+              output instead of a real assessment.
+            </p>
+            <p className="mt-3 rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              No <code>ANTHROPIC_API_KEY</code> is set for this deployment. If
+              you believe you have set one, the name has to match exactly and it
+              has to be enabled for the environment you are looking at — and the
+              app only picks up a change on the next deploy, not immediately.
+              An <em>invalid</em> key looks different from this: runs fail with
+              a 401 rather than falling back to samples.
+            </p>
+          </>
+        )}
+      </section>
 
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
         <h2 className="text-lg font-semibold">Your data</h2>
