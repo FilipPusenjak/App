@@ -11,6 +11,27 @@
 // gaps; per-item assessments and the prioritized action list arrive in M6.
 import { z } from "zod";
 
+/* -----------------------------------------------------------------------------
+   STRICT ABOUT THE FINDING, TOLERANT ABOUT ITS ANNOTATIONS.
+
+   A real evaluation was lost because the model omitted `bestFor` — "which of
+   your targets does this activity help" — on three of its item assessments.
+   Everything else in that response was complete and usable. The run cost $0.34,
+   took the better part of a minute, and was thrown away over a list of school
+   names attached to a verdict that was already written.
+
+   So the string arrays that ANNOTATE a finding (relevantTo, keyRisks,
+   appliesTo, reachableNow, notYetExpected, bestFor, verifyThese) default to
+   empty when absent. Every one of them is honest empty, and the UI already
+   renders nothing for an empty list.
+
+   What stays required is the finding itself: the scores, the verdicts, the
+   assessments, and the top-level arrays that hold them. Those ARE the product,
+   and a response missing one of them has not answered the question — defaulting
+   those would turn a visible failure into a quietly incomplete evaluation,
+   which is the worse outcome in an app whose job is an honest number.
+----------------------------------------------------------------------------- */
+
 export const EVALUATION_STATUSES = ["pending", "completed", "failed"] as const;
 export const evaluationStatusSchema = z.enum(EVALUATION_STATUSES);
 export type EvaluationStatus = (typeof EVALUATION_STATUSES)[number];
@@ -21,7 +42,7 @@ const strengthSchema = z.object({
   title: z.string(),
   detail: z.string(),
   /** Which target(s) this helps — names, or "all". Keeps US/UK split visible. */
-  relevantTo: z.array(z.string()),
+  relevantTo: z.array(z.string()).optional().default([]),
 });
 
 const weaknessSchema = z.object({
@@ -78,7 +99,7 @@ const schoolFitSchema = z.object({
   classification: aiClassificationSchema,
   classificationReason: z.string(),
   assessment: z.string(),
-  keyRisks: z.array(z.string()),
+  keyRisks: z.array(z.string()).optional().default([]),
 });
 
 /**
@@ -104,7 +125,7 @@ const gapSchema = z.object({
    */
   timing: gapTimingSchema,
   /** School names or "all" — a gap for a UK target may be irrelevant to a US one. */
-  appliesTo: z.array(z.string()),
+  appliesTo: z.array(z.string()).optional().default([]),
 });
 
 /** Whether the student is building the right foundations FOR THEIR STAGE. */
@@ -133,9 +154,9 @@ const stageOutlookSchema = z.object({
   /** Honest read of the foundations — not of the finished application. */
   assessment: z.string(),
   /** Things genuinely reachable at this stage that they have NOT started. */
-  reachableNow: z.array(z.string()),
+  reachableNow: z.array(z.string()).optional().default([]),
   /** Things correctly absent because they are gated — named to defuse worry. */
-  notYetExpected: z.array(z.string()),
+  notYetExpected: z.array(z.string()).optional().default([]),
 });
 
 /** How much an individual resume item actually helps. "negligible" exists so
@@ -187,7 +208,7 @@ export const itemAssessmentSchema = z.object({
   howToStrengthen: z.string(),
   /** Which targets it actually helps — keeps the US/UK asymmetry visible
    *  at the level of individual activities. */
-  bestFor: z.array(z.string()),
+  bestFor: z.array(z.string()).optional().default([]),
 });
 
 const actionSchema = z.object({
@@ -197,7 +218,7 @@ const actionSchema = z.object({
   impact: impactSchema,
   /** Rough window, e.g. "this month", "before applications". */
   timeframe: z.string(),
-  appliesTo: z.array(z.string()),
+  appliesTo: z.array(z.string()).optional().default([]),
 });
 
 /**
@@ -272,7 +293,7 @@ export const evaluationResultSchema = z.object({
    * uncertain — requirements, tests, policies, statistics — to land here
    * instead of being asserted as fact.
    */
-  verifyThese: z.array(z.string()),
+  verifyThese: z.array(z.string()).optional().default([]),
 });
 
 /**
