@@ -36,6 +36,14 @@ drop a fact to save space.
 
 4. When it finishes, save the output to Google Drive (or send me the file) and
    tell me. The brief asks it to name the file for you.
+5. Validate it before it becomes data:
+
+   ```bash
+   npx tsx scripts/ingest-requirements.ts --dry-run course-requirements-2026-08-08.json
+   ```
+
+   That reports what would land, what was rejected and exactly why, without
+   writing anything. Drop `--dry-run` when the report looks right.
 
 ---
 

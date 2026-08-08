@@ -162,6 +162,8 @@ import {
   renderPreviousContext,
 } from "./render";
 import type { EvaluationSnapshot } from "@/lib/evaluation/snapshot";
+import type { ResolvedRequirement } from "@/lib/requirements/lookup";
+import { renderRequirements } from "./requirements";
 import type { SnapshotDiff } from "@/lib/evaluation/diff";
 import {
   NO_REUSE,
@@ -409,9 +411,11 @@ export function buildUserPromptParts(
   snapshot: EvaluationSnapshot,
   diff: SnapshotDiff | null = null,
   reuse: ItemReuse = NO_REUSE,
+  requirements: ResolvedRequirement[] = [],
 ): { stable: string; variable: string } {
   const previous = renderPreviousContext(diff);
   const carriedOver = renderItemReuse(reuse, snapshot);
+  const sourced = renderRequirements(requirements);
 
   const stable = `# Admissions rubrics in play
 
@@ -427,6 +431,14 @@ ${renderRubricMapping(snapshot)}
 
 ${renderSnapshot(snapshot)}
 ${
+  sourced
+    ? `
+# Verified entry requirements — prefer these over your own knowledge
+
+${sourced}
+`
+    : ""
+}${
   carriedOver
     ? `
 # Items already assessed — do not assess these again

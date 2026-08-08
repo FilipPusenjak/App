@@ -438,3 +438,54 @@ model TargetSchool {
 
   @@index([profileId])
 }
+
+/// Researched entry requirements for one course at one university.
+///
+/// Reference data, not user data: shared across every student targeting the
+/// same course, gathered offline by a research agent against the brief in
+/// lib/prompts/research/. Validated on ingest by
+/// lib/validation/course-requirements.ts, which refuses anything whose facts
+/// do not each carry a verbatim quote and a source URL.
+///
+/// Why it exists: the evaluator has no lookup. Its read on what a course
+/// requires comes from model recollection, which is why `verifyThese` exists
+/// at all. A sourced row lets the evaluation state a requirement AND show the
+/// student where it came from — and, just as importantly, lets it keep saying
+/// "check this" for everything not covered here.
+model CourseRequirement {
+  id         String @id @default(cuid())
+  /// Normalized for matching (lowercased, punctuation and leading articles
+  /// stripped). The display names are kept separately so the student sees what
+  /// the university calls itself.
+  matchKey   String @unique
+  university String
+  country    String
+  course     String
+
+  /// The admissions cycle the source page described.
+  cycleYear        Int
+  /// The researcher's own flag that the page was for an older cycle. Shown to
+  /// the student, and it downgrades how the evaluation is told to treat it.
+  stale            Boolean  @default(false)
+  /// When the research ran. Requirements change annually, so a row ages into
+  /// being untrustworthy and the UI says so rather than quietly aging.
+  gatheredOn       DateTime
+  primarySourceUrl String
+
+  /// The requirements object, exactly as validated. Serialized JSON, checked
+  /// against Zod on both write and read like every other structured value here.
+  requirementsJson String
+
+  /// Acceptance rate, when officially published. INTERNAL ONLY — it informs
+  /// the selectivity tier and is never rendered and never handed to the model
+  /// as a number. A headline rate is the most misread figure in admissions,
+  /// and the app's ban on stating rates predates this table.
+  acceptanceRatePercent   Float?
+  acceptanceRateScope     String?
+  acceptanceRateSourceUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([country])
+}

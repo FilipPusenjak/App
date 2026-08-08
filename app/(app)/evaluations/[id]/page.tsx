@@ -6,6 +6,11 @@ import {
 } from "@/lib/ownership";
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import { getRubricById } from "@/lib/rubrics";
+import { findRequirementsForTargets } from "@/lib/requirements/lookup";
+import {
+  REQUIREMENT_FIELDS,
+  REQUIREMENT_LABELS,
+} from "@/lib/validation/course-requirements";
 
 function ScoreRing({
   score,
@@ -188,6 +193,27 @@ export default async function EvaluationPage({
 
   const result = parseStoredResult(evaluation.resultJson);
 
+  // Requirements shown from the DATABASE, not from the model's output. The
+  // model is told to prefer these, but what a student reads as a sourced fact
+  // must be the source itself — an echoed quote can drift, and an unattributed
+  // requirement is the exact failure this data risks introducing.
+  const snapshotTargets = (() => {
+    try {
+      const snap = evaluation.inputSnapshotJson
+        ? (JSON.parse(evaluation.inputSnapshotJson) as {
+            targets?: { name: string; country: string; course: string | null }[];
+          })
+        : null;
+      return snap?.targets ?? [];
+    } catch {
+      return [];
+    }
+  })();
+  const sourcedRequirements =
+    snapshotTargets.length > 0
+      ? await findRequirementsForTargets(snapshotTargets)
+      : [];
+
   // The grade level as it was when this evaluation ran, for deciding which
   // score to lead with. Read from the frozen snapshot so an old evaluation
   // still renders the way it did at the time.
@@ -240,6 +266,69 @@ export default async function EvaluationPage({
           evaluation from the evaluations page for a fresh read on the strongest
           model.
         </p>
+      )}
+
+      {sourcedRequirements.length > 0 && (
+        <Card
+          title="Entry requirements on file"
+          subtitle="Taken from official university and national admissions pages. Every line links to where it came from — check it yourself before relying on it."
+        >
+          <ul className="space-y-4">
+            {sourcedRequirements.map((r) => (
+              <li key={`${r.targetName}-${r.course}`}>
+                <p className="font-medium">
+                  {r.targetName} — {r.course}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {r.stale || r.aging ? (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      Not confirmed current —{" "}
+                      {r.stale
+                        ? `source was for the ${r.cycleYear} cycle`
+                        : "requirements are republished annually"}
+                      . Treat as a lead and verify.
+                    </span>
+                  ) : (
+                    `For the ${r.cycleYear} cycle`
+                  )}
+                  {" · researched "}
+                  {r.gatheredOn.toISOString().slice(0, 10)}
+                  {" · "}
+                  <a
+                    href={r.primarySourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    source
+                  </a>
+                </p>
+                <ul className="mt-1 space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                  {REQUIREMENT_FIELDS.map((field) => {
+                    const fact = r.requirements[field];
+                    if (!fact) return null;
+                    return (
+                      <li key={field}>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {REQUIREMENT_LABELS[field]}:
+                        </span>{" "}
+                        {fact.value}{" "}
+                        <a
+                          href={fact.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-zinc-400 underline underline-offset-2"
+                        >
+                          source
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       {evaluation.isSample && (

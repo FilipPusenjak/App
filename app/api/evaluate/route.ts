@@ -30,6 +30,7 @@ import {
   type ModelChoice,
 } from "@/lib/evaluation/model-choice";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
+import { findRequirementsForTargets } from "@/lib/requirements/lookup";
 import { buildSampleResult } from "@/lib/evaluation/sample";
 import { loadPreviousContext } from "@/lib/evaluation/previous";
 import { mergeItemAssessments } from "@/lib/evaluation/item-reuse";
@@ -383,7 +384,19 @@ export async function POST(request: Request) {
     cacheReadTokens: 0,
   };
   try {
-    const prompt = buildUserPromptParts(snapshot, diff, reuse);
+    // Researched entry requirements for these targets, where we have them.
+    // Shared reference data — no ownership filter, because the targets it is
+    // keyed from already came from an ownership-scoped profile. A target with
+    // no match contributes nothing and behaves exactly as it does today.
+    const sourcedRequirements = await findRequirementsForTargets(
+      snapshot.targets,
+    );
+    const prompt = buildUserPromptParts(
+      snapshot,
+      diff,
+      reuse,
+      sourcedRequirements,
+    );
 
     // A correction is appended AFTER the variable part, so the cached prefix
     // is identical on the retry and the second attempt reads the cache rather
