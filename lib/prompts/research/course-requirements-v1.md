@@ -18,6 +18,25 @@ a run, and 200–300 tokens per course works out at 1–2% of the total. Density
 requested for attention and latency reasons, not money. Do not let the agent
 drop a fact to save space.
 
+## How to run it
+
+1. Open a Claude conversation with **web research enabled**.
+2. Paste everything below the line.
+3. Then paste your list of targets, one per line, as `University | Course`:
+
+   ```
+   University of Cambridge | Medicine (A100)
+   Trinity College Dublin  | Medicine
+   Utrecht University      | Liberal Arts and Sciences
+   ```
+
+   Use the courses your students are **actually targeting**. This is
+   demand-driven on purpose — there are tens of thousands of course/university
+   pairs and no reason to gather one nobody has picked.
+
+4. When it finishes, save the output to Google Drive (or send me the file) and
+   tell me. The brief asks it to name the file for you.
+
 ---
 
 You are researching university entry requirements that will be fed directly
@@ -135,6 +154,19 @@ either a fully-sourced object or `null`.
   ]
 }
 ```
+
+### Delivering the output
+
+- **Emit each record as soon as you finish it**, rather than holding everything
+  for one block at the end. A long run that is interrupted should leave behind
+  the records it already completed, not nothing.
+- When you are done, save the full set as a single file named
+  **`course-requirements-YYYY-MM-DD.json`** (today's date), containing a JSON
+  array of the record objects. If you can write to Google Drive, put it there.
+  Otherwise output it as a single final block for the user to save.
+- Work through the list **in the order given**. If you run out of time or
+  budget, stop cleanly and report which pairs you did not reach — a partial set
+  with a known boundary is usable; a partial set that looks complete is not.
 
 ### Rules about the output itself
 
