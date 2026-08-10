@@ -16,11 +16,6 @@
 // resolves ambiguity toward rejection.
 import { z } from "zod";
 
-/** Where an acceptance rate applies. Never the same number twice. */
-export const RATE_SCOPES = ["course", "faculty", "institution"] as const;
-export const rateScopeSchema = z.enum(RATE_SCOPES);
-export type RateScope = (typeof RATE_SCOPES)[number];
-
 /**
  * A URL that could plausibly be an official source.
  *
@@ -72,8 +67,16 @@ const sourceUrlSchema = z
  * not a quotation of anything.
  */
 export const sourcedFactSchema = z.object({
-  /** The compressed fact, one line. This is what reaches the prompt. */
-  value: z.string().trim().min(3).max(300),
+  /**
+   * The compressed fact, one line. This is what reaches the prompt.
+   *
+   * 450, not the 300 this started at: a real batch of researched requirements
+   * (UC's fifteen-course "A-G" subject list, EU language-certificate detail)
+   * ran up to 394 characters for a single genuine, densely-stated fact — not
+   * padding. 300 was an arbitrary guess that discarded correct, sourced data
+   * for being a paragraph a few words too long.
+   */
+  value: z.string().trim().min(3).max(450),
   /** Verbatim from the source page. */
   quote: z.string().trim().min(15).max(1000),
   sourceUrl: sourceUrlSchema,
@@ -124,10 +127,20 @@ export const REQUIREMENT_LABELS: Record<RequirementField, string> = {
  * `scope` is mandatory precisely because the number is meaningless without it:
  * an institution-wide rate, a faculty rate and a course rate are three
  * different figures, and none of them is the rate for a given applicant.
+ *
+ * Free text, not a closed enum. The first version required one of
+ * "course" | "faculty" | "institution", and against a real research batch it
+ * rejected roughly 340 records — 29% of the set — where the SCOPE was the only
+ * problem: a genuinely well-sourced rate described as "university-wide
+ * first-year admission, Fall 2025" or similar, phrased the way the source
+ * actually phrases it. That is MORE precise than the three-value enum would
+ * have captured, not less. The enum was solving a problem free text already
+ * solves, at the cost of discarding real data. What still matters — some
+ * stated scope, evidenced by a quote — is unchanged.
  */
 export const acceptanceRateSchema = z.object({
   percent: z.number().min(0).max(100),
-  scope: rateScopeSchema,
+  scope: z.string().trim().min(3).max(200),
   quote: z.string().trim().min(15).max(1000),
   sourceUrl: sourceUrlSchema,
 });
@@ -154,7 +167,14 @@ export const courseRequirementRecordSchema = z.object({
   gatheredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD."),
   primarySourceUrl: sourceUrlSchema,
   requirements: requirementsSchema,
-  acceptanceRate: acceptanceRateSchema.nullable().optional(),
+  /**
+   * `.catch(undefined)`: a malformed acceptance rate is DROPPED rather than
+   * failing the record. It is internal-only and never shown to a student, so
+   * it must never be the reason a sourced, public-facing requirement — the
+   * thing this table exists for — is discarded. See validateRecord, which
+   * detects the drop and reports it rather than losing it silently.
+   */
+  acceptanceRate: acceptanceRateSchema.nullable().optional().catch(undefined),
   omitted: z
     .array(
       z.object({
@@ -186,7 +206,16 @@ export const validatedCourseRequirementSchema =
   );
 
 export type IngestOutcome =
-  | { ok: true; record: CourseRequirementRecord }
+  | {
+      ok: true;
+      record: CourseRequirementRecord;
+      /**
+       * True when the input carried an acceptanceRate that failed validation
+       * and was dropped rather than sinking the record — see the `.catch()` on
+       * acceptanceRate above. Surfaced so the drop is reported, not silent.
+       */
+      droppedAcceptanceRate: boolean;
+    }
   | { ok: false; identifier: string; errors: string[] };
 
 /**
@@ -198,7 +227,12 @@ export type IngestOutcome =
  */
 export function validateRecord(input: unknown): IngestOutcome {
   const parsed = validatedCourseRequirementSchema.safeParse(input);
-  if (parsed.success) return { ok: true, record: parsed.data };
+  if (parsed.success) {
+    const raw = (input ?? {}) as { acceptanceRate?: unknown };
+    const droppedAcceptanceRate =
+      raw.acceptanceRate != null && parsed.data.acceptanceRate == null;
+    return { ok: true, record: parsed.data, droppedAcceptanceRate };
+  }
 
   // Identify the record even when it failed, so the report names something a
   // human can find in the source file.

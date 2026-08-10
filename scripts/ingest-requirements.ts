@@ -59,6 +59,7 @@ async function main() {
   else console.log("");
 
   const rejected: { identifier: string; errors: string[] }[] = [];
+  const droppedRates: string[] = [];
   let written = 0;
   let nullFields = 0;
   let totalFields = 0;
@@ -71,6 +72,9 @@ async function main() {
     }
 
     const record = outcome.record;
+    if (outcome.droppedAcceptanceRate) {
+      droppedRates.push(`${record.university} — ${record.course}`);
+    }
     const key = matchKey(record);
     if (!isUsableKey(key)) {
       rejected.push({
@@ -124,6 +128,12 @@ async function main() {
     );
     console.log(
       `  — a high number here is expected and good: those become "check the course page" rather than a guess.`,
+    );
+  }
+  if (droppedRates.length > 0) {
+    console.log(
+      `  acceptance rate dropped (record kept): ${droppedRates.length}` +
+        ` — malformed internal-only field, not shown to students either way.`,
     );
   }
 

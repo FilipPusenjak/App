@@ -47,6 +47,24 @@ describe("a well-sourced record is accepted", () => {
     const outcome = validateRecord(record({ country: "gb" }));
     expect(outcome.ok && outcome.record.country).toBe("GB");
   });
+
+  it("accepts a dense fact up to real-world length, not the original 300-char guess", () => {
+    // A real research batch produced a genuine, single, non-padded fact (the
+    // University of California "A-G" subject requirement) at 347 characters.
+    // The original 300-char cap discarded it for being correct and thorough.
+    const dense =
+      "Fifteen A-G college-preparatory courses: two history/social science, four English, three mathematics (four recommended), two laboratory science (three recommended), two language other than English (three recommended), one visual and performing arts, and one college-preparatory elective; at least 11 completed before senior year; grade C or better";
+    expect(dense.length).toBeGreaterThan(300);
+    expect(dense.length).toBeLessThan(450);
+    const outcome = validateRecord(
+      record({
+        requirements: {
+          requiredSubjects: fact({ value: dense }),
+        },
+      }),
+    );
+    expect(outcome.ok).toBe(true);
+  });
 });
 
 describe("a fact without a source is not a fact", () => {
@@ -139,8 +157,11 @@ describe("records that claim more than they know", () => {
     ).toBe(false);
   });
 
-  it("rejects an acceptance rate with no scope", () => {
-    // A rate without scope is three different numbers wearing one label.
+  it("drops an acceptance rate with no scope, but keeps the record", () => {
+    // A rate without scope is three different numbers wearing one label — so
+    // it must not be STORED. But it is internal-only and never shown to a
+    // student, so a defect in it must never cost the record its real, sourced,
+    // student-facing requirements. Dropped, not rejected.
     const outcome = validateRecord(
       record({
         acceptanceRate: {
@@ -150,22 +171,58 @@ describe("records that claim more than they know", () => {
         },
       }),
     );
-    expect(outcome.ok).toBe(false);
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.record.acceptanceRate).toBeUndefined();
+      expect(outcome.droppedAcceptanceRate).toBe(true);
+      // The thing that actually matters — the sourced requirement — survived.
+      expect(outcome.record.requirements.gradeRequirement).toBeTruthy();
+    }
   });
 
-  it("accepts an acceptance rate that states its scope", () => {
-    expect(
-      validateRecord(
-        record({
-          acceptanceRate: {
-            percent: 4.5,
-            scope: "course",
-            quote: "The course admitted 4.5% of applicants in 2025.",
-            sourceUrl: OFFICIAL,
-          },
-        }),
-      ).ok,
-    ).toBe(true);
+  it("accepts scope as the free text a real source actually uses", () => {
+    // Not one of a fixed three values. A closed enum here once discarded ~29%
+    // of a real research batch over an internal-only field's wording, while
+    // the public-facing requirements in those same records were fine.
+    const outcome = validateRecord(
+      record({
+        acceptanceRate: {
+          percent: 4.5,
+          scope: "university-wide first-year admission, Fall 2025",
+          quote: "4.5% of applicants were offered admission for Fall 2025.",
+          sourceUrl: OFFICIAL,
+        },
+      }),
+    );
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.droppedAcceptanceRate).toBe(false);
+      expect(outcome.record.acceptanceRate?.scope).toBe(
+        "university-wide first-year admission, Fall 2025",
+      );
+    }
+  });
+
+  it("still requires a source and a real quote on the rate itself", () => {
+    // Loosening scope must not loosen the anti-fabrication rule underneath it.
+    const outcome = validateRecord(
+      record({
+        acceptanceRate: {
+          percent: 4.5,
+          scope: "course",
+          quote: "yes",
+          sourceUrl: OFFICIAL,
+        },
+      }),
+    );
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.droppedAcceptanceRate).toBe(true);
+  });
+
+  it("does not flag a drop when no acceptance rate was ever supplied", () => {
+    const outcome = validateRecord(record());
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) expect(outcome.droppedAcceptanceRate).toBe(false);
   });
 });
 
