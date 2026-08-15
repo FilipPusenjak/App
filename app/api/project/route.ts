@@ -88,7 +88,7 @@ const OUTPUT_FORMAT = zodOutputFormat(projectionResultSchema);
 async function requestProjection(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
   prompt: { stable: string; variable: string },
-  lastRunAt: Date | null,
+  previous: { at: Date | null; model: string | null },
 ) {
   const effort = getProjectionEffort() as
     | "low"
@@ -96,8 +96,11 @@ async function requestProjection(
     | "high"
     | "xhigh"
     | "max";
-  // Same rule as the evaluation route: no write unless a read is plausible.
-  const cache = getCacheControl(lastRunAt);
+  // Same rule as the evaluation route: no write unless a read is plausible —
+  // which includes the previous run having used the same model, since caches
+  // are model-scoped. Projections run on one model today, so this normally
+  // holds; it stops silently costing 2x the day that changes.
+  const cache = getCacheControl(previous.at, previous.model, getProjectionModel());
 
   // Same two stability boundaries as the evaluation route.
   const system = [
@@ -251,9 +254,10 @@ export async function POST() {
   const lastProjection = await prisma.projection.findFirst({
     where: { profileId: profile.id, isSample: false },
     orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
+    select: { createdAt: true, model: true },
   });
   const lastProjectionAt = lastProjection?.createdAt ?? null;
+  const lastProjectionModel = lastProjection?.model ?? null;
 
   const client = getAnthropicClient();
   const isSample = client === null;
@@ -303,7 +307,7 @@ export async function POST() {
           stable: prompt.stable,
           variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
         },
-        lastProjectionAt,
+        { at: lastProjectionAt, model: lastProjectionModel },
       );
       if ("parseError" in outcome) {
         return {

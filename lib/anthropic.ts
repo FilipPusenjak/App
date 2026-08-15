@@ -108,11 +108,23 @@ export const CACHE_TTL_MS: Record<"5m" | "1h", number> = {
  * pay base price and no premium; a counselor working through several students,
  * or anyone iterating, gets the hit and the saving.
  *
+ * `lastRunModel` is the second condition, and it is not optional in practice.
+ * PROMPT CACHES ARE MODEL-SCOPED: an entry written by one model cannot be read
+ * by another, no matter how byte-identical the prefix is. This app switches
+ * models on purpose — a first evaluation runs on the baseline model and a
+ * follow-up with its anchor intact runs on the cheaper one — so the run right
+ * after a baseline is GUARANTEED to miss. Writing there paid the 2x premium on
+ * ~89% of the input for an entry the next run could not read either, which is
+ * the exact case a student sees as "the cheap model's run cost more than it
+ * should have".
+ *
  * Set ANTHROPIC_CACHE_TTL to "off" to disable entirely, or "always" to write
  * unconditionally (worth it only under steady traffic from many users).
  */
 export function getCacheControl(
   lastRunAt: Date | null | undefined,
+  lastRunModel: string | null | undefined,
+  model: string,
 ): { type: "ephemeral"; ttl?: "5m" | "1h" } | undefined {
   const setting = process.env.ANTHROPIC_CACHE_TTL || DEFAULT_CACHE_TTL;
   if (setting === "off") return undefined;
@@ -128,6 +140,10 @@ export function getCacheControl(
   // No previous run means nothing to read back: a first evaluation would pay
   // the write premium for an entry that expires unused far more often than not.
   if (!lastRunAt) return undefined;
+
+  // A different model's entry is not readable, so this write would be bought
+  // for a hit that cannot happen.
+  if (!lastRunModel || lastRunModel !== model) return undefined;
 
   // Written with a margin, because an entry that expired seconds ago is a
   // write at 2x rather than the read it was gambling on.

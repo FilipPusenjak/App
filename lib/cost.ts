@@ -10,6 +10,20 @@
 /** Per million tokens, in USD. Base input, then the cache multipliers. */
 type Price = { input: number; output: number };
 
+/**
+ * Standard list prices, deliberately NOT promotional ones.
+ *
+ * Sonnet 5 carries an introductory rate ($2/$10 rather than $3/$15) through
+ * 2026-08-31, so a Sonnet run inside that window is reported as costing up to
+ * 50% more than it actually bills. That direction is the correct one to be
+ * wrong in: this table feeds the per-account spend cap as well as the display,
+ * and a cap computed from a discount that expires would let an account overrun
+ * its real limit the day the discount ends. An over-estimate stops slightly
+ * early; an under-estimate does not stop at all.
+ *
+ * The consequence worth knowing: the figure shown next to a Sonnet run is a
+ * ceiling, not a bill. The Anthropic Console is the ground truth.
+ */
 const PRICES: Record<string, Price> = {
   "claude-opus-5": { input: 5, output: 25 },
   "claude-sonnet-5": { input: 3, output: 15 },

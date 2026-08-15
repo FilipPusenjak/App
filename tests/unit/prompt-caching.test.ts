@@ -171,22 +171,24 @@ describe("a cache entry is written only when one can be read back", () => {
     }
   };
   const ago = (ms: number) => new Date(Date.now() - ms);
+  const OPUS = "claude-opus-5";
+  const SONNET = "claude-sonnet-5";
 
   it("does NOT write on a run with no previous run to have warmed it", () => {
     // The first evaluation would otherwise pay 2x for an entry that expires
     // unused far more often than not.
-    expect(withSetting(undefined, () => getCacheControl(null))).toBeUndefined();
+    expect(withSetting(undefined, () => getCacheControl(null, OPUS, OPUS))).toBeUndefined();
   });
 
   it("does NOT write when the last run was too long ago", () => {
     // The exact case that was costing money: run, read it, come back tomorrow.
     expect(
-      withSetting(undefined, () => getCacheControl(ago(6 * 60 * 60 * 1000))),
+      withSetting(undefined, () => getCacheControl(ago(6 * 60 * 60 * 1000), OPUS, OPUS)),
     ).toBeUndefined();
   });
 
   it("DOES write when the last run is recent enough that an entry survives", () => {
-    expect(withSetting(undefined, () => getCacheControl(ago(60_000)))).toEqual({
+    expect(withSetting(undefined, () => getCacheControl(ago(60_000), OPUS, OPUS))).toEqual({
       type: "ephemeral",
       ttl: "1h",
     });
@@ -196,29 +198,69 @@ describe("a cache entry is written only when one can be read back", () => {
     // An entry that expired moments ago costs 2x instead of the 0.1x it was
     // gambling on, so the edge of the window is not treated as a hit.
     expect(
-      withSetting(undefined, () => getCacheControl(ago(59 * 60 * 1000))),
+      withSetting(undefined, () => getCacheControl(ago(59 * 60 * 1000), OPUS, OPUS)),
     ).toBeUndefined();
     expect(DEFAULT_CACHE_TTL).toBe("1h");
   });
 
   it("honours the shorter window when asked for it", () => {
-    expect(withSetting("5m", () => getCacheControl(ago(60_000)))).toEqual({
+    expect(withSetting("5m", () => getCacheControl(ago(60_000), OPUS, OPUS))).toEqual({
       type: "ephemeral",
     });
     // 4 minutes is inside an hour but outside five.
     expect(
-      withSetting("5m", () => getCacheControl(ago(4.9 * 60 * 1000))),
+      withSetting("5m", () => getCacheControl(ago(4.9 * 60 * 1000), OPUS, OPUS)),
     ).toBeUndefined();
   });
 
   it("can be forced on for steady multi-user traffic", () => {
-    expect(withSetting("always", () => getCacheControl(null))).toEqual({
+    expect(withSetting("always", () => getCacheControl(null, OPUS, OPUS))).toEqual({
       type: "ephemeral",
       ttl: "1h",
     });
   });
 
   it("can be turned off entirely", () => {
-    expect(withSetting("off", () => getCacheControl(ago(60_000)))).toBeUndefined();
+    expect(withSetting("off", () => getCacheControl(ago(60_000), OPUS, OPUS))).toBeUndefined();
+  });
+
+  // PROMPT CACHES ARE MODEL-SCOPED. An entry written by one model cannot be
+  // read by another however identical the bytes are — and this app switches
+  // models by design, so the miss is not a rare edge case. It is what happens
+  // on the run immediately after every baseline evaluation.
+  describe("a different model cannot read the previous run's entry", () => {
+    it("does NOT write when the previous run used a different model", () => {
+      // The reported symptom: a first evaluation on Opus, then a follow-up on
+      // Sonnet that cost more than it should have. The follow-up was writing a
+      // fresh entry at 2x on ~89% of the input, for a hit that could not
+      // happen — the only entry in existence belonged to a different model.
+      expect(
+        withSetting(undefined, () => getCacheControl(ago(60_000), OPUS, SONNET)),
+      ).toBeUndefined();
+    });
+
+    it("still writes when the previous run used the same model", () => {
+      // The saving must survive the fix: two follow-ups in a row DO share a
+      // model, and that is the case caching was bought for.
+      expect(
+        withSetting(undefined, () => getCacheControl(ago(60_000), SONNET, SONNET)),
+      ).toEqual({ type: "ephemeral", ttl: "1h" });
+    });
+
+    it("does NOT write when the previous run's model was never recorded", () => {
+      // An older row with a null model is not evidence of a readable entry,
+      // and guessing costs 2x when the guess is wrong.
+      expect(
+        withSetting(undefined, () => getCacheControl(ago(60_000), null, SONNET)),
+      ).toBeUndefined();
+    });
+
+    it("respects an explicit 'always' even across a model change", () => {
+      // "always" is the documented escape hatch for steady multi-user traffic,
+      // where someone else's run on that model plausibly warmed it.
+      expect(
+        withSetting("always", () => getCacheControl(null, OPUS, SONNET)),
+      ).toEqual({ type: "ephemeral", ttl: "1h" });
+    });
   });
 });

@@ -161,15 +161,17 @@ const OUTPUT_FORMAT = zodOutputFormat(evaluationWireSchema);
 async function requestEvaluation(
   client: NonNullable<ReturnType<typeof getAnthropicClient>>,
   prompt: { stable: string; variable: string },
-  lastRunAt: Date | null,
+  previous: { at: Date | null; model: string | null },
   choice: ModelChoice,
   signal: AbortSignal | undefined,
 ) {
   const { model, effort } = choice;
-  // Only writes a cache entry when one plausibly still exists to be read.
-  // Writing unconditionally costs 2x on the cached portion, which is a loss on
-  // every run for anyone who evaluates occasionally rather than in bursts.
-  const cache = getCacheControl(lastRunAt);
+  // Only writes a cache entry when one plausibly still exists to be read AND
+  // this run could actually read it. Writing unconditionally costs 2x on the
+  // cached portion — a loss on every run for anyone who evaluates occasionally
+  // rather than in bursts, and a guaranteed loss on the run right after a
+  // baseline, because that one changes model and caches are model-scoped.
+  const cache = getCacheControl(previous.at, previous.model, model);
 
   // Caching is a prefix match, so the breakpoints go at the two stability
   // boundaries: the end of the system prompt, and the end of the rubrics. That
@@ -327,7 +329,8 @@ export async function POST(request: Request) {
   // a malformed or missing previous row simply means no comparison.
   // One load for both: the diff that keeps scores consistent, and the item
   // assessments that can be carried over rather than paid for a second time.
-  const { diff, reuse, lastRunAt, releasedScores } = await loadPreviousContext(
+  const { diff, reuse, lastRunAt, releasedScores, previousModel } =
+    await loadPreviousContext(
     profile.id,
     snapshot,
   );
@@ -409,7 +412,7 @@ export async function POST(request: Request) {
           stable: prompt.stable,
           variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
         },
-        lastRunAt,
+        { at: lastRunAt, model: previousModel },
         choice,
         Number.isFinite(budgetMs)
           ? AbortSignal.timeout(Math.max(budgetMs, 1_000))
