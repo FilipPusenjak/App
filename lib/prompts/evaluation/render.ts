@@ -8,13 +8,154 @@ import type { EvaluationSnapshot } from "@/lib/evaluation/snapshot";
 import type { SnapshotDiff } from "@/lib/evaluation/diff";
 import { SCORE_KEYS, SCORE_LABELS, type ScoreKey } from "./versions";
 
+const DAY_MS = 86_400_000;
+
+/**
+ * Parse a `YYYY-MM-DD` (or full ISO) string as a UTC day.
+ *
+ * Day precision on both sides deliberately: comparing a date-only start against
+ * a timestamped `capturedAt` at full precision makes something started this
+ * morning "under a day", which is a distinction nobody wants stated.
+ */
+function parseDay(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return null;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.floor((b.getTime() - a.getTime()) / DAY_MS);
+}
+
+/** Whole calendar months between two days, not an average-length approximation. */
+function monthsBetween(a: Date, b: Date): number {
+  let months =
+    (b.getUTCFullYear() - a.getUTCFullYear()) * 12 +
+    (b.getUTCMonth() - a.getUTCMonth());
+  if (b.getUTCDate() < a.getUTCDate()) months -= 1;
+  return months;
+}
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? "" : "s"}`;
+}
+
+/** A span in the unit a person would actually use for it. */
+function humanDuration(from: Date, to: Date): string {
+  const days = daysBetween(from, to);
+  if (days < 1) return "less than a day";
+  if (days < 14) return plural(days, "day");
+  const months = monthsBetween(from, to);
+  if (months < 2) return plural(Math.floor(days / 7), "week");
+  // Years as soon as there is one. The prompt tells the model to weigh "years
+  // sustained" heavily, and "23 months" buries exactly that: a two-year
+  // commitment should not have to be converted before it registers as one.
+  if (months < 12) return plural(months, "month");
+  const years = Math.floor(months / 12);
+  const rest = months % 12;
+  return rest === 0
+    ? plural(years, "year")
+    : `${plural(years, "year")} ${plural(rest, "month")}`;
+}
+
+/**
+ * How long a resume item has run, stated in words rather than left as arithmetic.
+ *
+ * The model was given `[2026-08-08 to present]` and nothing else — no statement
+ * of what "present" was — and described a project started a week earlier as
+ * "a month or two in with no shipped product". It had no way to do better: with
+ * no reference point, elapsed time is a guess, and the guess landed on the
+ * training-data prior rather than on this student.
+ *
+ * Rendering today's date fixes the missing reference point, but a date pair
+ * still leaves the model doing calendar arithmetic mid-judgement. So the
+ * duration is computed here and handed over as a phrase. It is the difference
+ * between an item's effort being read correctly and a student being told their
+ * week-old project is behind schedule.
+ */
+export function describeSpan(
+  startDate: string | null,
+  endDate: string | null,
+  capturedAt: string,
+): string {
+  if (!startDate && !endDate) return "";
+
+  const shown = `${startDate ?? "?"} to ${endDate ?? "present"}`;
+  const start = parseDay(startDate);
+  const end = parseDay(endDate);
+  const today = parseDay(capturedAt);
+
+  const wrap = (note: string) => ` [${shown}${note ? ` — ${note}` : ""}]`;
+
+  // A start is what a duration is measured from. Without one, say so rather
+  // than let the gap be filled in.
+  if (!start) return wrap("no start date given, so how long this ran is unknown");
+  if (!today) return wrap("");
+
+  if (end) {
+    if (end.getTime() < start.getTime()) {
+      return wrap("the end date is before the start date, so the dates are unreliable");
+    }
+    if (end.getTime() <= today.getTime()) {
+      return wrap(`ran ${humanDuration(start, end)}, now finished`);
+    }
+    // Ends in the future: running now, with a planned end.
+    if (start.getTime() <= today.getTime()) {
+      return wrap(
+        `${humanDuration(start, today)} so far, scheduled to run until ${endDate}`,
+      );
+    }
+    return wrap(`has not started yet — begins in ${humanDuration(today, start)}`);
+  }
+
+  if (start.getTime() > today.getTime()) {
+    return wrap(`has not started yet — begins in ${humanDuration(today, start)}`);
+  }
+  return wrap(`${humanDuration(start, today)} so far, still ongoing`);
+}
+
+/**
+ * How far off a planned date is, for the same reason spans are computed.
+ *
+ * A projection is a judgement about what fits in the time remaining, so a bare
+ * "Target date: 2026-12-01" leaves the single most important variable to be
+ * inferred. It also catches the case a plan quietly rots into: a target date
+ * that has already gone by, which should be named rather than read as upcoming.
+ */
+export function describeLeadTime(
+  targetDate: string | null,
+  capturedAt: string,
+): string {
+  const target = parseDay(targetDate);
+  const today = parseDay(capturedAt);
+  if (!target || !today) return "";
+
+  const days = daysBetween(today, target);
+  if (days === 0) return " — that is today";
+  if (days < 0) {
+    return ` — that date has already PASSED (${humanDuration(target, today)} ago), so this plan is overdue rather than upcoming`;
+  }
+  return ` — ${humanDuration(today, target)} from now`;
+}
+
 /** Compact, readable rendering of the student's data. */
 export function renderSnapshot(s: EvaluationSnapshot): string {
   const st = s.student;
   const lines: string[] = [];
+  const today = s.capturedAt.slice(0, 10);
+
+  lines.push(`## Today's date: ${today}`);
+  lines.push(
+    `Every judgement about what is current, how long something has run, and how much time remains is relative to ${today}. Do not assume any other date, and do not estimate how long an item has been going — the elapsed time is stated on each item below.`,
+  );
+  lines.push("");
 
   lines.push("## Student");
-  lines.push(`- Grade level: ${st.gradeLevel ?? "not stated"}`);
+  lines.push(
+    `- Grade level: ${st.gradeLevel ?? "not stated"} — this is the grade the student is currently IN, or has JUST COMPLETED. Read it together with today's date: late in a school year or over the summer it most likely means the year is finished and the next one is about to start, so do not assume they still have the whole of that year ahead of them.`,
+  );
   lines.push(`- School: ${st.schoolName ?? "not stated"}`);
   lines.push(
     `- School context (rigor, courses offered, grading): ${st.schoolContext ?? "NOT PROVIDED — say that GPA cannot be fully judged without it"}`,
@@ -52,14 +193,16 @@ export function renderSnapshot(s: EvaluationSnapshot): string {
   lines.push(
     "Hours per week, where given, is CONTEXT — not a measure of quality. About an hour a week is the standard cadence for a school club and says nothing bad about it. Weigh years sustained, role held, and what was produced far above hours.",
   );
+  // Judging effort against an imagined timeline is the specific failure here:
+  // a project a week old was told it should have shipped by now.
+  lines.push(
+    "Elapsed time is stated on each item and is computed from today's date — use it exactly as given. Never estimate or round it up, and never say an item is further along than the stated span. Judge what it is reasonable to have produced in THAT amount of time: something a week old is at its beginning, and having nothing finished yet is the expected state, not a shortfall. Where a span says the duration is unknown, treat it as unknown rather than assuming one.",
+  );
   if (s.resumeItems.length === 0) {
     lines.push("- None recorded.");
   } else {
     for (const i of s.resumeItems) {
-      const when =
-        i.startDate || i.endDate
-          ? ` [${i.startDate ?? "?"} to ${i.endDate ?? "present"}]`
-          : "";
+      const when = describeSpan(i.startDate, i.endDate, s.capturedAt);
       const hours = i.hoursPerWeek != null ? ` [${i.hoursPerWeek} hrs/week]` : "";
       lines.push(
         `- [${i.ref}] (${i.type}) ${i.title}${i.org ? ` — ${i.org}` : ""}${when}${hours}`,

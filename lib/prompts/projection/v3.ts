@@ -27,7 +27,11 @@
 //      ("us-holistic"), which surfaced verbatim in the UI. It must be school
 //      names.
 import { renderRubric, rubricsForCountries } from "@/lib/rubrics";
-import { renderSnapshot, renderRubricMapping } from "../evaluation/render";
+import {
+  describeLeadTime,
+  renderSnapshot,
+  renderRubricMapping,
+} from "../evaluation/render";
 import type { ProjectionSnapshot } from "@/lib/evaluation/projection-snapshot";
 import type { PreviousProjection } from "@/lib/evaluation/projection-previous";
 
@@ -239,7 +243,11 @@ function renderPlans(s: ProjectionSnapshot): string {
       const bits = [
         `- [${p.ref}] (${p.type}) ${p.title}${p.org ? ` — ${p.org}` : ""}`,
       ];
-      if (p.targetDate) bits.push(`    Target date: ${p.targetDate}`);
+      if (p.targetDate) {
+        bits.push(
+          `    Target date: ${p.targetDate}${describeLeadTime(p.targetDate, s.capturedAt)}`,
+        );
+      }
       if (p.hoursPerWeek != null) {
         bits.push(`    Intended commitment: ${p.hoursPerWeek} hrs/week`);
       }

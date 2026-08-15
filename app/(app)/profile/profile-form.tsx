@@ -39,7 +39,12 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
       <FormError message={state?.error} />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Grade level" htmlFor="gradeLevel" error={fe.gradeLevel}>
+        <Field
+          label="Grade level"
+          htmlFor="gradeLevel"
+          error={fe.gradeLevel}
+          hint="The grade you are in, or have just completed."
+        >
           <Input
             id="gradeLevel"
             name="gradeLevel"
