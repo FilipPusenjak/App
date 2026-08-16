@@ -56,6 +56,29 @@ model User {
   // trusted on its own: resolving it checks the profile still belongs to this
   // user, so a stale or tampered value falls back rather than leaking.
   activeProfileId String?
+
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// A single-use, expiring permission to set a new password.
+///
+/// The token itself is NEVER stored — only its SHA-256. A reset token is a
+/// bearer credential for an account holding a minor's personal data, so a
+/// database leak must not hand over working ones. Verification hashes the
+/// incoming token and looks the hash up, which is also why no timing-safe
+/// comparison is needed: the lookup key is a hash of a 256-bit random value.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  /// Set the moment it is redeemed. Presence here means "spent", which is what
+  /// makes the token single-use rather than reusable until it expires.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 // ---------------------------------------------------------------------------

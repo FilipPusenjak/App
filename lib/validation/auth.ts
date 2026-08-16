@@ -36,5 +36,27 @@ export const signupSchema = z.object({
     .optional(),
 });
 
+/**
+ * Setting a new password from a reset link.
+ *
+ * The same 8-character floor as signup, deliberately shared rather than
+ * retyped: a reset path that accepts a weaker password than registration does
+ * is a way around the rule, not a separate rule.
+ */
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1, { error: "This link is missing its token." }),
+    password: z
+      .string()
+      .min(8, { error: "Password must be at least 8 characters." })
+      .max(200),
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    error: "Both passwords must match.",
+    path: ["confirmPassword"],
+  });
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type SignupInput = z.infer<typeof signupSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
