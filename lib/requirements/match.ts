@@ -63,6 +63,58 @@ export function normalizeName(input: string): string {
 }
 
 /**
+ * A university name reduced to its canonical form.
+ *
+ * Separate from normalizeName because a university name and a course name need
+ * DIFFERENT treatment of one thing: the trailing parenthetical. On a university
+ * it is the institution's own acronym and carrying it into the key is what made
+ * "University College London (UCL)" store as `university college london ucl` —
+ * a string no student types, so the full correct name missed. On a course it is
+ * load-bearing ("Medicine (A100)", "Computer Science and Engineering (SB,
+ * Course 6-3)") and stripping it would merge distinct courses.
+ *
+ * So the strip happens here and never inside normalizeName.
+ */
+export function normalizeUniversity(raw: string): string {
+  // Imported lazily-by-structure rather than at module top: aliases.ts imports
+  // normalizeName from here, and a static import back would be a cycle.
+  const match = /\s*\(([A-Za-z]{2,10})\)\s*$/.exec(raw);
+  return normalizeName(match ? raw.slice(0, match.index) : raw);
+}
+
+/**
+ * Safe rewrites of a canonical university name.
+ *
+ * Covers the single most common mismatch — a student writes "Cambridge", the
+ * source says "University of Cambridge" — without the fuzzy matching this file
+ * refuses to do. Each rule is reversible and adds a name rather than replacing
+ * one, so a variant that matches nothing costs nothing.
+ *
+ * The "college" guard is the lesson from the noise-word list, in a narrower
+ * form: dropping a leading "university" from "university college london" would
+ * yield "college london", and from there the collisions start. Names that begin
+ * "university college" keep their prefix.
+ */
+export function universityVariants(normalized: string): string[] {
+  const out = new Set<string>([normalized]);
+  if (!normalized) return [];
+
+  if (normalized.startsWith("university ")) {
+    const rest = normalized.slice("university ".length);
+    if (rest && !rest.startsWith("college")) out.add(rest);
+  }
+  if (normalized.endsWith(" university")) {
+    const rest = normalized.slice(0, -" university".length);
+    if (rest) out.add(rest);
+  }
+  // The other direction: the student typed the short form.
+  if (!normalized.startsWith("university")) out.add(`university ${normalized}`);
+  if (!normalized.endsWith("university")) out.add(`${normalized} university`);
+
+  return [...out];
+}
+
+/**
  * The key a record is stored and looked up under.
  *
  * Country is part of the key rather than a secondary filter, so a lookup
@@ -74,7 +126,7 @@ export function matchKey(input: {
   country: string;
   course: string;
 }): string {
-  const university = normalizeName(input.university);
+  const university = normalizeUniversity(input.university);
   const course = normalizeName(input.course);
   const country = input.country.trim().toUpperCase();
   return `${country}::${university}::${course}`;
