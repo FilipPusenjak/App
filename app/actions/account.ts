@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { signOut } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
@@ -43,4 +44,26 @@ export async function deleteAccountAction(
   // Clear the session cookie; the account it referred to no longer exists.
   await signOut({ redirectTo: "/" });
   return undefined;
+}
+
+/**
+ * Turn the multi-student view on or off for this account.
+ *
+ * Presentation only. It decides whether the Students tab is offered and grants
+ * nothing — every query in the app is scoped by the authenticated user id
+ * either way, so this cannot widen what anyone can reach.
+ *
+ * Note what it CANNOT do: switching it off does not hide students that already
+ * exist (see shouldShowStudents). A setting that could strand someone's own
+ * profiles behind a hidden page would be a data-loss bug wearing a checkbox.
+ */
+export async function setManagesStudentsAction(formData: FormData) {
+  const user = await getCurrentUser();
+  if (!user) return;
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { managesStudents: formData.get("managesStudents") === "on" },
+  });
+  revalidatePath("/", "layout");
 }

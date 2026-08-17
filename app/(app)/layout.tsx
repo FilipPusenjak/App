@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
+import { getOwnedProfiles } from "@/lib/ownership";
 import { logoutAction } from "@/app/actions/auth";
+import { shouldShowStudents } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
 
 const NAV = [
@@ -10,7 +12,7 @@ const NAV = [
   { href: "/targets", label: "Targets" },
   { href: "/plans", label: "Plans" },
   { href: "/evaluations", label: "Evaluations" },
-  { href: "/students", label: "Students" },
+  { href: "/students", label: "Students", studentsOnly: true },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -23,6 +25,16 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // Most accounts are one student reading their own profile, and a roster of
+  // one is a concept they should never have to hold. The page itself stays
+  // reachable — this hides the tab, it does not gate the route, and nothing
+  // here is an access control (every query is scoped by userId regardless).
+  const showStudents = shouldShowStudents({
+    managesStudents: user.managesStudents,
+    profileCount: (await getOwnedProfiles()).length,
+  });
+  const nav = NAV.filter((item) => !item.studentsOnly || showStudents);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -66,7 +78,7 @@ export default async function AppLayout({
             </summary>
 
             <nav className="mt-3 flex flex-col border-t border-black/10 pt-2 dark:border-white/15">
-              {NAV.map((item) => (
+              {nav.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -111,7 +123,7 @@ export default async function AppLayout({
                 Application Profile Evaluator
               </Link>
               <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
-                {NAV.map((item) => (
+                {nav.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}

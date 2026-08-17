@@ -1,36 +1,130 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Application Profile Evaluator
 
-## Getting Started
+A private tool for students building a university application. You describe your
+profile — grades, curriculum, test scores, and everything you do outside class —
+name the universities you're aiming at, and get an honest, calibrated read on
+where you stand against each one.
 
-First, run the development server:
+Deployment is covered in [DEPLOYMENT.md](DEPLOYMENT.md); running the tests is in
+[TESTING.md](TESTING.md). This file is about what the app is and why it is built
+the way it is.
+
+## What it does
+
+- **Profile** — grades, curriculum, school context, test scores, and a resume of
+  everything you do.
+- **Targets** — the universities and courses you're aiming at. The course field
+  offers the exact names we hold researched requirements for.
+- **Evaluations** — scored against your named targets, under the right country's
+  admissions rubric, with a per-item read on everything on your resume and a
+  prioritized list of what to do next.
+- **Plans and projections** — what you're considering doing, and what it would
+  be worth if you did it. Recommended actions can be added to a plan in one
+  click.
+- **Students** — for counselors, tutors and parents running several students,
+  each with their own targets and history. Off by default.
+
+## The rules it is built around
+
+Everything below is load-bearing. Where a decision looks like an omission, it is
+usually one of these.
+
+**It never invents an admissions statistic.** No made-up acceptance rates, no
+guessed grade requirements. Anything the model is not sure of comes back as
+"verify this", and the entry requirements it does show come from a database of
+researched facts, each with a verbatim quote and the URL it was taken from.
+A record with no source is not stored.
+
+**US, UK and EU admissions are never flattened into one number.** They reward
+different things, so a single blended score is a number about nothing. Each
+system is scored separately under its own rubric.
+
+**It is honest in both directions.** A score can go down, and the app says so
+and why. It also refuses to let a score drift for no reason — every run is
+anchored to the previous one, and when a prompt version genuinely redefines what
+a score means, that is recorded in `lib/prompts/evaluation/versions.ts` and the
+anchor is released for that score only.
+
+**It does not tell a student to fix something they cannot touch.** A Grade 9
+student is judged against Grade 9, not against applicants submitting this year,
+and is never prompted for a test they will not sit for two years.
+
+**Nothing is public or shareable.** Every query is scoped to the authenticated
+user through `lib/ownership.ts`. There is no sharing, no cross-account access,
+and no client-supplied ids.
+
+## Deliberately not built: activity discovery
+
+An earlier plan included a feature that would aggregate what students do and
+suggest activities based on it. **It is shelved on purpose, and should stay
+shelved unless the reasoning below stops holding.**
+
+This app exists to give a student an honest private read on their own progress.
+A feature that says "here's what other applicants are doing" turns that into a
+comparison, and admissions already supplies more comparison than any teenager
+needs. It would also push every user toward the same activities — which is both
+bad advice, since a profile is worth more for being coherent than for being
+populated, and self-defeating as the aggregate converges.
+
+The underlying need is real: a student told "your UK targets need
+subject-specific evidence" may not know what that means. The answer is better
+specificity in the evaluation and the researched-requirements data, not a
+leaderboard.
+
+## The researched requirements data
+
+`data/research/` holds the raw output of the research brief in
+`lib/prompts/research/course-requirements-v1.md`, one file per wave. Ingesting
+is a two-step, dry-run-first process — see the README in that directory.
+
+Matching a student's target to a record is deliberately strict: a wrong match
+would show one university's requirements under another's name, sourced and dated
+and looking authoritative. So names are normalized, aliases are enumerated by
+hand in `lib/requirements/aliases.ts` rather than inferred, and a name that
+could mean two institutions matches neither.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# What is covered, and what the next research wave should target
+DATABASE_URL="<production>" npx tsx scripts/requirements-coverage.ts
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Getting started
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+cp .env.example .env          # then fill in DATABASE_URL and AUTH_SECRET
+npx prisma migrate dev
+npx prisma generate           # Prisma 7 does NOT do this for you
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [localhost:3000](http://localhost:3000) — **not** `127.0.0.1`, which Next
+16 treats as a cross-origin dev client and never hydrates.
 
-## Learn More
+Without `ANTHROPIC_API_KEY` the app runs in sample mode: the whole flow works
+end to end and evaluations return clearly-labelled placeholder output.
 
-To learn more about Next.js, take a look at the following resources:
+## Operator scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Run with an explicit `DATABASE_URL`. None of these are routes, because they all
+read or write across accounts.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Script | What it does |
+| --- | --- |
+| `scripts/ingest-requirements.ts` | Load a research wave. `--dry-run` first; `--prune` after a matcher change. |
+| `scripts/requirements-coverage.ts` | Which targeted courses have data, and which need research. |
+| `scripts/requirements-to-sql.ts` | The same ingest as SQL, for when the machine with the data can't reach the database. |
+| `scripts/reset-link.ts` | Mint a password reset link for an account. |
+| `scripts/target-pairs.ts` | The (university, course) pairs students actually target. |
+| `scripts/set-password.ts` | Set an account's password directly. |
 
-## Deploy on Vercel
+## Testing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm test              # unit + integration
+npm run test:e2e      # real browser, real database
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Integration and e2e tests need `TEST_DATABASE_URL` pointing at a throwaway
+database whose name contains "test" — enforced, because these wipe it. Full
+detail in [TESTING.md](TESTING.md).
