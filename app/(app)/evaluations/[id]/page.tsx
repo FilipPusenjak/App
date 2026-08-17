@@ -268,68 +268,6 @@ export default async function EvaluationPage({
         </p>
       )}
 
-      {sourcedRequirements.length > 0 && (
-        <Card
-          title="Entry requirements on file"
-          subtitle="Taken from official university and national admissions pages. Every line links to where it came from — check it yourself before relying on it."
-        >
-          <ul className="space-y-4">
-            {sourcedRequirements.map((r) => (
-              <li key={`${r.targetName}-${r.course}`}>
-                <p className="font-medium">
-                  {r.targetName} — {r.course}
-                </p>
-                <p className="text-xs text-zinc-400">
-                  {r.stale || r.aging ? (
-                    <span className="text-amber-700 dark:text-amber-400">
-                      Not confirmed current —{" "}
-                      {r.stale
-                        ? `source was for the ${r.cycleYear} cycle`
-                        : "requirements are republished annually"}
-                      . Treat as a lead and verify.
-                    </span>
-                  ) : (
-                    `For the ${r.cycleYear} cycle`
-                  )}
-                  {" · researched "}
-                  {r.gatheredOn.toISOString().slice(0, 10)}
-                  {" · "}
-                  <a
-                    href={r.primarySourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2"
-                  >
-                    source
-                  </a>
-                </p>
-                <ul className="mt-1 space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-                  {REQUIREMENT_FIELDS.map((field) => {
-                    const fact = r.requirements[field];
-                    if (!fact) return null;
-                    return (
-                      <li key={field}>
-                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                          {REQUIREMENT_LABELS[field]}:
-                        </span>{" "}
-                        {fact.value}{" "}
-                        <a
-                          href={fact.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-zinc-400 underline underline-offset-2"
-                        >
-                          source
-                        </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
 
       {evaluation.isSample && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -798,6 +736,69 @@ export default async function EvaluationPage({
             themselves.
           </p>
         </>
+      )}
+
+      {sourcedRequirements.length > 0 && (
+        <Card
+          title="Entry requirements on file"
+          subtitle="Taken from official university and national admissions pages. Every line links to where it came from — check it yourself before relying on it."
+        >
+          <ul className="space-y-4">
+            {sourcedRequirements.map((r) => (
+              <li key={`${r.targetName}-${r.course}`}>
+                <p className="font-medium">
+                  {r.targetName} — {r.course}
+                </p>
+                <p className="text-xs text-zinc-400">
+                  {r.stale || r.aging ? (
+                    <span className="text-amber-700 dark:text-amber-400">
+                      Not confirmed current —{" "}
+                      {r.stale
+                        ? `source was for the ${r.cycleYear} cycle`
+                        : "requirements are republished annually"}
+                      . Treat as a lead and verify.
+                    </span>
+                  ) : (
+                    `For the ${r.cycleYear} cycle`
+                  )}
+                  {" · researched "}
+                  {r.gatheredOn.toISOString().slice(0, 10)}
+                  {" · "}
+                  <a
+                    href={r.primarySourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    source
+                  </a>
+                </p>
+                <ul className="mt-1 space-y-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                  {REQUIREMENT_FIELDS.map((field) => {
+                    const fact = r.requirements[field];
+                    if (!fact) return null;
+                    return (
+                      <li key={field}>
+                        <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {REQUIREMENT_LABELS[field]}:
+                        </span>{" "}
+                        {fact.value}{" "}
+                        <a
+                          href={fact.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-zinc-400 underline underline-offset-2"
+                        >
+                          source
+                        </a>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
     </div>
   );
