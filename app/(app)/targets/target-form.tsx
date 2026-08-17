@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import type { FormResult } from "@/app/actions/profile";
 import { COUNTRIES } from "@/lib/data/countries";
 import { Field, Input, Textarea, Select, FormError } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { CoursePicker } from "./course-picker";
 
 export type TargetFormValues = {
   name: string;
@@ -37,6 +38,10 @@ export function TargetForm({
     undefined,
   );
   const fe = state?.fieldErrors ?? {};
+  // Lifted so the course picker can ask what courses exist AT THIS university.
+  // The pair is the query; neither half is useful alone.
+  const [name, setName] = useState(values.name);
+  const [country, setCountry] = useState(values.country);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -47,7 +52,8 @@ export function TargetForm({
           <Input
             id="name"
             name="name"
-            defaultValue={values.name}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             placeholder="e.g. University of Cambridge"
           />
         </Field>
@@ -58,7 +64,12 @@ export function TargetForm({
           error={fe.country}
           hint="Drives which admissions rubric the AI applies."
         >
-          <Select id="country" name="country" defaultValue={values.country}>
+          <Select
+            id="country"
+            name="country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+          >
             {COUNTRIES.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name}
@@ -67,19 +78,12 @@ export function TargetForm({
           </Select>
         </Field>
 
-        <Field
-          label="Course / major"
-          htmlFor="course"
+        <CoursePicker
+          defaultValue={values.course}
           error={fe.course}
-          hint="Especially important for UK course-specific admissions."
-        >
-          <Input
-            id="course"
-            name="course"
-            defaultValue={values.course}
-            placeholder="e.g. Computer Science"
-          />
-        </Field>
+          universityName={name}
+          country={country}
+        />
 
 
         <Field
