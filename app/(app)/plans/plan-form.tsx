@@ -32,10 +32,20 @@ export function PlanForm({
   action,
   values = empty,
   submitLabel,
+  timeframeHint,
 }: {
   action: (prev: FormResult, fd: FormData) => Promise<FormResult>;
   values?: PlanFormValues;
   submitLabel: string;
+  /**
+   * What the evaluation said about WHEN, e.g. "This term".
+   *
+   * Shown beside the date field rather than converted into one. The model gives
+   * prose, the field wants a calendar date, and translating between them is a
+   * guess about this student's school year — so the student translates it and
+   * the app just makes sure they can see what was suggested while they do.
+   */
+  timeframeHint?: string;
 }) {
   const [state, formAction] = useActionState<FormResult, FormData>(
     action,
@@ -89,7 +99,11 @@ export function PlanForm({
           label="Target date"
           htmlFor="targetDate"
           error={fe.targetDate}
-          hint="When you'd start, or the deadline you're working to."
+          hint={
+            timeframeHint
+              ? `Your evaluation suggested: ${timeframeHint}`
+              : "When you'd start, or the deadline you're working to."
+          }
         >
           <Input
             id="targetDate"

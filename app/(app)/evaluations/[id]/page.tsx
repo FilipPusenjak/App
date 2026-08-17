@@ -7,6 +7,8 @@ import {
 import { parseStoredResult } from "@/lib/validation/evaluation";
 import { getRubricById } from "@/lib/rubrics";
 import { findRequirementsForTargets } from "@/lib/requirements/lookup";
+import { getOwnedPlannedItems } from "@/lib/ownership";
+import { planDraftHref, plannedActionTitles } from "@/lib/plans/from-action";
 import {
   REQUIREMENT_FIELDS,
   REQUIREMENT_LABELS,
@@ -213,6 +215,15 @@ export default async function EvaluationPage({
     snapshotTargets.length > 0
       ? await findRequirementsForTargets(snapshotTargets)
       : [];
+
+  // Which recommended actions are already in this student's plan, so the page
+  // shows what they have committed to rather than offering everything as new.
+  // Ownership-scoped: getOwnedPlannedItems resolves the profile from the
+  // session, never from anything in the URL.
+  const plannedTitles = plannedActionTitles(
+    result?.actions ?? [],
+    (await getOwnedPlannedItems()).map((p) => p.title),
+  );
 
   // The grade level as it was when this evaluation ran, for deciding which
   // score to lead with. Read from the frozen snapshot so an old evaluation
@@ -615,6 +626,27 @@ export default async function EvaluationPage({
                             ? ` · ${a.appliesTo.join(", ")}`
                             : ""}
                         </p>
+                        {/* The join between "you should do this" and the plan
+                            that tracks whether you did. Without it the ranked
+                            advice has to be retyped by hand, which nobody
+                            does. */}
+                        <div className="mt-3">
+                          {plannedTitles.has(a.title) ? (
+                            <Link
+                              href="/plans"
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                            >
+                              ✓ In your plan
+                            </Link>
+                          ) : (
+                            <Link
+                              href={planDraftHref(a)}
+                              className="inline-flex items-center rounded-md border border-black/15 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+                            >
+                              Add to my plan
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </li>

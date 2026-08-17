@@ -2,7 +2,38 @@ import Link from "next/link";
 import { createPlanAction } from "@/app/actions/plan";
 import { PlanForm } from "../plan-form";
 
-export default function NewPlanPage() {
+/**
+ * Add a plan — optionally prefilled from an evaluation's recommended action.
+ *
+ * The prefill arrives as query parameters rather than an id lookup because it
+ * is a DRAFT, not a reference: the student is free to reword it, retype it, or
+ * abandon it, and nothing here should create a link back to an evaluation that
+ * the plan then has to keep honest.
+ *
+ * Everything is clamped before it reaches the form. These values arrive in a
+ * URL, so they are attacker-supplied by definition — someone can hand a student
+ * any link they like. They are rendered as form values (React escapes them) and
+ * re-validated server-side by plannedItemSchema on submit, so this is about
+ * keeping a 50KB title out of the form rather than about injection.
+ */
+const clamp = (value: string | undefined, max: number) =>
+  typeof value === "string" ? value.slice(0, max) : "";
+
+export default async function NewPlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    title?: string;
+    description?: string;
+    timeframe?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const title = clamp(params.title, 200);
+  const description = clamp(params.description, 2000);
+  const timeframe = clamp(params.timeframe, 120);
+  const fromAction = title.length > 0;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <Link
@@ -12,13 +43,36 @@ export default function NewPlanPage() {
         ← Back to plans
       </Link>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Add a plan</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {fromAction ? "Plan this action" : "Add a plan"}
+        </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Something you&apos;re considering doing but haven&apos;t done yet. It
-          won&apos;t count toward your scores until you mark it done.
+          {fromAction
+            ? "From your evaluation. Change anything you like — it's your plan, not the model's."
+            : "Something you're considering doing but haven't done yet."}{" "}
+          It won&apos;t count toward your scores until you mark it done.
         </p>
       </div>
-      <PlanForm action={createPlanAction} submitLabel="Add plan" />
+      <PlanForm
+        action={createPlanAction}
+        submitLabel="Add plan"
+        values={
+          fromAction
+            ? {
+                // The type is NOT guessed from the action's wording. The model
+                // never states one, and inferring it would be a guess shown to
+                // the student as though it came from the evaluation.
+                type: "extracurricular",
+                title,
+                org: "",
+                description,
+                targetDate: "",
+                hoursPerWeek: "",
+              }
+            : undefined
+        }
+        timeframeHint={timeframe || undefined}
+      />
     </div>
   );
 }
