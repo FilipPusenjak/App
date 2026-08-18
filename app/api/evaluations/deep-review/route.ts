@@ -12,6 +12,7 @@ import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
 import { estimateCost } from "@/lib/cost";
+import { recordTierFailure } from "@/lib/evaluation/record-failure";
 import {
   loadCommitmentHistory,
   loadForTier,
@@ -170,31 +171,56 @@ export async function POST() {
     output_config: { format: OUTPUT_FORMAT },
   });
 
-  const text = message.content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("");
-  const parsed = deepReviewNarrativeSchema.safeParse(safeJson(text));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "The review came back in a shape we could not read." },
-      { status: 502 },
-    );
-  }
-
-  const banned = findBannedPhrasing(parsed.data);
-  if (banned.length > 0) {
-    return NextResponse.json(
-      { error: "The review contained disallowed phrasing and was discarded." },
-      { status: 502 },
-    );
-  }
-
+  // Read the usage BEFORE anything can reject the output. Everything below
+  // this line is a path where the tokens have already been spent, and the cost
+  // is owed to the record whether or not the review was usable.
   const usage = {
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
     cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
     cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
   };
+  const failureContext = {
+    profileId: data.profileId,
+    type: "DEEP_REVIEW" as const,
+    model,
+    promptVersion: DEEP_REVIEW_PROMPT_VERSION,
+    rubricVersion: data.scored.rubricVersion,
+    sourceDataVersion: SOURCE_DATA_VERSION,
+    precedingEvaluationId: data.preceding?.id ?? null,
+    usage,
+  };
+
+  const text = message.content
+    .map((block) => (block.type === "text" ? block.text : ""))
+    .join("");
+  const parsed = deepReviewNarrativeSchema.safeParse(safeJson(text));
+  if (!parsed.success) {
+    const id = await recordTierFailure({
+      ...failureContext,
+      error:
+        "The review came back in a shape the app could not read, so it was discarded. This run still cost what it used — that cost is recorded here.",
+    });
+    return NextResponse.json(
+      { id, error: "The review came back in a shape we could not read." },
+      { status: 502 },
+    );
+  }
+
+  // Last line of defence on the hard constraint. A banned phrasing reaching a
+  // student is worse than a failed review, so this refuses to store it — but
+  // the attempt is still recorded, with what it cost.
+  const banned = findBannedPhrasing(parsed.data);
+  if (banned.length > 0) {
+    const id = await recordTierFailure({
+      ...failureContext,
+      error: `The review was discarded for containing disallowed phrasing (${banned.join(", ")}). This app never states odds of admission. This run still cost what it used — that cost is recorded here.`,
+    });
+    return NextResponse.json(
+      { id, error: "The review contained disallowed phrasing and was discarded." },
+      { status: 502 },
+    );
+  }
 
   const evaluation = await prisma.evaluation.create({
     data: {
