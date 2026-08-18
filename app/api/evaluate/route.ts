@@ -1,4 +1,25 @@
-// POST /api/evaluate — the only place the Anthropic API is called.
+// POST /api/evaluate — the legacy percentile evaluation. DEPRECATED, NOT DEAD.
+//
+// The Deep Review has replaced this as the primary read: it is what the "Run a
+// Deep Review" button calls, and it is the shape every new surface is written
+// against. This route is no longer the default path.
+//
+// It is deliberately still here, and deleting it would break two things that
+// are not obviously connected to it:
+//
+//   THE TREND CHART is expressed in 0-100 percentiles. A deep review measures
+//   in bands, and bands are never converted into scores (see
+//   lib/dashboard/standing.ts), so with this route gone a student's series
+//   would simply stop — not migrate, stop — at whatever point they switched.
+//
+//   THE PROJECTION BASELINE reads the most recent percentile evaluation, for
+//   the same reason: "45 -> 58" needs a measured 45. With no route producing
+//   one, projections would degrade to guessing their own starting point as
+//   existing evaluations aged out.
+//
+// Retiring it properly means giving projections a band-shaped baseline and the
+// chart something band-shaped to plot. Until that exists, removing the route
+// would not simplify the app; it would quietly delete two features.
 //
 // Server-side only. The browser never sees the API key; it can only ask this
 // route to run an evaluation for the currently authenticated user. The profile

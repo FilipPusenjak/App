@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
+import { getCurrentUser } from "@/lib/session";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
+import {
+  checkDeepReviewAllowed,
+  tierForUser,
+} from "@/lib/evaluation/tier-access";
 import {
   buildProgress,
   schoolSeries,
   deltaFromPrevious,
 } from "@/lib/evaluation/progress";
+import { summariseHistoryRow } from "@/lib/evaluation/history";
 import { ScoreTrend } from "@/components/score-trend";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { RunEvaluationButton } from "./run-evaluation-button";
@@ -63,10 +69,27 @@ export default async function EvaluationsPage() {
   // evaluation is shown as failed-with-a-reason rather than "pending" forever.
   await failStalePendingEvaluations();
 
-  const [profile, evaluations] = await Promise.all([
+  const [user, profile, evaluations] = await Promise.all([
+    getCurrentUser(),
     getProfileWithRelations(),
     getOwnedEvaluations(),
   ]);
+
+  // Whether a Deep Review is available is resolved HERE, not discovered by
+  // clicking. The route enforces both gates regardless — this is presentation,
+  // not security — but a student who is inside the 21-day floor deserves to
+  // read the reason on the page rather than receive it as a failed request,
+  // and one whose plan does not include Deep Reviews should not be offered a
+  // button whose only outcome is a 403.
+  const lastDeepReview = evaluations.find(
+    (e) => e.type === "DEEP_REVIEW" && e.status === "completed" && !e.isSample,
+  );
+  const deepReviewGate = user
+    ? checkDeepReviewAllowed({
+        tier: tierForUser(user),
+        lastDeepReviewAt: lastDeepReview?.createdAt ?? null,
+      })
+    : ({ allowed: false, reason: "tier", message: "Not signed in." } as const);
 
   const progress = buildProgress(evaluations);
   const points = progress.points;
@@ -107,6 +130,10 @@ export default async function EvaluationsPage() {
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
           canFollowUp={canFollowUp}
+          deepReviewAllowed={deepReviewGate.allowed}
+          deepReviewBlockedReason={
+            deepReviewGate.allowed ? undefined : deepReviewGate.message
+          }
         />
       </div>
 
@@ -213,6 +240,7 @@ export default async function EvaluationsPage() {
               const idx = progress.points.findIndex((p) => p.id === e.id);
               const delta =
                 idx > 0 ? deltaFromPrevious(progress, idx) : null;
+              const entry = summariseHistoryRow(e);
               return (
                 <li
                   key={e.id}
@@ -221,15 +249,27 @@ export default async function EvaluationsPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
+                        {/* A percentile is toned by its value; a band never
+                            is. "Emerging" is early, not bad, and a red pill
+                            would tell a ninth-grader they are failing at
+                            having started. */}
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${scoreTone(e.overallScore)}`}
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                            entry.badgeIsScore
+                              ? scoreTone(e.overallScore)
+                              : scoreTone(null)
+                          }`}
                         >
-                          {e.overallScore != null
-                            ? `${e.overallScore}/100`
-                            : e.status === "pending"
-                              ? "Running…"
-                              : e.status}
+                          {entry.badge}
                         </span>
+                        {/* The instrument, stated on every row. Two runs of
+                            different tiers sitting next to each other are not
+                            two readings of the same thing. */}
+                        {!entry.badgeIsScore && entry.badge !== entry.tier && (
+                          <span className="text-xs text-zinc-500">
+                            {entry.tier}
+                          </span>
+                        )}
                         {delta != null && <Delta value={delta} />}
                         {e.isSample && (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
@@ -242,6 +282,16 @@ export default async function EvaluationsPage() {
                           </span>
                         )}
                       </div>
+                      {entry.headline && (
+                        <p className="mt-1.5 max-w-2xl text-sm leading-snug">
+                          {entry.headline}
+                        </p>
+                      )}
+                      {entry.detail && (
+                        <p className="mt-1 text-xs capitalize text-zinc-500">
+                          {entry.detail}
+                        </p>
+                      )}
                       <p className="mt-1 text-sm text-zinc-500">
                         {e.createdAt.toLocaleString("en-US", {
                           dateStyle: "medium",

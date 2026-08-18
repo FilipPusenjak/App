@@ -25,7 +25,10 @@ import {
 import { buildProjectionSnapshot } from "@/lib/evaluation/projection-snapshot";
 import { buildSampleProjection } from "@/lib/evaluation/projection-sample";
 import { buildPreviousProjectionContext } from "@/lib/evaluation/projection-previous";
-import { parseStoredResult } from "@/lib/validation/evaluation";
+import {
+  selectProjectionBaseline,
+  BASELINE_LOOKBACK,
+} from "@/lib/evaluation/projection-baseline";
 import {
   SYSTEM_PROMPT,
   buildUserPromptParts,
@@ -215,35 +218,30 @@ export async function POST() {
     );
   }
 
-  // The most recent real evaluation is the baseline the projection moves from,
-  // so "45 -> 58" compares against a measured number rather than a fresh guess.
-  const baseEvaluation = await prisma.evaluation.findFirst({
+  // The baseline a projection moves from, so "45 -> 58" compares against a
+  // measured number rather than a fresh guess. The selection reaches past
+  // band-shaped runs to the last percentile one — see projection-baseline.ts
+  // for why that matters and what it costs.
+  const candidates = await prisma.evaluation.findMany({
     where: { profileId: profile.id, status: "completed", isSample: false },
     orderBy: { createdAt: "desc" },
+    take: BASELINE_LOOKBACK,
     select: {
       id: true,
       createdAt: true,
       overallScore: true,
       resultJson: true,
+      promptVersion: true,
     },
   });
 
-  const baseResult = parseStoredResult(baseEvaluation?.resultJson ?? null);
-  const systemReadiness: Record<string, number> = {};
-  for (const sys of baseResult?.systemScores ?? []) {
-    systemReadiness[sys.rubricId] = Math.round(sys.readinessScore);
-  }
+  const baseline = selectProjectionBaseline(candidates);
 
   const snapshot = buildProjectionSnapshot(
     profile,
     profile.countryOfOrigin ?? user.countryOfOrigin ?? null,
     plannedItems,
-    {
-      evaluationId: baseEvaluation?.id ?? null,
-      capturedAt: baseEvaluation?.createdAt.toISOString() ?? null,
-      overallScore: baseEvaluation?.overallScore ?? null,
-      systemReadiness,
-    },
+    baseline,
   );
 
   // The previous projection is fed back in so re-running on the same plans
@@ -269,7 +267,10 @@ export async function POST() {
       promptVersion: PROMPT_VERSION,
       model: isSample ? null : getProjectionModel(),
       isSample,
-      baseEvaluationId: baseEvaluation?.id ?? null,
+      // The same row the snapshot's baseline names. Read from `baseline` and
+      // not re-derived, so the column and the frozen snapshot can never
+      // disagree about which evaluation this projection was measured from.
+      baseEvaluationId: baseline.evaluationId,
       inputSnapshotJson: JSON.stringify(snapshot),
     },
   });
