@@ -108,15 +108,42 @@ export function summariseHistoryRow(row: Row): HistoryEntry {
 /**
  * What to call this run.
  *
- * The `type` column is authoritative when set, because it is written at the
- * same moment as the row and survives a narrative that fails to parse. The
- * shape is the fallback for rows written before the column existed.
+ * The order here is load-bearing, and getting it wrong is exactly the mistake
+ * this file exists to prevent.
+ *
+ * `type` looks like the authority and is not, because its column DEFAULTS to
+ * "DEEP_REVIEW". That default was chosen so pre-tier rows would not be
+ * mislabelled as check-ins — but it means every legacy percentile evaluation
+ * ever written now carries type = DEEP_REVIEW too. Reading `type` first
+ * labelled a row showing "58/100" under "evaluation/v10" as a Deep Review: a
+ * band-shaped name on a percentile-shaped run, which is the flattening this
+ * whole surface was built to avoid.
+ *
+ * `promptVersion` is the honest discriminator. It records the prompt that
+ * actually produced the row, it is never defaulted, and it survives a narrative
+ * that will not parse — which is the case `type` was reached for in the first
+ * place.
  */
-function tierLabel(row: { type?: string | null }, shape: StoredShape): string {
-  if (row.type === "DEEP_REVIEW") return "Deep Review";
-  if (row.type === "CHECK_IN") return "Check-In";
+export function tierLabel(
+  row: { type?: string | null; promptVersion?: string | null },
+  shape: StoredShape,
+): string {
+  // 1. What produced it. Never defaulted, so never lies.
+  const version = row.promptVersion ?? "";
+  if (version.startsWith("deep-review/")) return "Deep Review";
+  if (version.startsWith("check-in/")) return "Check-In";
+  if (version.startsWith("evaluation/")) return "Evaluation";
+
+  // 2. What it parsed as. Only reached for rows written before promptVersion
+  //    was recorded at all.
   if (shape.kind === "deep-review") return "Deep Review";
   if (shape.kind === "check-in") return "Check-In";
+  if (shape.kind === "legacy") return "Evaluation";
+
+  // 3. The column, last — it is the only thing left for a row whose narrative
+  //    is unreadable, and its default is why it cannot be trusted sooner.
+  if (row.type === "CHECK_IN") return "Check-In";
+  if (row.type === "DEEP_REVIEW") return "Deep Review";
   return "Evaluation";
 }
 

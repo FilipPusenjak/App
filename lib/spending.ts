@@ -30,8 +30,16 @@
 // stale-sweep.ts: importing the session layer here would drag next-auth into
 // every consumer, and the rule could no longer be tested on its own.
 
-/** Default budget per account, in USD. */
-export const DEFAULT_SPEND_LIMIT_USD = 2;
+/**
+ * Default budget per account, in USD.
+ *
+ * Three, not two. A Deep Review measures at roughly $0.19 and a check-in at
+ * $0.02, so two dollars bought about ten strategy reviews across a four-year
+ * account — a cap tight enough to stop the app being used rather than to stop
+ * it running away. Raise it deliberately with ACCOUNT_SPEND_LIMIT_USD; the
+ * point of a default is to be a floor under a mistake, not a budget.
+ */
+export const DEFAULT_SPEND_LIMIT_USD = 3;
 
 /**
  * The configured cap. Zero or negative disables the cap entirely; a malformed

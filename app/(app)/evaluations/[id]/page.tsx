@@ -6,6 +6,7 @@ import {
 } from "@/lib/ownership";
 import { prisma } from "@/lib/db";
 import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
+import { tierLabel } from "@/lib/evaluation/history";
 import { readStanding } from "@/lib/dashboard/standing";
 import { DeepReviewBody } from "@/components/evaluation/deep-review-body";
 import { CheckInBody } from "@/components/evaluation/check-in-body";
@@ -298,11 +299,7 @@ export default async function EvaluationPage({
             would leave a student unable to tell why this one is shorter, or
             has bands where the last had scores. */}
         <h1 className="text-2xl font-semibold tracking-tight">
-          {evaluation.type === "DEEP_REVIEW" || shape.kind === "deep-review"
-            ? "Deep Review"
-            : evaluation.type === "CHECK_IN" || shape.kind === "check-in"
-              ? "Check-In"
-              : "Evaluation"}
+          {tierLabel(evaluation, shape)}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
           {evaluation.createdAt.toLocaleString("en-US", {

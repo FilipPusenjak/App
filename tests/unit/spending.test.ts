@@ -55,6 +55,10 @@ describe("applying the cap", () => {
 
   it("defaults to a real budget, not to unlimited", () => {
     expect(DEFAULT_SPEND_LIMIT_USD).toBeGreaterThan(0);
+    // Enough headroom to actually use the app: a Deep Review measures at about
+    // $0.19, so the default has to buy more than a handful before it stops
+    // being a guard and starts being the reason nothing runs.
+    expect(DEFAULT_SPEND_LIMIT_USD).toBeGreaterThanOrEqual(3);
   });
 });
 

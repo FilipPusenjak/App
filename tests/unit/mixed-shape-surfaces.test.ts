@@ -290,3 +290,50 @@ describe("history states which instrument produced each row", () => {
     expect(summariseHistoryRow(deepRow({ status: "failed" })).badge).toBe("Failed");
   });
 });
+
+describe("the tier label never trusts the backfilled type column", () => {
+  // Evaluation.type DEFAULTS to "DEEP_REVIEW". That default exists so pre-tier
+  // rows are not mislabelled as check-ins — but it means every legacy
+  // percentile evaluation ever written carries type = DEEP_REVIEW too.
+  // Reading it first put a band-shaped name on a percentile-shaped run.
+  it("calls a legacy row an Evaluation even though its type says DEEP_REVIEW", () => {
+    const entry = summariseHistoryRow(
+      legacyRow({ type: "DEEP_REVIEW", promptVersion: "evaluation/v10" }),
+    );
+    expect(entry.tier).toBe("Evaluation");
+    // And still shows its percentile, so the row is internally consistent.
+    expect(entry.badge).toBe("58/100");
+    expect(entry.badgeIsScore).toBe(true);
+  });
+
+  it("calls a row with no promptVersion at all an Evaluation, by its shape", () => {
+    // Written before promptVersion was recorded. The shape is the only honest
+    // evidence, and the type column is the default rather than a decision.
+    const entry = summariseHistoryRow(
+      legacyRow({ type: "DEEP_REVIEW", promptVersion: null }),
+    );
+    expect(entry.tier).toBe("Evaluation");
+  });
+
+  it("still names a real deep review correctly", () => {
+    // The fix must not have been bought by never saying "Deep Review".
+    expect(summariseHistoryRow(deepRow()).tier).toBe("Deep Review");
+  });
+
+  it("names a FAILED deep review from its prompt version", () => {
+    // The case the type column was originally reached for: the narrative does
+    // not parse, so the shape is unknown. promptVersion still knows.
+    const entry = summariseHistoryRow(
+      deepRow({ status: "failed", resultJson: "{ not json", promptVersion: "deep-review/v3" }),
+    );
+    expect(entry.tier).toBe("Deep Review");
+    expect(entry.badge).toBe("Failed");
+  });
+
+  it("names a no-change check-in, which has neither narrative nor promptVersion", () => {
+    const entry = summariseHistoryRow(
+      checkInRow({ materialChange: false, resultJson: null, promptVersion: null, type: "CHECK_IN" }),
+    );
+    expect(entry.tier).toBe("Check-In");
+  });
+});

@@ -121,7 +121,7 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_CACHE_TTL` | No | `1h` \| `5m` \| `off`. Defaults to `1h`. Cache **writes** cost more than plain input, so this is a bet on how often you re-run — see `.env.example`. |
 | `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
 | `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
-| `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 2; `0` disables. An estimate, not your bill — see below. |
+| `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 3; `0` disables. An estimate, not your bill — see below. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
 | `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
@@ -151,7 +151,7 @@ Two things to expect on the first one:
 - **The spending cap applies first.** A Deep Review runs on the strong model
   with roughly three times a normal evaluation's context, so it is the most
   expensive single thing the app does. With `ACCOUNT_SPEND_LIMIT_USD` at its
-  **$2** default, an account that has already run a few evaluations may be
+  **$3** default, an account that has already run a few evaluations may be
   refused with "spending limit reached" before the review starts. Raise the cap
   deliberately rather than by accident.
 - **A 21-day floor** between Deep Reviews, enforced server-side and not
@@ -178,7 +178,7 @@ empty means open registration — fine locally, risky in production.
 
 Three further safety nets are in place:
 
-- **A per-account spending cap**, `ACCOUNT_SPEND_LIMIT_USD`, default **$2**.
+- **A per-account spending cap**, `ACCOUNT_SPEND_LIMIT_USD`, default **$3**.
   Once an account has spent that, its evaluations and projections are refused
   with an explanation. It covers every student on the account and counts failed
   runs, which still burn tokens. Two honest caveats: the figure is an estimate
