@@ -66,11 +66,17 @@ for:
    than merely spelled differently — a spelling mismatch is a job for
    `lib/requirements/aliases.ts`, not for research.
 
-2. **Decide the applicant profile for this run, and use one only.** A stored
-   record is keyed on country + university + course, with no room for a
-   qualification or route, so two profiles cannot coexist for the same course —
-   the second overwrites the first. Run the brief once per profile if you need
-   more than one, and keep the outputs in separate files.
+2. **Decide the applicant profile, and ingest one only.** A stored record is
+   keyed on country + university + course, with no room for a qualification or
+   route, so two profiles cannot coexist for the same course.
+
+   **Separate files do not fix this.** They organise the research; they change
+   nothing at ingest. If you load two profiles into the same dataset the second
+   still overwrites the first, and naming the route inside `value` does not help
+   either — the app matches subjects and admissions tests mechanically and never
+   reads that prose. Until `matchKey` is extended with an `applicantProfile` or
+   `qualificationRoute` component, **exactly one profile may go into the live
+   dataset.** Research others if you like; keep them out of the database.
 
 3. Open a Claude conversation with **web research enabled**.
 4. Paste everything below the line, then the run header and the pairs. Every
@@ -95,7 +101,17 @@ for:
    ```
 
 5. Save the output as `data/research/course-requirements-YYYY-MM-DD.json`.
-6. **Dry-run before it becomes data:**
+6. **Dry-run one record first**, to prove the envelope parses before you
+   commit a whole batch to a format:
+
+   ```bash
+   npx tsx scripts/ingest-requirements.ts --dry-run one-record.json
+   ```
+
+   (The envelope below has been checked against this ingest, including with
+   `records` as the last key — but check yours, not mine.)
+
+7. **Dry-run the full batch before it becomes data:**
 
    ```bash
    npx tsx scripts/ingest-requirements.ts --dry-run data/research/course-requirements-YYYY-MM-DD.json
@@ -227,9 +243,21 @@ to a student.
 6. **Never convert between grading systems.** "A*AA" stays "A*AA". Do not
    helpfully translate it to a GPA or an IB score.
 
-7. **Never state, estimate or imply an applicant's chances.** No percentages of
-   getting in, no "competitive for", no odds. Record only what a page states
-   about its requirements.
+7. **Never state, estimate or imply an applicant's chances** in a requirement
+   field. No odds of getting in, no "competitive for", no inventing a figure.
+
+   Two things this does **not** forbid, because both are sourced facts rather
+   than predictions:
+
+   - **The `acceptanceRate` object is exempt.** It is permitted internal
+     metadata, it is never rendered to a student, and recording an officially
+     published rate there is the correct place for it.
+   - **A published threshold that happens to be a number or a percentage is a
+     requirement, not a chance.** A Spanish `nota de corte`, a Dutch decentrale
+     selectie ranking, an Italian graduatoria position, a "top 10% of your
+     cohort" rule — record all of these in the relevant requirement field, with
+     the quote. What is banned is *your* estimate of whether a given student
+     would clear it.
 
 ## Continental Europe — read this before you start
 
@@ -260,6 +288,16 @@ language page states plainly. These are the terms that find them:
 Treat that table as **starting points, not facts**. Portals get renamed and
 merged. Confirm the body is still the right one for the cycle you are recording,
 and cite the page you actually read.
+
+**Quote in the source's language, write `value` in English.** The `quote` must
+be verbatim from the page — German stays German, Italian stays Italian.
+Translating it destroys the thing a quote is for, which is that someone can find
+that string on that page a year from now. The `value` beside it is your concise
+English rendering of the same fact, and it must name the applicant route it
+applies to. So:
+
+> `"quote": "Für den Studiengang Physik besteht kein Numerus Clausus."`
+> `"value": "No NC — open admission for Physics; GCE A level route, international applicant"`
 
 Three things that are normal in Europe and rare in the UK/US, so they are easy
 to miss:
@@ -366,8 +404,10 @@ refuses any `cycleYear` more than three years from today (for a 2026 run:
 
 ### 5. `country` must be one of these exact codes
 
-Uppercase ISO 3166-1 alpha-2. This is the complete list the validator matches
-against — nothing outside it can ever be paired with a student's target:
+Uppercase codes from **the app's permitted-country list**, below. Most are ISO
+3166-1 alpha-2, but the list is not ISO — `OT` means "Other" and exists only in
+this app. Do not derive a code from the ISO standard; take it from here.
+Nothing outside this list can ever be paired with a student's target:
 
 ```
 AE AT AU BD BE BG BR CA CH CL CN CO CZ DE DK EE EG ES FI FR GB GH GR HK HR
@@ -490,15 +530,30 @@ Earlier versions of this brief asked for four things that cannot all be true at
 once — stream records as you go, emit one final array, emit no prose, and report
 at the end. Here is the single answer.
 
-**Work in two phases.**
+**Work in two phases, and never type the same record twice.**
 
-**Phase 1 — as you go.** After each course, emit one fenced ```json block
-containing that one record, nothing else around it. If the run is interrupted,
-everything already completed survives. Work through the list **in the order
-given**.
+**Phase 1 — as you go, for recovery only.** After each course, emit one fenced
+```json block containing that one record and nothing else. This exists so an
+interrupted run leaves behind what it completed. Work through the list **in the
+order given**.
 
-**Phase 2 — one final envelope.** When you finish (or when you are stopping
-early), emit one last fenced ```json block containing the whole run:
+**Phase 2 — one envelope, assembled and not retyped.** When you finish, or when
+you are stopping early, produce the envelope below **as a file** named
+`course-requirements-YYYY-MM-DD.json`, assembling `records` from the phase-1
+blocks you already emitted.
+
+Do **not** paste a second copy of every record into the conversation. On a batch
+of any size that doubles your output, and the usual results are a truncated
+final block, a silently dropped course, or one course appearing twice — all of
+which look like a complete file.
+
+If you cannot write a file, emit the envelope in **numbered chunks** —
+`{"part": 1, "of": 4, "records": [ ... ]}` — each small enough to be in no
+danger of being cut off, then one final block carrying `noSourceableData`,
+`unmatchedCourses` and `unreached` with `"records": []`. Never one enormous
+final message.
+
+The envelope:
 
 ```json
 {
@@ -522,10 +577,13 @@ early), emit one last fenced ```json block containing the whole run:
 ```
 
 `records` is shown empty only so this example is itself valid JSON — fill it
-with every record from phase 1, in order. It must be the **first** key. Save
-that final block as
-`course-requirements-YYYY-MM-DD.json` — the ingest reads `records` and ignores
-the rest, which is why the other lists cost nothing and are worth having.
+with the phase-1 records, in order.
+
+The ingest reads `records` **by name**, so key order does not matter and the
+other three lists cost nothing to include. They are for me, not for the
+database: `noSourceableData` says a course was genuinely researched and came up
+empty, `unmatchedCourses` says my own input list was wrong, and neither is
+recoverable from a file that simply omits them.
 
 **Prose is allowed in exactly one place**: a short plain-text report after the
 final block, covering the counts listed at the end of this brief. Nowhere else —

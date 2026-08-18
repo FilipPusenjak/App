@@ -215,10 +215,12 @@ describe("v3's delivery envelope is one the ingest can actually read", () => {
   // alongside `noSourceableData`, `unmatchedCourses` and `unreached`. If the
   // ingest picked "the first array in the object" instead, a reordered envelope
   // would quietly ingest the wrong list — a small, confident, wrong batch.
-  it("puts records first and carries the other lists", () => {
+  it("carries the three lists the database never sees", () => {
+    // They exist for the operator, not the ingest: a course researched and
+    // found empty, and an input line that named a course the catalogue does
+    // not have, are both unrecoverable from a file that simply omits them.
     const envelope = exampleEnvelope();
-    expect(Object.keys(envelope)[0]).toBe("records");
-    for (const key of ["noSourceableData", "unmatchedCourses", "unreached"]) {
+    for (const key of ["records", "noSourceableData", "unmatchedCourses", "unreached"]) {
       expect(Object.keys(envelope)).toContain(key);
     }
   });
