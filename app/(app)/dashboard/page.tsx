@@ -278,7 +278,8 @@ function Band({
   return (
     <div>
       <p className="text-sm text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold capitalize leading-tight">
+      {/* first-letter, NOT `capitalize` — see the note in deep-review-body. */}
+      <p className="mt-0.5 text-2xl font-semibold leading-tight first-letter:uppercase">
         {value ?? "—"}
       </p>
       <p className="mt-1 text-xs text-zinc-500">

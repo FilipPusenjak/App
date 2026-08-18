@@ -15,7 +15,7 @@
 // Ownership is the caller's job: it passes rows it has already scoped to the
 // signed-in user's profile. Nothing here queries.
 import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
-import type { EvaluationResult } from "@/lib/validation/evaluation";
+import type { StoredEvaluationResult } from "@/lib/validation/evaluation";
 
 /** How many recent evaluations to look back through for a percentile run. */
 export const BASELINE_LOOKBACK = 20;
@@ -66,7 +66,9 @@ export function selectProjectionBaseline(
   };
 }
 
-function systemReadinessOf(result: EvaluationResult): Record<string, number> {
+function systemReadinessOf(
+  result: StoredEvaluationResult,
+): Record<string, number> {
   const out: Record<string, number> = {};
   for (const sys of result.systemScores) {
     out[sys.rubricId] = Math.round(sys.readinessScore);

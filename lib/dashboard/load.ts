@@ -197,9 +197,16 @@ function movementFor(
   if (shape.kind !== "legacy" || previousShape.kind !== "legacy") {
     return { kind: "first" };
   }
+  // `?? null` is load-bearing, not a type appeasement: gradeRelativeScore
+  // arrived in prompt v3, so a run older than that genuinely has none. Null
+  // makes scoreMovement report "first" — no comparison — where undefined would
+  // have flowed into arithmetic and produced NaN.
   return scoreMovement(
-    { score: shape.result[key], promptVersion: newest?.promptVersion ?? null },
-    { score: previousShape.result[key], promptVersion: previous?.promptVersion ?? null },
+    { score: shape.result[key] ?? null, promptVersion: newest?.promptVersion ?? null },
+    {
+      score: previousShape.result[key] ?? null,
+      promptVersion: previous?.promptVersion ?? null,
+    },
     key,
   );
 }

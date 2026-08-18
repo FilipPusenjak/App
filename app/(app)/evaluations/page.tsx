@@ -254,7 +254,7 @@ export default async function EvaluationsPage() {
                             would tell a ninth-grader they are failing at
                             having started. */}
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium first-letter:uppercase ${
                             entry.badgeIsScore
                               ? scoreTone(e.overallScore)
                               : scoreTone(null)
@@ -288,7 +288,7 @@ export default async function EvaluationsPage() {
                         </p>
                       )}
                       {entry.detail && (
-                        <p className="mt-1 text-xs capitalize text-zinc-500">
+                        <p className="mt-1 text-xs text-zinc-500 first-letter:uppercase">
                           {entry.detail}
                         </p>
                       )}

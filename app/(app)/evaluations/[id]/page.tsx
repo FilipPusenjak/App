@@ -4,7 +4,11 @@ import {
   findOwnedEvaluation,
   findPrecedingEvaluationModel,
 } from "@/lib/ownership";
-import { parseStoredResult } from "@/lib/validation/evaluation";
+import { prisma } from "@/lib/db";
+import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
+import { readStanding } from "@/lib/dashboard/standing";
+import { DeepReviewBody } from "@/components/evaluation/deep-review-body";
+import { CheckInBody } from "@/components/evaluation/check-in-body";
 import { getRubricById } from "@/lib/rubrics";
 import { findRequirementsForTargets } from "@/lib/requirements/lookup";
 import { getOwnedPlannedItems } from "@/lib/ownership";
@@ -13,6 +17,24 @@ import {
   REQUIREMENT_FIELDS,
   REQUIREMENT_LABELS,
 } from "@/lib/validation/course-requirements";
+
+/**
+ * The band reading, or empty when this row has no computed snapshot.
+ *
+ * Narrowed here rather than inside the body component so the body cannot be
+ * handed a percentile reading by mistake: a Deep Review has no percentiles, and
+ * a function that quietly accepted one would be the seam through which a score
+ * eventually got rendered next to a band.
+ */
+function bandsFor(standing: ReturnType<typeof readStanding>) {
+  return standing.kind === "band"
+    ? {
+        requirements: standing.requirements,
+        differentiation: standing.differentiation,
+        pace: standing.pace,
+      }
+    : { requirements: null, differentiation: null, pace: null };
+}
 
 function ScoreRing({
   score,
@@ -193,7 +215,25 @@ export default async function EvaluationPage({
   const judgeChanged =
     precedingModel !== null && precedingModel !== evaluation.model;
 
-  const result = parseStoredResult(evaluation.resultJson);
+  // Which instrument produced this row. Dispatching on the stored shape rather
+  // than duck-typing the JSON matters most here: the legacy result and the Deep
+  // Review narrative share field names ("headline", "gaps", "schoolFits"), so a
+  // reader that guessed would misclassify exactly the rows where being wrong
+  // means rendering the wrong page.
+  const shape = readStoredEvaluation(evaluation);
+  const result = shape.kind === "legacy" ? shape.result : null;
+
+  // The commitments this Deep Review actually created, with their LIVE status —
+  // a review read weeks later should show what the student did about it, not a
+  // frozen copy of what it proposed. Scoped by sourceEvaluationId on a row
+  // already proven to belong to the caller by findOwnedEvaluation.
+  const reviewCommitments =
+    shape.kind === "deep-review"
+      ? await prisma.commitment.findMany({
+          where: { sourceEvaluationId: evaluation.id },
+          orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+        })
+      : [];
 
   // Requirements shown from the DATABASE, not from the model's output. The
   // model is told to prefer these, but what a student reads as a sourced fact
@@ -254,7 +294,16 @@ export default async function EvaluationPage({
       </Link>
 
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Evaluation</h1>
+        {/* Named for what it is. Three different reads sharing one heading
+            would leave a student unable to tell why this one is shorter, or
+            has bands where the last had scores. */}
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {evaluation.type === "DEEP_REVIEW" || shape.kind === "deep-review"
+            ? "Deep Review"
+            : evaluation.type === "CHECK_IN" || shape.kind === "check-in"
+              ? "Check-In"
+              : "Evaluation"}
+        </h1>
         <p className="mt-1 text-sm text-zinc-500">
           {evaluation.createdAt.toLocaleString("en-US", {
             dateStyle: "long",
@@ -297,11 +346,38 @@ export default async function EvaluationPage({
         </div>
       )}
 
-      {!result ? (
+      {/* A no-change check-in is a real, deliberate, free run that stores no
+          narrative at all. Saying so is the honest summary — "no result was
+          stored" reads as a fault, and this was the system working. */}
+      {evaluation.materialChange === false && (
+        <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+          <p className="font-medium">Nothing material changed this fortnight.</p>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            Your profile hadn&apos;t moved enough to be worth a write-up, so
+            this check-in was recorded without running the model — it cost
+            nothing and used none of your quota. The cadence is kept here so
+            your history shows the gap was checked, not skipped.
+          </p>
+        </section>
+      )}
+
+      {shape.kind === "deep-review" && (
+        <DeepReviewBody
+          narrative={shape.result}
+          bands={bandsFor(readStanding(shape, evaluation))}
+          commitments={reviewCommitments}
+        />
+      )}
+
+      {shape.kind === "check-in" && <CheckInBody narrative={shape.result} />}
+
+      {shape.kind === "none" && evaluation.materialChange !== false && (
         <p className="text-sm text-zinc-500">
           No result was stored for this evaluation.
         </p>
-      ) : (
+      )}
+
+      {result && (
         <>
           <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
             <div className="flex flex-wrap items-center gap-8">

@@ -13,9 +13,21 @@
 // is the legacy shape, "deep-review/*" is the current one. Explicit, because
 // duck-typing two schemas that share field names ("gaps", "headline") would
 // misclassify on exactly the rows where being wrong matters most.
+// READING uses the TOLERANT schema, never the strict one.
+//
+// evaluationResultSchema is what a model must produce today: every field
+// required. storedEvaluationResultSchema is the same shape with the fields
+// added in v3-v6 marked optional, because rows written before those versions
+// genuinely do not have them.
+//
+// Validating stored rows against the strict schema looks harmless and is not:
+// a v5 row has no `selectivity` on its school fits, fails, and falls through to
+// kind "none" — which the detail page renders as "No result was stored for this
+// evaluation". The row is intact; the reader refused it. That is the exact
+// failure this file's header warns about, reached from the other direction.
 import {
-  evaluationResultSchema,
-  type EvaluationResult,
+  storedEvaluationResultSchema,
+  type StoredEvaluationResult,
 } from "@/lib/validation/evaluation";
 import {
   deepReviewNarrativeSchema,
@@ -25,7 +37,7 @@ import {
 } from "@/lib/validation/tiers";
 
 export type StoredShape =
-  | { kind: "legacy"; result: EvaluationResult }
+  | { kind: "legacy"; result: StoredEvaluationResult }
   | { kind: "deep-review"; result: DeepReviewNarrative }
   | { kind: "check-in"; result: CheckInNarrative }
   | { kind: "none" };
@@ -60,7 +72,7 @@ export function readStoredEvaluation(row: {
 
   // Everything else is legacy: "evaluation/v1" through "evaluation/v10", and
   // rows written before promptVersion was recorded at all.
-  const legacy = evaluationResultSchema.safeParse(parsed);
+  const legacy = storedEvaluationResultSchema.safeParse(parsed);
   if (legacy.success) return { kind: "legacy", result: legacy.data };
 
   // A version string we do not recognise, on JSON neither schema accepts. Try

@@ -89,6 +89,84 @@ describe("legacy evaluations keep rendering", () => {
     });
     expect(shape.kind).toBe("legacy");
   });
+
+  // ── Era-accurate rows ────────────────────────────────────────────────────
+  //
+  // The version loop above pairs an OLD version string with a MODERN result,
+  // so it exercises the branch that picks a schema and nothing else. That is
+  // why it stayed green while the reader was in fact refusing every genuine
+  // pre-v6 row: the fixture had fields those rows have never had.
+  //
+  // A fixture that is modern in everything but its label proves the reader can
+  // read today's JSON. Only a fixture missing what the era was missing proves
+  // it can read a student's actual history.
+
+  /** As v1 wrote them: no gradeRelativeScore, no systemScores, no stage. */
+  const v1Result = {
+    overallScore: 58,
+    headline: "An early headline.",
+    summary: "A summary.",
+    strengths: [],
+    weaknesses: [],
+    narrativeCoherence: { score: 70, assessment: "ok" },
+    schoolFits: [
+      {
+        schoolName: "Imperial",
+        course: "Computing",
+        rubricUsed: "uk_course",
+        country: "United Kingdom",
+        fitScore: 64,
+        assessment: "A stretch.",
+        keyRisks: [],
+      },
+    ],
+    gaps: [],
+    verifyThese: [],
+  };
+
+  it("reads a v1-era row, which has no gradeRelativeScore at all", () => {
+    const shape = readStoredEvaluation({
+      promptVersion: "evaluation/v1",
+      resultJson: JSON.stringify(v1Result),
+    });
+    expect(shape.kind).toBe("legacy");
+    if (shape.kind !== "legacy") throw new Error("unreachable");
+    // Absent, not zero. A defaulted 0 here would be a percentile nothing
+    // measured, shown to a student as though someone had judged them.
+    expect(shape.result.gradeRelativeScore).toBeUndefined();
+    expect(shape.result.overallScore).toBe(58);
+  });
+
+  it("reads a v5-era row, whose school fits predate selectivity", () => {
+    // `selectivity` and `classification` arrived in v6. Validating this row
+    // against the schema the model must satisfy TODAY rejects it, and the
+    // detail page then tells the student "no result was stored" about a row
+    // that is entirely intact.
+    const shape = readStoredEvaluation({
+      promptVersion: "evaluation/v5",
+      resultJson: JSON.stringify({
+        ...v1Result,
+        gradeRelativeScore: 81,
+        gradeContext: "ctx",
+      }),
+    });
+    expect(shape.kind).toBe("legacy");
+    if (shape.kind !== "legacy") throw new Error("unreachable");
+    expect(shape.result.schoolFits[0]?.selectivity).toBeUndefined();
+    // The country older prompts asked for is still carried, so the UI can
+    // show it on the rows that have it.
+    expect(shape.result.schoolFits[0]?.country).toBe("United Kingdom");
+  });
+
+  it("still refuses JSON that is not an evaluation at all", () => {
+    // Tolerance has a floor: reading old rows must not become accepting
+    // anything. If this passes, the reader has stopped validating.
+    const shape = readStoredEvaluation({
+      promptVersion: "evaluation/v5",
+      resultJson: JSON.stringify({ hello: "world" }),
+    });
+    expect(shape.kind).toBe("none");
+  });
 });
 
 describe("new shapes", () => {

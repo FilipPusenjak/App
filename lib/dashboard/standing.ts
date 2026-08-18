@@ -51,7 +51,10 @@ export function readStanding(
     return {
       kind: "percentile",
       readiness: shape.result.overallScore,
-      forYourYear: shape.result.gradeRelativeScore,
+      // Absent, not zero, on rows written before prompt v3 introduced it. The
+      // dashboard renders null as an em dash rather than a score of 0, which
+      // would be a judgement nothing ever made.
+      forYourYear: shape.result.gradeRelativeScore ?? null,
       perSystem: shape.result.systemScores.map((s) => ({
         label: s.systemLabel,
         score: s.readinessScore,
