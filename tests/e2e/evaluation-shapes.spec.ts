@@ -479,3 +479,82 @@ test("the Check-In button appears only once there is something to check in again
     page.locator("main").getByRole("button", { name: "Run a Check-In" }),
   ).toBeVisible();
 });
+
+test("a student can report something, and it waits for the next check-in", async ({
+  page,
+}) => {
+  const profileId = await signUpAndGetProfile(page, "dev");
+
+  await page.goto("/dashboard");
+  const main = page.locator("main");
+  await expect(main.getByText("Recent developments")).toBeVisible();
+
+  await main.getByRole("textbox").first().fill("Asked the mock trial coach — I am prepping a witness next round.");
+  await main.getByRole("button", { name: "Save" }).first().click();
+
+  // Shown back, and labelled as queued rather than acted on.
+  await expect(main.getByText("prepping a witness next round")).toBeVisible();
+  await expect(main.getByText("waiting for your next check-in")).toBeVisible();
+
+  const rows = await db.query<{ body: string; readByEvaluationId: string | null }>(
+    `SELECT body, "readByEvaluationId" FROM "Development" WHERE "profileId" = $1`,
+    [profileId],
+  );
+  expect(rows.rows).toHaveLength(1);
+  expect(rows.rows[0]!.readByEvaluationId).toBeNull();
+
+  // Taking it back has to work — it is free text written in the moment.
+  await main.getByRole("button", { name: "Remove" }).first().click();
+  await expect(main.getByText("prepping a witness next round")).toHaveCount(0);
+  const after = await db.query(`SELECT 1 FROM "Development" WHERE "profileId" = $1`, [
+    profileId,
+  ]);
+  expect(after.rows).toHaveLength(0);
+});
+
+test("a check-in's question can be answered from the check-in itself", async ({
+  page,
+}) => {
+  const profileId = await signUpAndGetProfile(page, "answer");
+
+  const commitmentId = newId("cm");
+  await db.query(
+    `INSERT INTO "Commitment"
+       (id, "profileId", description, status, "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,'ACCEPTED',NOW(),NOW())`,
+    [commitmentId, profileId, "Ask the mock trial coach for a role"],
+  );
+
+  const checkInId = await seedEvaluation({
+    profileId,
+    type: "CHECK_IN",
+    promptVersion: "check-in/v3",
+    materialChange: true,
+    paceStatus: "ON_PACE",
+    resultJson: JSON.stringify({
+      ...checkInNarrative,
+      commitmentPrompts: [
+        { commitmentId, question: "Did you ask the coach, and what did they say?" },
+      ],
+    }),
+  });
+
+  await page.goto(`/evaluations/${checkInId}`);
+  const main = page.locator("main");
+
+  // The gap this closes: the question was rhetorical until there was a box
+  // under it.
+  await expect(main.getByText("Did you ask the coach")).toBeVisible();
+  await main.getByRole("textbox").first().fill("Yes — they gave me the witness prep.");
+  await main.getByRole("button", { name: "Save" }).first().click();
+  await expect(main.getByText("your next check-in will read this")).toBeVisible();
+
+  // Stored against the commitment it answers, so the next check-in knows which
+  // question is now closed.
+  const rows = await db.query<{ commitmentId: string | null }>(
+    `SELECT "commitmentId" FROM "Development" WHERE "profileId" = $1`,
+    [profileId],
+  );
+  expect(rows.rows).toHaveLength(1);
+  expect(rows.rows[0]!.commitmentId).toBe(commitmentId);
+});

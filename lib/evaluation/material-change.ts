@@ -26,6 +26,14 @@ export type MaterialChangeInput = {
   } | null;
   /** Profile edits since the preceding check-in. */
   changeCount: number;
+  /**
+   * How many things the student has reported that no check-in has read.
+   *
+   * Always material. A student who writes "I got the role" and is then told
+   * nothing changed has been ignored by the app, which is worse than a wasted
+   * run — it teaches them the box does nothing and they stop using it.
+   */
+  unreadDevelopments?: number;
   openCommitments: { dueDate: Date | null; status: string }[];
   now?: Date;
 };
@@ -48,6 +56,14 @@ export function detectMaterialChange(
   // A first check-in always runs: there is no baseline to be unchanged from.
   if (!input.previous) {
     return { material: true, reasons: ["first check-in"] };
+  }
+
+  // Checked before anything computed: the student telling us something is the
+  // strongest signal available, and it is the only one they can see themselves.
+  if ((input.unreadDevelopments ?? 0) > 0) {
+    reasons.push(
+      `${input.unreadDevelopments} thing(s) the student reported and no check-in has answered`,
+    );
   }
 
   if (input.changeCount > 0) {

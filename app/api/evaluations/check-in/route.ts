@@ -22,6 +22,10 @@ import {
   recordTierFailure,
 } from "@/lib/evaluation/record-failure";
 import { loadForTier, SOURCE_DATA_VERSION } from "@/lib/evaluation/tier-load";
+import {
+  getUnreadDevelopments,
+  markDevelopmentsRead,
+} from "@/lib/developments";
 import { buildCheckInContext } from "@/lib/evaluation/context/check-in";
 import {
   buildNoChangeResponse,
@@ -31,7 +35,7 @@ import {
   CHECK_IN_PROMPT_VERSION,
   CHECK_IN_SYSTEM_PROMPT,
   buildCheckInUserPrompt,
-} from "@/lib/prompts/tiers/check-in-v2";
+} from "@/lib/prompts/tiers/check-in-v3";
 import { checkInNarrativeSchema, findBannedPhrasing } from "@/lib/validation/tiers";
 import { rungMap } from "@/lib/readiness/score";
 
@@ -47,6 +51,10 @@ export async function POST() {
 
   const data = await loadForTier("CHECK_IN");
 
+  // Read before the no-change decision, because they change it: a student who
+  // reported something and was told nothing changed has been ignored.
+  const developments = await getUnreadDevelopments(data.profileId);
+
   // ── The no-change path, before anything is spent ─────────────────────────
   const verdict = detectMaterialChange({
     scored: data.scored,
@@ -59,6 +67,7 @@ export async function POST() {
         }
       : null,
     changeCount: data.changeCount,
+    unreadDevelopments: developments.length,
     openCommitments: data.openCommitments,
   });
 
@@ -87,6 +96,9 @@ export async function POST() {
         costCents: 0,
       },
     });
+
+    // Nothing to mark: this path is only reached when there were no unread
+    // developments, since one makes the run material by definition.
 
     return NextResponse.json({
       id: evaluation.id,
@@ -125,6 +137,7 @@ export async function POST() {
     changes: verdict.reasons.map((r) => ({ kind: "edited" as const, what: r })),
     openCommitments: data.openCommitments,
     digests: data.digests,
+    developments,
     precedingAt: data.preceding?.createdAt ?? null,
   });
 
@@ -224,6 +237,14 @@ export async function POST() {
       costCents: Math.round((estimateCost(usage, model) ?? 0) * 100),
     },
   });
+
+  // Only AFTER the row is written. Marking them read first would lose the
+  // student's news to any failure between here and there — and the failure
+  // paths above are real, as the first live check-in demonstrated.
+  await markDevelopmentsRead(
+    developments.map((d) => d.id),
+    evaluation.id,
+  );
 
   return NextResponse.json({
     id: evaluation.id,

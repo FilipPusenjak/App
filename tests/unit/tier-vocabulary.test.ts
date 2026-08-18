@@ -18,7 +18,7 @@ import { OUTPUT_VOCABULARY } from "@/lib/prompts/tiers/vocabulary";
 import {
   CHECK_IN_PROMPT_VERSION,
   CHECK_IN_SYSTEM_PROMPT,
-} from "@/lib/prompts/tiers/check-in-v2";
+} from "@/lib/prompts/tiers/check-in-v3";
 import {
   DEEP_REVIEW_PROMPT_VERSION,
   DEEP_REVIEW_SYSTEM_PROMPT,
@@ -93,7 +93,7 @@ describe("both tier prompts carry it", () => {
     // An evaluation is immutable and pinned to its prompt version. Editing a
     // prompt without bumping would silently relabel history as having been
     // produced by instructions it never saw.
-    expect(CHECK_IN_PROMPT_VERSION).toBe("check-in/v2");
+    expect(CHECK_IN_PROMPT_VERSION).toBe("check-in/v3");
     expect(DEEP_REVIEW_PROMPT_VERSION).toBe("deep-review/v2");
   });
 

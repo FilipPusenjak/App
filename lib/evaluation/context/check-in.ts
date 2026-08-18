@@ -42,8 +42,20 @@ export type CheckInContextInput = {
   openCommitments: OpenCommitment[];
   /** One per completed grade year. Replaces those years' raw entries. */
   digests: ProfileDigestSummary[];
+  /**
+   * What the student SAID happened, in their own words, since a check-in last
+   * read anything. The only unstructured input either tier gets.
+   */
+  developments: ReportedDevelopment[];
   precedingAt: Date | null;
   now?: Date;
+};
+
+export type ReportedDevelopment = {
+  body: string;
+  createdAt: Date;
+  /** The commitment this answers, when it answers one. */
+  commitmentId: string | null;
 };
 
 export type BuiltContext = {
@@ -99,6 +111,24 @@ export function buildCheckInContext(input: CheckInContextInput): BuiltContext {
     lines.push("## Moved up a rung");
     for (const e of s.differentiation.escalations) {
       lines.push(`- ${e.title}: ${e.from} → ${e.to}`);
+    }
+  }
+
+  // ── What the student told us ──────────────────────────────────────────────
+  // FIRST, and before the app's own record of what it asked for. Everything
+  // else in this context is something the app computed about the student; this
+  // is the only part the student wrote. A check-in that leads with its own
+  // bookkeeping and treats their news as an afterthought is not a check-in.
+  if (input.developments.length > 0) {
+    lines.push("");
+    lines.push("## What the student reported since the last check-in");
+    lines.push(
+      "Their words, unedited. Answer what they told you before anything else, and never repeat a question they have already answered here.",
+    );
+    for (const d of input.developments) {
+      const on = d.createdAt.toISOString().slice(0, 10);
+      const answering = d.commitmentId ? ` (about commitment [${d.commitmentId}])` : "";
+      lines.push(`- ${on}${answering}: ${d.body}`);
     }
   }
 

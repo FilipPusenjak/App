@@ -6,15 +6,21 @@ import { loadDashboard } from "@/lib/dashboard/load";
 import { describeMovement } from "@/lib/dashboard/summary";
 import { BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
 import { CommitmentControls } from "@/components/evaluation/commitment-controls";
+import {
+  DevelopmentComposer,
+  DevelopmentItem,
+} from "@/components/developments/composer";
+import { getOwnedDevelopments } from "@/lib/developments";
 
 const card =
   "rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5";
 
 export default async function DashboardPage() {
-  const [user, profiles, data] = await Promise.all([
+  const [user, profiles, data, developments] = await Promise.all([
     getCurrentUser(),
     getOwnedProfiles(),
     loadDashboard(),
+    getOwnedDevelopments(5),
   ]);
   const multiStudent = profiles.length > 1;
   const { latest, gaps } = data;
@@ -192,6 +198,35 @@ export default async function DashboardPage() {
           )}
         </section>
       )}
+
+      {/* The reply channel for a loop the app already opened. A check-in ends
+          by asking what happened; without somewhere to answer, the question was
+          rhetorical and the student learned to ignore it. */}
+      <section className={card}>
+        <h2 className="text-sm font-medium text-zinc-500">Recent developments</h2>
+        <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+          Things that happened that your profile doesn&apos;t capture — a
+          conversation, a result, a plan that changed. Your next check-in reads
+          these first.
+        </p>
+        <DevelopmentComposer />
+        {developments.length > 0 && (
+          <ul className="mt-4 space-y-2">
+            {developments.map((d) => (
+              <DevelopmentItem
+                key={d.id}
+                id={d.id}
+                body={d.body}
+                createdAt={d.createdAt.toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "short",
+                })}
+                read={d.readByEvaluationId != null}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
 
       {gaps.length > 0 && (
         <section className={card}>

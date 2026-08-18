@@ -91,6 +91,7 @@ describe("check-in context stays inside its budget", () => {
     // several times a freshman's, or a flat four-year subscription loses money
     // on exactly the students who stayed.
     const built = buildCheckInContext({
+    developments: [],
       scored: scored({
         gradeLevel: 12,
         resumeItems: Array.from({ length: 10 }, (_, n) =>
@@ -122,6 +123,7 @@ describe("check-in context stays inside its budget", () => {
       resumeItems: Array.from({ length: 10 }, (_, n) => item({ title: `A${n}` })),
     });
     const checkIn = buildCheckInContext({
+    developments: [],
       scored: s,
       changes: [],
       openCommitments: [],
@@ -146,6 +148,7 @@ describe("check-in context stays inside its budget", () => {
 
   it("never puts raw prior-year entries in a check-in", () => {
     const built = buildCheckInContext({
+    developments: [],
       scored: scored(),
       changes: [],
       openCommitments: [],

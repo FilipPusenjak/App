@@ -11,6 +11,7 @@
 // whole picture, and the dashboard deliberately shows no standing for one.
 import Link from "next/link";
 import type { CheckInNarrative } from "@/lib/validation/tiers";
+import { DevelopmentComposer } from "@/components/developments/composer";
 import { Card, Pill } from "./detail-ui";
 
 export function CheckInBody({ narrative }: { narrative: CheckInNarrative }) {
@@ -63,9 +64,18 @@ export function CheckInBody({ narrative }: { narrative: CheckInNarrative }) {
           title="On what you took on"
           subtitle="Asked rather than assumed — the app does not know whether you did these, and guessing would put a false record in your history."
         >
-          <ul className="space-y-2 text-sm text-zinc-700 dark:text-zinc-300">
+          {/* Answerable HERE. The question was rhetorical until this existed:
+              the check-in asked what the coach said and gave the student
+              nowhere to say it, so the next check-in asked again. */}
+          <ul className="space-y-4 text-sm text-zinc-700 dark:text-zinc-300">
             {narrative.commitmentPrompts.map((p) => (
-              <li key={p.commitmentId}>{p.question}</li>
+              <li key={p.commitmentId}>
+                {p.question}
+                <DevelopmentComposer
+                  commitmentId={p.commitmentId}
+                  placeholder="What happened?"
+                />
+              </li>
             ))}
           </ul>
         </Card>

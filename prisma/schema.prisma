@@ -147,6 +147,7 @@ model Profile {
   projections      Projection[]
   commitments      Commitment[]
   digests          ProfileDigest[]
+  developments     Development[]
   discoveryConsent DiscoveryConsent?
 
   @@index([userId])
@@ -542,10 +543,46 @@ model Commitment {
   resolvedInEvaluationId String?
   resolvedInEvaluation   Evaluation? @relation("CommitmentResolution", fields: [resolvedInEvaluationId], references: [id], onDelete: SetNull)
 
+  developments Development[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([profileId, status])
+}
+
+/// Something the student says happened, in their own words.
+///
+/// The check-in already ASKS questions — "did you speak to the coach, and what
+/// did they say?" — and until this existed there was nowhere to answer them.
+/// That is the gap this fills: it is the reply channel for a loop the app had
+/// already opened, not a journal.
+///
+/// Deliberately narrow, and it should stay narrow. This is not a diary, not a
+/// feed, and never aggregated across students — the reasoning that shelved
+/// activity discovery applies here with more force, because this is a minor
+/// writing free text about their own life.
+model Development {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// What happened. Short by design: a fortnight's news, not an essay.
+  body String
+
+  /// The commitment this answers, when it answers one. Nulled rather than
+  /// cascaded if that commitment is ever removed — what the student said
+  /// happened is still true even if the commitment it referred to is gone.
+  commitmentId String?
+  commitment   Commitment? @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+
+  /// Set once a check-in has read it, so the next one does not re-litigate old
+  /// news and a student is never told twice about the same thing.
+  readByEvaluationId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId, createdAt])
 }
 
 /// A completed grade year, compacted.
