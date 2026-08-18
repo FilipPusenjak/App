@@ -28,6 +28,7 @@ import {
   loadForTier,
   SOURCE_DATA_VERSION,
 } from "@/lib/evaluation/tier-load";
+import { tierWhere } from "@/lib/evaluation/tier-rows";
 import {
   buildDeepReviewContext,
   buildDeepReviewStable,
@@ -102,7 +103,10 @@ export async function POST() {
   const priorReviews = await prisma.evaluation.findMany({
     where: {
       profileId: data.profileId,
-      type: "DEEP_REVIEW",
+      // Real deep reviews only. Legacy rows carry type = DEEP_REVIEW by
+      // default, and feeding one in as a "previous review" would quote a
+      // headline that does not exist in that shape.
+      ...tierWhere("DEEP_REVIEW"),
       status: "completed",
       isSample: false,
     },

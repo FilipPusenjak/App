@@ -18,6 +18,7 @@ import {
 } from "@/lib/readiness/score";
 import type { Rung } from "@/lib/readiness/rungs";
 import type { EvaluationType } from "@/lib/validation/tiers";
+import { tierWhere } from "./tier-rows";
 import { COUNTRIES } from "@/lib/data/countries";
 
 const countryName = (code: string) =>
@@ -72,7 +73,12 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
     // review against the last deep review. Mixing them would compare a
     // fortnight's delta to a month's strategy.
     prisma.evaluation.findFirst({
-      where: { profileId: profile.id, type, status: "completed", isSample: false },
+      where: {
+        profileId: profile.id,
+        ...tierWhere(type),
+        status: "completed",
+        isSample: false,
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

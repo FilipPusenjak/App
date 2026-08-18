@@ -12,6 +12,7 @@ import {
   deltaFromPrevious,
 } from "@/lib/evaluation/progress";
 import { summariseHistoryRow } from "@/lib/evaluation/history";
+import { isDeepReviewRow } from "@/lib/evaluation/tier-rows";
 import { ScoreTrend } from "@/components/score-trend";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { RunEvaluationButton } from "./run-evaluation-button";
@@ -81,9 +82,12 @@ export default async function EvaluationsPage() {
   // read the reason on the page rather than receive it as a failed request,
   // and one whose plan does not include Deep Reviews should not be offered a
   // button whose only outcome is a 403.
-  const lastDeepReview = evaluations.find(
-    (e) => e.type === "DEEP_REVIEW" && e.status === "completed" && !e.isSample,
-  );
+  // isDeepReviewRow, not `type === "DEEP_REVIEW"`. The type column defaults to
+  // DEEP_REVIEW, so matching on it counted a legacy evaluation as a Deep Review
+  // and started the 21-day floor against a run that never happened — locking an
+  // account out of its FIRST review for three weeks. The route decides this
+  // with the same rule, from the same module.
+  const lastDeepReview = evaluations.find(isDeepReviewRow);
   const deepReviewGate = user
     ? checkDeepReviewAllowed({
         tier: tierForUser(user),
