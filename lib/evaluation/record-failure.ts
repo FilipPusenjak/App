@@ -20,8 +20,32 @@
 // The stored row is `failed`, so nothing reads it as an evaluation: the
 // dashboard, the trend chart and the history summary all filter on completed.
 // It exists to be counted and to be seen.
+import type { ZodError } from "zod";
 import { prisma } from "@/lib/db";
 import { estimateCost } from "@/lib/cost";
+
+/**
+ * Which fields a rejected narrative got wrong, in one short line.
+ *
+ * Without this a shape failure is undiagnosable. The route discards the model's
+ * output — correctly, it is not showable — and stores a sentence saying the
+ * shape could not be read, which tells whoever is debugging nothing at all
+ * about WHICH field was wrong. The first real check-in failed exactly this way
+ * and the only honest next step was guesswork.
+ *
+ * Field paths only, never the model's values: the paths are what identify the
+ * bug, and the values are prose about a student that has already been judged
+ * unfit to store.
+ */
+export function describeShapeFailure(error: ZodError): string {
+  const seen = new Set<string>();
+  for (const issue of error.issues) {
+    const path = issue.path.join(".") || "(root)";
+    if (!seen.has(path)) seen.add(path);
+    if (seen.size >= 6) break;
+  }
+  return [...seen].join(", ");
+}
 
 export type TokenUsage = {
   inputTokens: number;
@@ -47,6 +71,15 @@ export async function recordTierFailure(input: {
   usage: TokenUsage;
   /** Shown to the student in their history. Plain language, no stack traces. */
   error: string;
+  /**
+   * The raw model output, when it failed to parse.
+   *
+   * Stored on the failed row so the next shape failure can be read rather than
+   * reasoned about. It is never rendered: nothing treats a `failed` row as a
+   * narrative, and readStoredEvaluation returns "none" for text that does not
+   * parse — which is exactly what this is.
+   */
+  rawOutput?: string | null;
 }): Promise<string | null> {
   try {
     const row = await prisma.evaluation.create({
@@ -55,6 +88,9 @@ export async function recordTierFailure(input: {
         type: input.type,
         status: "failed",
         error: input.error,
+        // Truncated: this is a debugging artifact, not a document, and an
+        // unbounded model response has no business sizing a database row.
+        resultJson: input.rawOutput ? input.rawOutput.slice(0, 8000) : null,
         completedAt: new Date(),
         model: input.model,
         promptVersion: input.promptVersion,

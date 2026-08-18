@@ -17,7 +17,10 @@ import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
 import { estimateCost } from "@/lib/cost";
-import { recordTierFailure } from "@/lib/evaluation/record-failure";
+import {
+  describeShapeFailure,
+  recordTierFailure,
+} from "@/lib/evaluation/record-failure";
 import { loadForTier, SOURCE_DATA_VERSION } from "@/lib/evaluation/tier-load";
 import { buildCheckInContext } from "@/lib/evaluation/context/check-in";
 import {
@@ -28,7 +31,7 @@ import {
   CHECK_IN_PROMPT_VERSION,
   CHECK_IN_SYSTEM_PROMPT,
   buildCheckInUserPrompt,
-} from "@/lib/prompts/tiers/check-in-v1";
+} from "@/lib/prompts/tiers/check-in-v2";
 import { checkInNarrativeSchema, findBannedPhrasing } from "@/lib/validation/tiers";
 import { rungMap } from "@/lib/readiness/score";
 
@@ -169,7 +172,10 @@ export async function POST() {
     const id = await recordTierFailure({
       ...failureContext,
       error:
-        "The check-in came back in a shape the app could not read, so it was discarded. This run still cost what it used — that cost is recorded here.",
+        `The check-in came back in a shape the app could not read, so it was discarded. ` +
+        `This run still cost what it used — that cost is recorded here. ` +
+        `(Fields the app could not accept: ${describeShapeFailure(parsed.error)}.)`,
+      rawOutput: text,
     });
     return NextResponse.json(
       { id, error: "The check-in came back in a shape we could not read." },

@@ -18,7 +18,10 @@ import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
 import { estimateCost } from "@/lib/cost";
-import { recordTierFailure } from "@/lib/evaluation/record-failure";
+import {
+  describeShapeFailure,
+  recordTierFailure,
+} from "@/lib/evaluation/record-failure";
 import {
   loadCommitmentHistory,
   loadForTier,
@@ -33,7 +36,7 @@ import {
   DEEP_REVIEW_PROMPT_VERSION,
   DEEP_REVIEW_SYSTEM_PROMPT,
   buildDeepReviewUserPrompt,
-} from "@/lib/prompts/tiers/deep-review-v1";
+} from "@/lib/prompts/tiers/deep-review-v2";
 import {
   deepReviewNarrativeSchema,
   findBannedPhrasing,
@@ -211,7 +214,10 @@ export async function POST() {
     const id = await recordTierFailure({
       ...failureContext,
       error:
-        "The review came back in a shape the app could not read, so it was discarded. This run still cost what it used — that cost is recorded here.",
+        `The review came back in a shape the app could not read, so it was discarded. ` +
+        `This run still cost what it used — that cost is recorded here. ` +
+        `(Fields the app could not accept: ${describeShapeFailure(parsed.error)}.)`,
+      rawOutput: text,
     });
     return NextResponse.json(
       { id, error: "The review came back in a shape we could not read." },
