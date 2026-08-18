@@ -155,9 +155,12 @@ export default async function DashboardPage() {
       {latest && latest.nextSteps.length > 0 && (
         <section className={card}>
           <h2 className="text-sm font-medium text-zinc-500">Do this next</h2>
-          {/* Array order IS the priority — a legacy evaluation ranks its
-              actions, a deep review orders commitments by status then due
-              date, and a check-in has exactly one. */}
+          {/* A union, in priority order: this fortnight's single action if a
+              check-in produced one, then every commitment still open — however
+              long ago it was proposed. Gating commitments on the newest
+              evaluation's shape made them disappear every time a check-in ran,
+              which is the one thing that must not happen to a follow-through
+              loop. */}
           <ol className="mt-3 space-y-3">
             {latest.nextSteps.map((step, i) => (
               <li key={step.commitmentId ?? `${step.title}-${i}`} className="flex gap-3">
@@ -188,12 +191,16 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ol>
+          {/* Deliberately NOT "more in the full check-in": this list is a
+              union now, so the overflow may be commitments a different
+              evaluation proposed. Pointing at the newest run would send a
+              student somewhere those items are not. */}
           {latest.moreCount > 0 && (
             <Link
-              href={`/evaluations/${latest.id}`}
+              href="/evaluations"
               className="mt-4 inline-block text-sm font-medium underline underline-offset-2"
             >
-              {latest.moreCount} more in the full {latest.label.toLowerCase()}
+              {latest.moreCount} more open
             </Link>
           )}
         </section>

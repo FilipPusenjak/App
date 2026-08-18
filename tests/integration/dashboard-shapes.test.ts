@@ -332,3 +332,127 @@ describe.skipIf(!hasTestDb)("the dashboard across evaluation shapes", () => {
     expect(data.latest).toBeNull();
   });
 });
+
+describe("do this next survives a check-in arriving", () => {
+  let profileId = "";
+
+  beforeEach(async () => {
+    const { user, profile } = await createUserWithProfile(
+      runTag,
+      `n${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    );
+    sessionUserId.current = user.id;
+    profileId = profile.id;
+  });
+
+  async function seedReviewWithCommitments() {
+    const review = await seedDeepReview(profileId, new Date("2026-06-01"));
+    await prisma.commitment.createMany({
+      data: [
+        {
+          profileId,
+          sourceEvaluationId: review.id,
+          description: "Enter the olympiad",
+          status: "ACCEPTED",
+          dueDate: new Date("2026-08-01"),
+        },
+        {
+          profileId,
+          sourceEvaluationId: review.id,
+          description: "Speak to school about Further Maths",
+          status: "PROPOSED",
+        },
+      ],
+    });
+    return review;
+  }
+
+  it("keeps the commitments when a check-in becomes the newest run", async () => {
+    // The regression. buildNextSteps dispatched on the LATEST shape, so the
+    // fortnightly tier — the one whose whole job is keeping follow-through
+    // alive — silently emptied the list of things to follow through on.
+    await seedReviewWithCommitments();
+    await prisma.evaluation.create({
+      data: {
+        profileId,
+        type: "CHECK_IN",
+        status: "completed",
+        completedAt: new Date("2026-06-15"),
+        createdAt: new Date("2026-06-15"),
+        materialChange: true,
+        promptVersion: "check-in/v3",
+        paceStatus: "ON_PACE",
+        resultJson: JSON.stringify(checkInResult),
+      },
+    });
+
+    const data = await loadDashboard();
+    const titles = data.latest?.nextSteps.map((s) => s.title) ?? [];
+    expect(titles).toContain("Enter the olympiad");
+    expect(titles).toContain("Speak to school about Further Maths");
+  });
+
+  it("puts this fortnight's action first, ahead of standing commitments", async () => {
+    await seedReviewWithCommitments();
+    await prisma.evaluation.create({
+      data: {
+        profileId,
+        type: "CHECK_IN",
+        status: "completed",
+        completedAt: new Date("2026-06-15"),
+        createdAt: new Date("2026-06-15"),
+        materialChange: true,
+        promptVersion: "check-in/v3",
+        paceStatus: "ON_PACE",
+        resultJson: JSON.stringify(checkInResult),
+      },
+    });
+
+    const data = await loadDashboard();
+    // It has a deadline attached and was produced days ago; a commitment due in
+    // six weeks does not outrank it.
+    expect(data.latest?.nextSteps[0]?.title).toBe("Email the club lead.");
+    expect(data.latest?.nextSteps[0]?.meta).toBe("this fortnight");
+  });
+
+  it("still shows commitments when a deep review is the newest run", async () => {
+    await seedReviewWithCommitments();
+    const data = await loadDashboard();
+    const titles = data.latest?.nextSteps.map((s) => s.title) ?? [];
+    expect(titles).toContain("Enter the olympiad");
+  });
+
+  it("does not resurrect a commitment that was completed or set aside", async () => {
+    const review = await seedDeepReview(profileId, new Date("2026-06-01"));
+    await prisma.commitment.createMany({
+      data: [
+        {
+          profileId,
+          sourceEvaluationId: review.id,
+          description: "Already done",
+          status: "COMPLETED",
+        },
+        {
+          profileId,
+          sourceEvaluationId: review.id,
+          description: "Deliberately dropped",
+          status: "ABANDONED",
+        },
+      ],
+    });
+
+    const data = await loadDashboard();
+    const titles = data.latest?.nextSteps.map((s) => s.title) ?? [];
+    expect(titles).not.toContain("Already done");
+    expect(titles).not.toContain("Deliberately dropped");
+  });
+
+  it("keeps commitments out of a legacy-only student's list of actions", async () => {
+    // A student who has never run a tier evaluation has no commitments, and the
+    // legacy actions must still arrive in the model's ranked order.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    const data = await loadDashboard();
+    expect(data.latest?.nextSteps[0]?.title).toBe("Enter the olympiad");
+    expect(data.latest?.nextSteps[0]?.commitmentId).toBeUndefined();
+  });
+});

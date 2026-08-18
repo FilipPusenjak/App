@@ -25,6 +25,16 @@ import {
   type ScoreMove,
 } from "./summary";
 
+/**
+ * How many next steps the dashboard shows before linking onward.
+ *
+ * Five rather than three, because the list is now a union: this fortnight's
+ * action plus every open commitment. Three was enough when it held one
+ * evaluation's ranked actions and is not enough to show a student everything
+ * they are actually on the hook for.
+ */
+export const NEXT_STEP_LIMIT = 5;
+
 /** One thing to do next, from whichever shape produced it. */
 export type NextStep = {
   title: string;
@@ -86,19 +96,23 @@ export async function loadDashboard(): Promise<DashboardData> {
     ? readStoredEvaluation(previous)
     : { kind: "none" as const };
 
-  // Open commitments feed "do this next" for a deep review, the way actions did
-  // for a legacy evaluation.
-  const commitments =
-    shape.kind === "deep-review"
-      ? await prisma.commitment.findMany({
-          where: {
-            profileId: profile.id,
-            status: { in: ["PROPOSED", "ACCEPTED", "IN_PROGRESS"] },
-          },
-          orderBy: [{ status: "asc" }, { dueDate: "asc" }],
-          take: 6,
-        })
-      : [];
+  // Open commitments are loaded ALWAYS, not only when a deep review happens to
+  // be the newest run.
+  //
+  // They are state, not the output of one evaluation: a commitment a student
+  // took on three weeks ago is still owed today, and gating them on the latest
+  // shape meant the moment a check-in arrived — which is every fortnight, by
+  // design — every commitment silently vanished from "do this next". The tier
+  // that exists to keep the follow-through loop alive was the thing switching
+  // it off.
+  const commitments = await prisma.commitment.findMany({
+    where: {
+      profileId: profile.id,
+      status: { in: ["PROPOSED", "ACCEPTED", "IN_PROGRESS"] },
+    },
+    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+    take: 6,
+  });
 
   const nextSteps = buildNextSteps(shape, commitments);
 
@@ -113,8 +127,8 @@ export async function loadDashboard(): Promise<DashboardData> {
             headline: headlineOf(shape) ?? "",
             standing: readStanding(shape, newest),
             label: labelFor(shape.kind),
-            nextSteps: nextSteps.slice(0, 3),
-            moreCount: Math.max(0, nextSteps.length - 3),
+            nextSteps: nextSteps.slice(0, NEXT_STEP_LIMIT),
+            moreCount: Math.max(0, nextSteps.length - NEXT_STEP_LIMIT),
           }
         : null,
     // Movement is only computed between two runs of the SAME shape. Percentiles
@@ -143,17 +157,36 @@ function buildNextSteps(
   shape: ReturnType<typeof readStoredEvaluation>,
   commitments: { id: string; description: string; status: string; dueDate: Date | null }[],
 ): NextStep[] {
-  if (shape.kind === "legacy") {
-    // Array order IS the priority — the model is asked to rank these.
-    return shape.result.actions.map((a) => ({
-      title: a.title,
-      detail: a.detail,
-      meta: `${a.effort} effort · ${a.impact} impact · ${a.timeframe}`,
-    }));
+  const steps: NextStep[] = [];
+
+  // This fortnight's single action comes FIRST when there is one. It is the
+  // most immediate thing and the one with a deadline attached, and a check-in
+  // that produced it two days ago outranks a commitment due in six weeks.
+  if (shape.kind === "check-in") {
+    steps.push({
+      title: shape.result.actionThisFortnight,
+      detail: shape.result.movement.driver ?? "",
+      meta: "this fortnight",
+    });
   }
 
-  if (shape.kind === "deep-review") {
-    return commitments.map((c) => ({
+  // Legacy actions, for a student who has never run a tier evaluation. Array
+  // order IS the priority — the model is asked to rank these.
+  if (shape.kind === "legacy") {
+    for (const a of shape.result.actions) {
+      steps.push({
+        title: a.title,
+        detail: a.detail,
+        meta: `${a.effort} effort · ${a.impact} impact · ${a.timeframe}`,
+      });
+    }
+  }
+
+  // Then everything still outstanding, WHATEVER produced it. A commitment is
+  // owed until it is resolved; which evaluation happens to be newest has no
+  // bearing on that.
+  for (const c of commitments) {
+    steps.push({
       title: c.description,
       detail:
         c.status === "PROPOSED"
@@ -162,21 +195,10 @@ function buildNextSteps(
       meta: c.dueDate ? `by ${c.dueDate.toISOString().slice(0, 10)}` : null,
       commitmentId: c.id,
       status: c.status,
-    }));
+    });
   }
 
-  if (shape.kind === "check-in") {
-    // Exactly one, by construction.
-    return [
-      {
-        title: shape.result.actionThisFortnight,
-        detail: shape.result.movement.driver ?? "",
-        meta: "this fortnight",
-      },
-    ];
-  }
-
-  return [];
+  return steps;
 }
 
 /**
