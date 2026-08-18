@@ -22,6 +22,7 @@ import {
   describeShapeFailure,
   recordTierFailure,
 } from "@/lib/evaluation/record-failure";
+import { getRecentDevelopments } from "@/lib/developments";
 import {
   loadCommitmentHistory,
   loadForTier,
@@ -36,7 +37,7 @@ import {
   DEEP_REVIEW_PROMPT_VERSION,
   DEEP_REVIEW_SYSTEM_PROMPT,
   buildDeepReviewUserPrompt,
-} from "@/lib/prompts/tiers/deep-review-v2";
+} from "@/lib/prompts/tiers/deep-review-v3";
 import {
   deepReviewNarrativeSchema,
   findBannedPhrasing,
@@ -136,6 +137,14 @@ export async function POST() {
       rubricVersion: r.rubricVersion,
     })),
     commitments: await loadCommitmentHistory(data.profileId),
+    // Since the LAST DEEP REVIEW, not since a check-in read them. A check-in
+    // marking something read means that check-in answered it; the strategy
+    // review has still never seen it, and a fortnight's news is exactly the
+    // raw material a months-long read is made of.
+    developments: await getRecentDevelopments(
+      data.profileId,
+      priorReviews[0]?.createdAt ?? null,
+    ),
     intendedMajor: data.intendedMajor,
     careerGoal: data.careerGoal,
     schoolContext: data.schoolContext,

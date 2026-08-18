@@ -38,6 +38,10 @@ const {
   developmentInputSchema,
 } = await import("@/lib/developments");
 const { detectMaterialChange } = await import("@/lib/evaluation/material-change");
+const { getRecentDevelopments } = await import("@/lib/developments");
+const { buildDeepReviewContext } = await import(
+  "@/lib/evaluation/context/deep-review"
+);
 
 describe.skipIf(!hasTestDb)("developments", () => {
   let profileId = "";
@@ -235,5 +239,142 @@ describe("a reported development makes a check-in worth running", () => {
       changeCount: 3,
     });
     expect(verdict.reasons[0]).toMatch(/reported/i);
+  });
+});
+
+describe.skipIf(!hasTestDb)("a deep review reads them too", () => {
+  let profileId = "";
+
+  beforeEach(async () => {
+    const { user, profile } = await createUserWithProfile(
+      runTag,
+      `dr${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    );
+    sessionUserId.current = user.id;
+    profileId = profile.id;
+  });
+
+  it("sees notes a check-in already read", async () => {
+    // The distinction that matters. A check-in marking something read means
+    // THAT check-in answered it; the strategy review has still never seen it,
+    // and a fortnight's news is the raw material a months-long read is made of.
+    const created = await addDevelopment({ body: "The club folded in October." });
+    const checkIn = await prisma.evaluation.create({
+      data: { profileId, type: "CHECK_IN", status: "completed" },
+    });
+    await markDevelopmentsRead([created.id], checkIn.id);
+
+    expect(await getUnreadDevelopments(profileId)).toHaveLength(0);
+    const forReview = await getRecentDevelopments(profileId, null);
+    expect(forReview).toHaveLength(1);
+    expect(forReview[0]!.body).toContain("club folded");
+  });
+
+  it("only takes what happened since the last deep review", async () => {
+    await prisma.development.create({
+      data: {
+        profileId,
+        body: "Old news, already covered by the last review.",
+        createdAt: new Date("2026-01-01"),
+      },
+    });
+    await prisma.development.create({
+      data: {
+        profileId,
+        body: "New since then.",
+        createdAt: new Date("2026-07-01"),
+      },
+    });
+
+    const since = new Date("2026-06-01");
+    const recent = await getRecentDevelopments(profileId, since);
+    expect(recent).toHaveLength(1);
+    expect(recent[0]!.body).toContain("New since then");
+  });
+
+  it("puts them in the context, next to the commitment statuses they explain", async () => {
+    const context = buildDeepReviewContext({
+      scored: {
+        rubricVersion: "readiness/v1",
+        gradeLevel: 11,
+        monthsUntilApplication: 14,
+        thresholdBand: "gaps to close",
+        threshold: { schools: [] },
+        differentiation: {
+          band: "developing",
+          activities: [],
+          stalled: [],
+          topRungIndex: 2,
+          sustainedThreadCount: 1,
+        },
+        pace: {
+          status: "ON_PACE",
+          unknownGrade: false,
+          expectedTopRungIndex: 2,
+          expectedSustainedThreads: 1,
+        },
+      } as unknown as Parameters<typeof buildDeepReviewContext>[0]["scored"],
+      priorReviews: [],
+      commitments: [
+        {
+          description: "Run the spring workshop",
+          status: "ABANDONED",
+          dueDate: null,
+          resolvedAt: new Date("2026-05-01"),
+        },
+      ],
+      developments: [
+        { body: "The club folded, so the workshop could not happen.", createdAt: new Date("2026-05-02") },
+      ],
+      intendedMajor: "Physics",
+      careerGoal: "Research",
+      schoolContext: "A state comprehensive.",
+      now: new Date("2026-06-01"),
+    });
+
+    expect(context.text).toContain("What the student reported, in their own words");
+    expect(context.text).toContain("The club folded");
+    // Directly after the commitment history, because that is what it explains:
+    // abandoned-with-a-reason and abandoned-in-silence are opposite signals.
+    const commitments = context.text.indexOf("## Commitments made in past reviews");
+    const reported = context.text.indexOf("## What the student reported");
+    const requirements = context.text.indexOf("## Requirements, per target");
+    expect(commitments).toBeGreaterThan(-1);
+    expect(reported).toBeGreaterThan(commitments);
+    expect(reported).toBeLessThan(requirements);
+  });
+
+  it("omits the section entirely when there is nothing to report", () => {
+    const context = buildDeepReviewContext({
+      scored: {
+        rubricVersion: "readiness/v1",
+        gradeLevel: 11,
+        monthsUntilApplication: 14,
+        thresholdBand: "gaps to close",
+        threshold: { schools: [] },
+        differentiation: {
+          band: "developing",
+          activities: [],
+          stalled: [],
+          topRungIndex: 2,
+          sustainedThreadCount: 1,
+        },
+        pace: {
+          status: "ON_PACE",
+          unknownGrade: false,
+          expectedTopRungIndex: 2,
+          expectedSustainedThreads: 1,
+        },
+      } as unknown as Parameters<typeof buildDeepReviewContext>[0]["scored"],
+      priorReviews: [],
+      commitments: [],
+      developments: [],
+      intendedMajor: null,
+      careerGoal: null,
+      schoolContext: null,
+      now: new Date("2026-06-01"),
+    });
+    // An empty heading invites the model to fill it.
+    expect(context.text).not.toContain("What the student reported");
   });
 });

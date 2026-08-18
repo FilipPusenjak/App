@@ -38,10 +38,24 @@ export type DeepReviewContextInput = {
   priorReviews: PriorReview[];
   /** Including abandoned: what a student drops is signal, not noise. */
   commitments: CommitmentHistory[];
+  /**
+   * What the student SAID happened, in their own words, since the last review.
+   *
+   * The only part of this whole context they wrote. Everything else was
+   * computed about them, and a strategy review that reasons only from its own
+   * arithmetic while ignoring what the person told it is not reviewing their
+   * situation — it is reviewing its model of their situation.
+   */
+  developments: ReportedDevelopment[];
   intendedMajor: string | null;
   careerGoal: string | null;
   schoolContext: string | null;
   now?: Date;
+};
+
+export type ReportedDevelopment = {
+  body: string;
+  createdAt: Date;
 };
 
 const TOKEN_BUDGET = 12000;
@@ -152,6 +166,24 @@ export function buildDeepReviewContext(
       lines.push(
         `Note the pattern: ${abandoned.length} abandoned. What someone repeatedly drops is information about what will actually get done, and a plan that ignores it will be dropped too.`,
       );
+    }
+  }
+
+  // ── The student's own account ─────────────────────────────────────────────
+  // Placed directly after the commitments, because most of it will be about
+  // them: whether the thing got done, what the answer was, why it stalled. A
+  // commitment marked ABANDONED with a note explaining that the club folded is
+  // a completely different signal from one abandoned in silence, and reading
+  // the status without the account would draw exactly the wrong conclusion
+  // about what this student follows through on.
+  if (input.developments.length > 0) {
+    lines.push("");
+    lines.push("## What the student reported, in their own words");
+    lines.push(
+      "Unedited, and the only part of this context they wrote. Weigh it against the computed record above rather than instead of it — but where it explains something the numbers only show the shape of, it is the better evidence.",
+    );
+    for (const d of input.developments) {
+      lines.push(`- ${d.createdAt.toISOString().slice(0, 10)}: ${d.body}`);
     }
   }
 

@@ -22,7 +22,7 @@ import {
 import {
   DEEP_REVIEW_PROMPT_VERSION,
   DEEP_REVIEW_SYSTEM_PROMPT,
-} from "@/lib/prompts/tiers/deep-review-v2";
+} from "@/lib/prompts/tiers/deep-review-v3";
 import { RUNGS } from "@/lib/readiness/rungs";
 import { FEASIBILITY } from "@/lib/readiness/pace";
 
@@ -94,7 +94,7 @@ describe("both tier prompts carry it", () => {
     // prompt without bumping would silently relabel history as having been
     // produced by instructions it never saw.
     expect(CHECK_IN_PROMPT_VERSION).toBe("check-in/v3");
-    expect(DEEP_REVIEW_PROMPT_VERSION).toBe("deep-review/v2");
+    expect(DEEP_REVIEW_PROMPT_VERSION).toBe("deep-review/v3");
   });
 
   it("keeps the prefixes the stored-shape reader dispatches on", () => {

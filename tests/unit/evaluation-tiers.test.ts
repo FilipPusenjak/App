@@ -132,6 +132,7 @@ describe("check-in context stays inside its budget", () => {
       now: NOW,
     });
     const deep = buildDeepReviewContext({
+    developments: [],
       scored: s,
       priorReviews: [],
       commitments: [],
