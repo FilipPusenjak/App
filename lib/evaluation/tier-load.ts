@@ -18,6 +18,10 @@ import {
 } from "@/lib/readiness/score";
 import type { Rung } from "@/lib/readiness/rungs";
 import type { EvaluationType } from "@/lib/validation/tiers";
+import { COUNTRIES } from "@/lib/data/countries";
+
+const countryName = (code: string) =>
+  COUNTRIES.find((c) => c.code === code)?.name ?? code;
 
 export const SOURCE_DATA_VERSION = "requirements/2026-08-09";
 
@@ -34,6 +38,8 @@ export type LoadedTierData = {
   intendedMajor: string | null;
   careerGoal: string | null;
   schoolContext: string | null;
+  /** Targets as named, for the rubric mapping a deep review needs. */
+  targets: { name: string; country: string; countryName: string; course: string | null }[];
   /** The preceding evaluation OF THE SAME TYPE — different baselines by design. */
   preceding: {
     id: string;
@@ -173,6 +179,12 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
     intendedMajor: profile.intendedMajor,
     careerGoal: profile.careerGoal,
     schoolContext: profile.schoolContext,
+    targets: profile.targetSchools.map((t) => ({
+      name: t.name,
+      country: t.country,
+      countryName: countryName(t.country),
+      course: t.course,
+    })),
     preceding: preceding
       ? {
           id: preceding.id,

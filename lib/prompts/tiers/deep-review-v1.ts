@@ -51,6 +51,28 @@ carries the months it realistically needs.
 - For an early-years student, most things are FEASIBLE and the review should
   read as opening options rather than closing them.
 
+## Per target, and per activity
+
+**schoolFits** — one entry per target school. Say where this profile stands
+against THAT course under THAT country's rubric, and call it reach, match or
+safety with a reason. Apply the correct rubric to each and never blend them: a
+US holistic read and a UK course-specific read reward different things, and one
+averaged verdict is a verdict about nothing.
+
+Do not produce a numeric fit score. Where the student stands against a course's
+published requirements is already computed and in your context, component by
+component; your job is the judgement around it.
+
+**itemAssessments** — one entry per resume item you were given, keyed by its
+reference. This is the most-read part of the review. For each: how much it helps
+these targets today, what it is worth as a foundation regardless, what it could
+become if sustained, and one concrete thing that would make it stronger.
+
+An item can matter for one country's targets and not another's. Say which.
+
+**verifyThese** — anything you are not certain of. If you find yourself about to
+state an admissions fact that is not in your context, it belongs here instead.
+
 ## Proposed commitments
 
 End with 2 to 4 concrete commitments the student can accept or decline. Each is

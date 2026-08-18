@@ -11,6 +11,7 @@
 // SHARES NO CODE PATH with the check-in builder beyond lib/readiness.
 import type { ScoredProfile } from "@/lib/readiness/score";
 import { RUNG_LABELS } from "@/lib/readiness/rungs";
+import { getRubric, renderRubric, rubricsForCountries } from "@/lib/rubrics";
 
 export type PriorReview = {
   createdAt: Date;
@@ -31,6 +32,8 @@ export type CommitmentHistory = {
 
 export type DeepReviewContextInput = {
   scored: ScoredProfile;
+  /** Targets, for the rubric mapping. Which rubric applies is not a judgement. */
+  targets?: { name: string; country: string; countryName: string; course: string | null }[];
   /** Deep reviews only — a check-in is not a baseline for one. */
   priorReviews: PriorReview[];
   /** Including abandoned: what a student drops is signal, not noise. */
@@ -179,3 +182,46 @@ export function buildDeepReviewContext(
 }
 
 export const DEEP_REVIEW_TOKEN_BUDGET = TOKEN_BUDGET;
+
+/**
+ * The cacheable half: the rubrics themselves.
+ *
+ * Identical for every student with the same set of target countries and
+ * identical across every run any of them makes, so it goes in front of a cache
+ * breakpoint exactly as the evaluation it replaces did. It is also most of the
+ * bytes — roughly 5,000 tokens against a couple of thousand for the student —
+ * which is why the split is worth having at all.
+ *
+ * A deep review needs these because it now judges each target under its own
+ * country's rubric. Without them the "never blend US and UK" rule would be an
+ * instruction with nothing behind it.
+ */
+export function buildDeepReviewStable(
+  targets: { name: string; country: string; countryName: string; course: string | null }[],
+): string {
+  const rubrics = rubricsForCountries(targets.map((t) => t.country));
+  const mapping =
+    targets.length === 0
+      ? "- (no targets recorded)"
+      : targets
+          .map((t) => {
+            const rubric = getRubric(t.country);
+            return (
+              `- ${t.name} (${t.countryName}) -> ${rubric.name} [id: ${rubric.id}]` +
+              (rubric.id === "generic"
+                ? " — no country-specific rubric exists, so it is judged generically. Say so plainly rather than implying a national rubric was applied."
+                : "")
+            );
+          })
+          .join("\n");
+
+  return `# Admissions rubrics in play
+
+Apply the matching rubric to each target. Do not blend them.
+
+${rubrics.map(renderRubric).join("\n\n---\n\n")}
+
+# Which rubric applies to which target
+
+${mapping}`;
+}

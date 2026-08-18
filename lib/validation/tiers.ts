@@ -7,6 +7,11 @@
 import { z } from "zod";
 import { RUNGS } from "@/lib/readiness/rungs";
 import { FEASIBILITY } from "@/lib/readiness/pace";
+import {
+  aiClassificationSchema,
+  itemAssessmentSchema,
+  selectivitySchema,
+} from "@/lib/validation/evaluation";
 
 export const EVALUATION_TYPES = ["CHECK_IN", "DEEP_REVIEW"] as const;
 export const evaluationTypeSchema = z.enum(EVALUATION_TYPES);
@@ -81,7 +86,31 @@ export const gapItemSchema = z.object({
   monthsNeeded: z.number().int().min(0).max(60),
 });
 
+/**
+ * One target, judged.
+ *
+ * Carried over from the evaluation this replaces, MINUS its `fitScore`. A
+ * 0-100 position against one school's bar was the closest thing this app had
+ * to an odds figure, and a student reading "fitScore 34" hears one number about
+ * their chances. Where the profile actually stands against that course is now
+ * the computed threshold snapshot — met, unmet, or not checked, per component —
+ * and the reach/match/safety call remains as the judgement it always was.
+ */
+export const tierSchoolFitSchema = z.object({
+  schoolName: z.string().trim().min(1).max(200),
+  course: z.string().trim().max(200),
+  /** Which rubric was applied, so the US/UK branch stays visible. */
+  rubricUsed: z.string().trim().max(120),
+  selectivity: selectivitySchema,
+  classification: aiClassificationSchema,
+  classificationReason: z.string().trim().min(1).max(800),
+  assessment: z.string().trim().min(1).max(1500),
+  keyRisks: z.array(z.string().trim().min(1).max(400)).max(6).default([]),
+});
+
 export const deepReviewNarrativeSchema = z.object({
+  /** One sentence, for the dashboard and the timeline. */
+  headline: z.string().trim().min(1).max(300),
   /**
    * Must open against the previous deep review, or state plainly that this is
    * the baseline. A review that starts from nowhere gives a student no way to
@@ -105,7 +134,24 @@ export const deepReviewNarrativeSchema = z.object({
       .max(6)
       .default([]),
   }),
+  /**
+   * Per target. Absorbed from the evaluation this replaces, because the whole
+   * point of naming targets is to be told where you stand against each one —
+   * and a single profile-wide read cannot say that.
+   */
+  schoolFits: z.array(tierSchoolFitSchema).max(20).default([]),
+  /**
+   * One per resume item. Also absorbed: it is the most-read part of the old
+   * evaluation, and dropping it in a "replacement" would be a downgrade the
+   * student never asked for.
+   */
+  itemAssessments: z.array(itemAssessmentSchema).max(60).default([]),
   gaps: z.array(gapItemSchema).max(10).default([]),
+  /**
+   * Anything the model is not certain of. The app's oldest rule: never assert
+   * an admissions fact you cannot source, put it here instead.
+   */
+  verifyThese: z.array(z.string().trim().min(1).max(400)).max(15).default([]),
   /** 2-4, proposed for the student to accept or decline. */
   proposedCommitments: z
     .array(

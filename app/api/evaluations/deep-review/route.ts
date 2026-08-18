@@ -7,7 +7,7 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { getAnthropicClient, getModel } from "@/lib/anthropic";
+import { getAnthropicClient, getCacheControl, getModel } from "@/lib/anthropic";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
@@ -17,7 +17,10 @@ import {
   loadForTier,
   SOURCE_DATA_VERSION,
 } from "@/lib/evaluation/tier-load";
-import { buildDeepReviewContext } from "@/lib/evaluation/context/deep-review";
+import {
+  buildDeepReviewContext,
+  buildDeepReviewStable,
+} from "@/lib/evaluation/context/deep-review";
 import { checkDeepReviewAllowed, tierForUser } from "@/lib/evaluation/tier-access";
 import {
   DEEP_REVIEW_PROMPT_VERSION,
@@ -101,11 +104,17 @@ export async function POST() {
       differentiationSnapshotJson: true,
       paceStatus: true,
       rubricVersion: true,
+      model: true,
     },
   });
+  // Caches are model-scoped, so a write is only worth making when the previous
+  // run used the same model — the lesson from the evaluation route.
+  const precedingModel = priorReviews[0]?.model ?? null;
 
+  const targets = data.targets;
   const context = buildDeepReviewContext({
     scored: data.scored,
+    targets,
     // Headlines only. Full prior documents would blow the budget and bias the
     // new review toward repeating itself.
     priorReviews: priorReviews.map((r) => ({
@@ -125,11 +134,39 @@ export async function POST() {
   // The strong model. Never named to the user.
   const model = getModel();
 
+  // Rubrics first, behind a cache breakpoint: they are identical for every
+  // student with the same target countries and are most of the bytes, so they
+  // are the only part worth caching. Everything student-specific comes after.
+  const stable = buildDeepReviewStable(targets);
+  const cache = getCacheControl(
+    data.preceding?.createdAt ?? null,
+    precedingModel,
+    model,
+  );
+
   const message = await client.messages.create({
     model,
-    max_tokens: 8000,
-    system: DEEP_REVIEW_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildDeepReviewUserPrompt(context.text) }],
+    max_tokens: 12000,
+    system: [
+      {
+        type: "text" as const,
+        text: DEEP_REVIEW_SYSTEM_PROMPT,
+        ...(cache ? { cache_control: cache } : {}),
+      },
+    ],
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text" as const,
+            text: stable,
+            ...(cache ? { cache_control: cache } : {}),
+          },
+          { type: "text" as const, text: buildDeepReviewUserPrompt(context.text) },
+        ],
+      },
+    ],
     output_config: { format: OUTPUT_FORMAT },
   });
 

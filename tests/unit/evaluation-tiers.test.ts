@@ -328,6 +328,9 @@ describe("output shapes", () => {
 
   it("requires 2 to 4 proposed commitments on a deep review", () => {
     const base = {
+      // headline, schoolFits, itemAssessments and verifyThese arrived when the
+      // deep review absorbed the evaluation it replaces.
+      headline: "A one-sentence headline.",
       sinceLastReview: "Baseline.",
       trajectory: { assessment: "a", direction: "STEADY" },
       coherence: { assessment: "a", incoherences: [] },
