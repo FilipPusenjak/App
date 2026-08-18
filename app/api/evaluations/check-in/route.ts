@@ -7,7 +7,12 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { getAnthropicClient, getFollowupModel } from "@/lib/anthropic";
+import {
+  getAnthropicClient,
+  getFollowupEffort,
+  getFollowupModel,
+} from "@/lib/anthropic";
+import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
@@ -129,7 +134,11 @@ export async function POST() {
     max_tokens: 2000,
     system: CHECK_IN_SYSTEM_PROMPT,
     messages: [{ role: "user", content: buildCheckInUserPrompt(context.text) }],
-    output_config: { format: OUTPUT_FORMAT },
+    // Explicit, for the same reason as the deep review. getFollowupEffort
+    // defaults to the baseline effort rather than dropping it: a check-in that
+    // both changed model AND lowered effort would make an unexplained movement
+    // impossible to attribute to either.
+    output_config: { format: OUTPUT_FORMAT, effort: getFollowupEffort() as Effort },
   });
 
   // Read the usage BEFORE anything can reject the output — everything below is

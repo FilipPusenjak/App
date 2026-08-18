@@ -44,6 +44,24 @@ describe("tier routes never spend without recording", () => {
       }
     });
 
+    it(`${path} states its effort explicitly`, () => {
+      // Sending output_config with only a format leaves the API's default
+      // effort in charge, which silently disconnects ANTHROPIC_EFFORT from the
+      // run. That is not a quality question but a billing one: thinking tokens
+      // bill as output, and output is about two thirds of a Deep Review's cost,
+      // so an unstated effort is an unstated bill. /api/evaluate has always
+      // passed it; these routes did not, and nothing noticed for a whole tier
+      // build because no test asserts on a request body.
+      const config = /output_config:\s*\{[^}]*\}/.exec(source)?.[0];
+      expect(config, `${path} has no output_config`).toBeTruthy();
+      expect(
+        config!.includes("effort"),
+        `${path} sends output_config without an effort. Set it from ` +
+          `getEffort()/getFollowupEffort() so the configured value governs ` +
+          `the run rather than the API default.`,
+      ).toBe(true);
+    });
+
     it(`${path} reads usage before it can reject`, () => {
       // The usage object has to be built before the first rejection, or the
       // recorder has nothing to record.

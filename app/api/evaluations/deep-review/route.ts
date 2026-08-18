@@ -7,7 +7,13 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { getAnthropicClient, getCacheControl, getModel } from "@/lib/anthropic";
+import {
+  getAnthropicClient,
+  getCacheControl,
+  getEffort,
+  getModel,
+} from "@/lib/anthropic";
+import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
@@ -168,7 +174,13 @@ export async function POST() {
         ],
       },
     ],
-    output_config: { format: OUTPUT_FORMAT },
+    // Effort is passed EXPLICITLY, like /api/evaluate does. Sending only the
+    // format leaves the API's own default in charge, which silently
+    // disconnects ANTHROPIC_EFFORT from the most expensive run in the app —
+    // the one whose cost most needs to be predictable. Thinking tokens bill as
+    // output, and output is roughly two thirds of a Deep Review's cost, so an
+    // unstated effort is an unstated bill.
+    output_config: { format: OUTPUT_FORMAT, effort: getEffort() as Effort },
   });
 
   // Read the usage BEFORE anything can reject the output. Everything below
