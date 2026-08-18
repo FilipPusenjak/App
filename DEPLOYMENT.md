@@ -112,6 +112,7 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `DATABASE_URL` | **Yes** | Your **production** Postgres string. Set automatically if you use Vercel Postgres. |
 | `AUTH_SECRET` | **Yes** | Generate a **new** one for production: `openssl rand -base64 32`. Do not reuse your local value. |
 | `SIGNUP_ALLOWED_EMAILS` | **Strongly recommended** | Comma-separated addresses allowed to register. See the warning below. |
+| `DEEP_REVIEW_ALLOWED_EMAILS` | For Deep Reviews | Comma-separated addresses on the paid tier. **Unset means nobody**, which is deliberate — see below. `*` opens it to everyone. |
 | `ANTHROPIC_API_KEY` | For real evaluations | Without it the app produces clearly-labelled sample output instead. |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5`. |
 | `ANTHROPIC_EFFORT` | No | `low` \| `medium` \| `high` \| `xhigh` \| `max`. Defaults to `medium`. |
@@ -130,6 +131,38 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `DATABASE_POOL_MAX` | No | Default 5. Keep small on serverless. |
 
 `AUTH_TRUST_HOST` is not needed on Vercel — it detects the host itself.
+
+### Turning on Deep Reviews
+
+`DEEP_REVIEW_ALLOWED_EMAILS` unset means **nobody** is on the paid tier, and the
+"Run a Deep Review" button never appears. That default is deliberate: defaulting
+open would make the entitlement check pass while gating nothing, which is the
+kind of mistake that only shows up on the first real invoice.
+
+```
+DEEP_REVIEW_ALLOWED_EMAILS=you@example.com
+```
+
+The address matched is **the one the account signed up with**, not the one on
+your hosting account. `*` opens Deep Reviews to everyone who can log in.
+
+Two things to expect on the first one:
+
+- **The spending cap applies first.** A Deep Review runs on the strong model
+  with roughly three times a normal evaluation's context, so it is the most
+  expensive single thing the app does. With `ACCOUNT_SPEND_LIMIT_USD` at its
+  **$2** default, an account that has already run a few evaluations may be
+  refused with "spending limit reached" before the review starts. Raise the cap
+  deliberately rather than by accident.
+- **A 21-day floor** between Deep Reviews, enforced server-side and not
+  configurable. It is pedagogical, not commercial: a plan re-litigated every
+  week never runs long enough to show whether it was working. Check-Ins carry on
+  in between.
+
+If a review is discarded — the model's output fails its schema, or contains
+phrasing the app refuses to show a student — the attempt is still recorded in
+history as failed, **with what it cost**. A run that spent money always leaves a
+trace, so the spend total and your bill cannot disagree.
 
 ### ⚠️ Set `SIGNUP_ALLOWED_EMAILS`
 
