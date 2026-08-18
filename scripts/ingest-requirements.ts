@@ -18,6 +18,22 @@ import {
 } from "../lib/validation/course-requirements";
 import { isUsableKey, matchKey, normalizeUniversity } from "../lib/requirements/match";
 
+/**
+ * The fields a student can actually act on when choosing subjects.
+ *
+ * `applicationRoute`, `interview` and `workExperience` are real requirements
+ * but none of them changes what a 15-year-old should study, and all three are
+ * routinely stated on an institution-wide page that says nothing about the
+ * course.
+ */
+const DECISION_RELEVANT = [
+  "gradeRequirement",
+  "requiredSubjects",
+  "admissionsTest",
+  "languageRequirement",
+  "restrictedEntry",
+] as const;
+
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
 const prune = args.includes("--prune");
@@ -50,6 +66,14 @@ function readRecords(file: string): unknown[] {
   // for "a JSON array" may still wrap it.
   if (Array.isArray(parsed)) return parsed;
   if (parsed && typeof parsed === "object") {
+    // `records` WINS over any other array, and that precedence is the whole
+    // point rather than a nicety. The brief asks for an envelope carrying
+    // `records` alongside `noSourceableData` and `unreached`, and "first array
+    // in the object" would silently ingest the wrong list the moment an agent
+    // emitted the keys in a different order — producing a confident, tiny,
+    // completely wrong batch.
+    const named = (parsed as Record<string, unknown>).records;
+    if (Array.isArray(named)) return named;
     for (const value of Object.values(parsed)) {
       if (Array.isArray(value)) return value;
     }
@@ -71,6 +95,7 @@ async function main() {
   let written = 0;
   let nullFields = 0;
   let totalFields = 0;
+  const weakOnly: string[] = [];
 
   for (const raw of records) {
     const outcome = validateRecord(raw);
@@ -101,6 +126,18 @@ async function main() {
     nullFields += REQUIREMENT_FIELDS.filter(
       (f) => !record.requirements[f],
     ).length;
+
+    // Reported, never rejected. A record whose only sourced field is the
+    // application route says "apply through UCAS" and nothing a student can
+    // plan subjects around — 47% of the first batch was exactly this, almost
+    // all of it UK, because an institution-wide admissions page states the
+    // route and nothing course-specific. It is not FALSE, so refusing it would
+    // destroy real rows on a re-ingest; it is thin, and thin data inflating a
+    // coverage number is its own kind of wrong. So the count is surfaced here
+    // and the brief tells researchers not to produce them.
+    if (!DECISION_RELEVANT.some((f) => record.requirements[f])) {
+      weakOnly.push(`${record.university} — ${record.course}`);
+    }
 
     if (!dryRun) {
       const data = {
@@ -139,6 +176,14 @@ async function main() {
     );
     console.log(
       `  — a high number here is expected and good: those become "check the course page" rather than a guess.`,
+    );
+  }
+  if (weakOnly.length > 0) {
+    const pct = Math.round((weakOnly.length / Math.max(written, 1)) * 100);
+    console.log(
+      `  thin records (route/interview/work-experience only): ${weakOnly.length}/${written} (${pct}%)` +
+        `\n  — these landed, but carry no grade, subject, test, language or quota` +
+        `\n    requirement, so they add a card a student cannot plan around.`,
     );
   }
   if (droppedRates.length > 0) {

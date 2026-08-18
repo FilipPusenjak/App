@@ -74,18 +74,25 @@ leaderboard.
 ## The researched requirements data
 
 `data/research/` holds the raw output of the research brief in
-`lib/prompts/research/course-requirements-v2.md`, one file per wave. Ingesting
+`lib/prompts/research/course-requirements-v3.md`, one file per wave. Ingesting
 is a two-step, dry-run-first process — see the README in that directory.
 
-v2 is the brief to run; v1 is kept because it produced the current rows. The
-difference came from re-running v1's output through the validator and counting:
-of 346 rejections, 345 were records with nothing sourced at all, and they were
+v3 is the brief to run; earlier versions are kept because v1 produced the
+current rows. The v2 changes came from re-running v1's output through the
+validator and counting: of 346 rejections, 345 were records with nothing sourced at all, and they were
 almost entirely continental European. v1 sourced 400/400 UK and 400/400 US
 courses and close to nothing in the EU, because it searched in English and the
 thresholds are published on national portals in the national language. v2 adds
 those portals and search terms, and states the limits v1 left the agent to
-guess at. `tests/unit/research-brief.test.ts` keeps the brief's worked example
-and every number it quotes pinned to the schema, so the two cannot drift again.
+guess at. v3 adds what the operator hit on later waves: the entry year and
+applicant profile belong on every input line (a stored record is keyed on
+country + university + course, with no room for a qualification, so two profiles
+overwrite each other), the course title must be confirmed against an official
+catalogue page, and an institution-wide page cannot support a course-specific
+requirement — 48% of the rows that landed carry nothing but "apply through
+UCAS". `tests/unit/research-brief.test.ts` keeps the brief's worked example, its
+delivery envelope and every number it quotes pinned to the schema, so the two
+cannot drift again.
 
 Matching a student's target to a record is deliberately strict: a wrong match
 would show one university's requirements under another's name, sourced and dated

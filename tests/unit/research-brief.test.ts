@@ -19,14 +19,45 @@ import { validateRecord } from "@/lib/validation/course-requirements";
 import { matchKey, isUsableKey } from "@/lib/requirements/match";
 import { isValidCountryCode } from "@/lib/data/countries";
 
-const BRIEF = "lib/prompts/research/course-requirements-v2.md";
+const BRIEF = "lib/prompts/research/course-requirements-v3.md";
 const source = readFileSync(BRIEF, "utf8");
 
-/** The worked example — the first fenced json block in the brief. */
-function exampleRecord(): unknown {
-  const match = /```json\n([\s\S]*?)```/.exec(source);
-  if (!match) throw new Error(`${BRIEF} has no fenced json example`);
-  return JSON.parse(match[1]!);
+/**
+ * The worked RECORD example.
+ *
+ * Selected by shape rather than by position: v3 added a second fenced json
+ * block for the delivery envelope, and "the first block" would silently start
+ * validating the wrong thing.
+ */
+function exampleRecord(): Record<string, unknown> {
+  for (const match of source.matchAll(/```json\n([\s\S]*?)```/g)) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(match[1]!);
+    } catch {
+      continue;
+    }
+    if (parsed && typeof parsed === "object" && "requirements" in parsed) {
+      return parsed as Record<string, unknown>;
+    }
+  }
+  throw new Error(`${BRIEF} has no fenced json record example`);
+}
+
+/** The delivery envelope example, which the ingest has to be able to read. */
+function exampleEnvelope(): Record<string, unknown> {
+  for (const match of source.matchAll(/```json\n([\s\S]*?)```/g)) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(match[1]!);
+    } catch {
+      continue;
+    }
+    if (parsed && typeof parsed === "object" && "records" in parsed) {
+      return parsed as Record<string, unknown>;
+    }
+  }
+  throw new Error(`${BRIEF} has no fenced json envelope example`);
 }
 
 describe("the worked example the brief tells agents to copy", () => {
@@ -172,6 +203,96 @@ describe("the two rules that discard whole courses", () => {
       "workExperience",
       "restrictedEntry",
       "applicationRoute",
+    ]) {
+      reqs[f] = null;
+    }
+    expect(validateRecord(record).ok).toBe(true);
+  });
+});
+
+describe("v3's delivery envelope is one the ingest can actually read", () => {
+  // The brief resolves an old contradiction by asking for a `records` envelope
+  // alongside `noSourceableData`, `unmatchedCourses` and `unreached`. If the
+  // ingest picked "the first array in the object" instead, a reordered envelope
+  // would quietly ingest the wrong list — a small, confident, wrong batch.
+  it("puts records first and carries the other lists", () => {
+    const envelope = exampleEnvelope();
+    expect(Object.keys(envelope)[0]).toBe("records");
+    for (const key of ["noSourceableData", "unmatchedCourses", "unreached"]) {
+      expect(Object.keys(envelope)).toContain(key);
+    }
+  });
+
+  it("is read by the same precedence rule the ingest uses", () => {
+    // Mirrors readRecords: a named `records` key wins over any other array,
+    // whatever order the keys arrive in.
+    const pick = (parsed: Record<string, unknown>) => {
+      const named = parsed.records;
+      if (Array.isArray(named)) return named;
+      for (const value of Object.values(parsed)) {
+        if (Array.isArray(value)) return value;
+      }
+      return null;
+    };
+    const envelope = exampleEnvelope();
+    expect(pick(envelope)).toBe(envelope.records);
+    // Reordered so another array comes first — still resolves to records.
+    const reordered = {
+      unreached: envelope.unreached,
+      noSourceableData: envelope.noSourceableData,
+      records: envelope.records,
+    };
+    expect(pick(reordered)).toBe(envelope.records);
+  });
+});
+
+describe("v3 states the country list the validator really has", () => {
+  it("lists only real codes, and enough of them to cover the EU targets", () => {
+    const block = /```\n(AE[\s\S]*?)```/.exec(source)?.[1];
+    expect(block, "brief has no country code block").toBeTruthy();
+    const codes = block!.split(/\s+/).filter(Boolean);
+    for (const code of codes) {
+      expect(isValidCountryCode(code), `${code} is not a code the app knows`).toBe(true);
+    }
+    // Every country the brief's own EU section sends researchers to.
+    for (const code of ["GB", "US", "DE", "NL", "FR", "IT", "ES", "SE", "DK", "BE", "CH"]) {
+      expect(codes, `${code} missing from the brief's list`).toContain(code);
+    }
+  });
+
+  it("warns that UK is stored and then matches nobody", () => {
+    expect(isValidCountryCode("UK")).toBe(false);
+    expect(source).toMatch(/`UK` is not on it/);
+  });
+});
+
+describe("v3's quality floor", () => {
+  it("names the five decision-relevant fields", () => {
+    for (const field of [
+      "gradeRequirement",
+      "requiredSubjects",
+      "admissionsTest",
+      "languageRequirement",
+      "restrictedEntry",
+    ]) {
+      expect(source).toContain(field);
+    }
+  });
+
+  it("is a request, not a rejection — a route-only record still validates", () => {
+    // Deliberate. 48% of the existing rows are route-only; enforcing the floor
+    // in the validator would refuse them on a re-ingest and --prune would then
+    // delete real data. The ingest reports the count instead.
+    const record = exampleRecord();
+    const reqs = record.requirements as Record<string, unknown>;
+    for (const f of [
+      "gradeRequirement",
+      "requiredSubjects",
+      "admissionsTest",
+      "languageRequirement",
+      "restrictedEntry",
+      "interview",
+      "workExperience",
     ]) {
       reqs[f] = null;
     }
