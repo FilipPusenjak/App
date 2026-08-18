@@ -145,6 +145,8 @@ model Profile {
   evaluations      Evaluation[]
   plannedItems     PlannedItem[]
   projections      Projection[]
+  commitments      Commitment[]
+  digests          ProfileDigest[]
   discoveryConsent DiscoveryConsent?
 
   @@index([userId])
@@ -419,6 +421,53 @@ model Evaluation {
   // Zod enum: pending | completed | failed
   status String @default("pending")
 
+  /// Zod enum: CHECK_IN | DEEP_REVIEW.
+  ///
+  /// A String rather than a Prisma enum to match every other constrained value
+  /// in this schema — the app validates with Zod at the boundary, and a String
+  /// means adding a tier later is a code change rather than a migration that
+  /// locks the table.
+  ///
+  /// Defaults to DEEP_REVIEW because that is what every evaluation written
+  /// before tiers existed actually was: a full-profile analysis on the strong
+  /// model. Backfilling them as check-ins would misdescribe history.
+  type String @default("DEEP_REVIEW")
+
+  /// The rubric this was scored under, and the researched-data snapshot it
+  /// read. Pinned, never recomputed: when the rubric changes, history keeps
+  /// the numbers it was actually given, and the change is drawn as a boundary
+  /// on the timeline instead of silently redrawing the past.
+  rubricVersion     String?
+  sourceDataVersion String?
+
+  /// Deterministic scoring, computed in code BEFORE the model is called. The
+  /// model interprets these; it is never asked to calculate or recall one.
+  ///
+  /// Two snapshots, never one scalar: threshold components cap at "met" and
+  /// cannot be exceeded by doing more, differentiation has no ceiling. Blending
+  /// them would let extra depth paper over an unmet prerequisite.
+  thresholdSnapshotJson       String?
+  differentiationSnapshotJson String?
+
+  /// Zod enum: AHEAD | ON_PACE | BEHIND. Position against the modeled curve
+  /// for this student's grade, not against other users.
+  paceStatus String?
+
+  /// Check-ins only. False means the deterministic pass found nothing material
+  /// had changed, so no model was called and no quota was spent — a valid and
+  /// expected outcome, not a failure.
+  materialChange Boolean?
+
+  /// The evaluation this one is measured against: the previous check-in for a
+  /// check-in, the previous deep review for a deep review. They are different
+  /// baselines on purpose.
+  precedingEvaluationId String?
+  precedingEvaluation   Evaluation?  @relation("EvaluationChain", fields: [precedingEvaluationId], references: [id], onDelete: SetNull)
+  followingEvaluations  Evaluation[] @relation("EvaluationChain")
+
+  commitmentsProposed Commitment[] @relation("CommitmentSource")
+  commitmentsResolved Commitment[] @relation("CommitmentResolution")
+
   model         String? // AI model id that produced this (e.g. claude-opus-5)
   promptVersion String? // which /lib/prompts template version was used
   isSample      Boolean @default(false) // true = generated without an API key; NOT real AI output
@@ -446,6 +495,86 @@ model Evaluation {
   cacheWriteTokens Int?
   cacheReadTokens  Int?
 
+  /// What this run cost, in cents, at the prices in lib/cost.ts.
+  ///
+  /// Stored rather than derived because prices change and a historical run
+  /// should keep what it actually cost. Per-user cost drift across a four-year
+  /// retention on a flat subscription is the main margin risk in this product,
+  /// and it has to be observable from the first evaluation rather than
+  /// reconstructed later from token counts and a guess at the price table.
+  costCents Int?
+
+  @@index([profileId])
+  @@index([profileId, type, createdAt])
+}
+
+/// Something a student agreed to do, proposed by an evaluation.
+///
+/// This is the follow-through loop: a deep review proposes, the student
+/// accepts, and check-ins ask about it at high frequency until it resolves.
+///
+/// Deliberately NOT the same table as PlannedItem, which is student-authored
+/// and exists to feed conditional projections ("what would happen if I did
+/// this?"). A Commitment is evaluation-authored and carries a resolution
+/// lifecycle including abandonment, because what a student drops is signal a
+/// later deep review is meant to read. The two overlap in spirit and are
+/// distinct in what they are for; merging them would lose the abandonment
+/// history on one side or the projection inputs on the other.
+model Commitment {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  sourceEvaluationId String?
+  sourceEvaluation   Evaluation? @relation("CommitmentSource", fields: [sourceEvaluationId], references: [id], onDelete: SetNull)
+
+  description String
+  /// The rung this commitment is meant to reach — see lib/readiness/rungs.ts.
+  targetRung  String?
+  dueDate     DateTime?
+
+  /// Zod enum: PROPOSED | ACCEPTED | IN_PROGRESS | COMPLETED | ABANDONED.
+  /// ABANDONED is kept rather than deleted precisely because the pattern of
+  /// what someone drops is the most honest thing in this table.
+  status String @default("PROPOSED")
+
+  resolvedAt             DateTime?
+  resolvedInEvaluationId String?
+  resolvedInEvaluation   Evaluation? @relation("CommitmentResolution", fields: [resolvedInEvaluationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId, status])
+}
+
+/// A completed grade year, compacted.
+///
+/// Exists for a cost reason that is structural rather than an optimisation. A
+/// student is meant to stay for four years on a flat subscription, so a
+/// senior's check-in must not cost several times a freshman's simply because
+/// three more years of raw entries have accumulated behind them. Once a grade
+/// year is done its entries are replaced in check-in context by this summary,
+/// permanently.
+///
+/// Deep reviews still read the full history. That difference is exactly what
+/// makes the tier boundary honest rather than a gate.
+model ProfileDigest {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// The grade year this covers, e.g. 9, 10, 11.
+  throughGrade Int
+  /// Serialized, Zod-validated on read like every other structured value here.
+  summaryJson  String
+
+  generatedAt   DateTime @default(now())
+  rubricVersion String?
+  /// Which model compacted it. Digesting is a batch job on the cheap model.
+  model         String?
+
+  @@unique([profileId, throughGrade])
   @@index([profileId])
 }
 
