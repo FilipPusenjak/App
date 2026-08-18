@@ -5,6 +5,7 @@ import { studentLabel } from "@/lib/students";
 import { loadDashboard } from "@/lib/dashboard/load";
 import { describeMovement } from "@/lib/dashboard/summary";
 import { BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
+import { CommitmentControls } from "@/components/evaluation/commitment-controls";
 
 const card =
   "rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5";
@@ -166,6 +167,16 @@ export default async function DashboardPage() {
                   )}
                   {step.meta && (
                     <p className="mt-1 text-xs text-zinc-500">{step.meta}</p>
+                  )}
+                  {/* Answerable from here, not only from the full review. A
+                      proposed commitment a student has to go hunting for is one
+                      they leave proposed, and an unanswered commitment is the
+                      one thing a check-in cannot do anything with. */}
+                  {step.commitmentId && step.status && (
+                    <CommitmentControls
+                      id={step.commitmentId}
+                      status={step.status}
+                    />
                   )}
                 </div>
               </li>

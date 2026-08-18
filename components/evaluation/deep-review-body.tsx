@@ -21,6 +21,7 @@
 import Link from "next/link";
 import type { DeepReviewNarrative } from "@/lib/validation/tiers";
 import { BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
+import { CommitmentControls } from "./commitment-controls";
 import {
   Card,
   Pill,
@@ -189,6 +190,7 @@ export function DeepReviewBody({
                   )}
                 </div>
                 <p className="mt-1.5 text-sm">{c.description}</p>
+                <CommitmentControls id={c.id} status={c.status} />
               </li>
             ))}
           </ul>

@@ -25,10 +25,16 @@ export function RunEvaluationButton({
   deepReviewBlockedReason?: string;
 }) {
   const router = useRouter();
-  const [running, setRunning] = useState<"deep" | "scored" | null>(null);
+  const [running, setRunning] = useState<"deep" | "scored" | "checkin" | null>(
+    null,
+  );
   const [failure, setFailure] = useState<Failure | null>(null);
 
-  async function post(url: string, body: unknown, kind: "deep" | "scored") {
+  async function post(
+    url: string,
+    body: unknown,
+    kind: "deep" | "scored" | "checkin",
+  ) {
     setRunning(kind);
     setFailure(null);
     try {
@@ -63,6 +69,7 @@ export function RunEvaluationButton({
 
   const runDeep = () => post("/api/evaluations/deep-review", {}, "deep");
   const runScored = () => post("/api/evaluate", { full: false }, "scored");
+  const runCheckIn = () => post("/api/evaluations/check-in", {}, "checkin");
 
   return (
     // Full width on a phone, where a primary action floating at the right edge
@@ -88,6 +95,26 @@ export function RunEvaluationButton({
               ? "Run a Deep Review"
               : "Run evaluation"}
       </button>
+
+      {/* The fortnightly rhythm, and the only tier action a free account gets.
+          Offered only once a real evaluation exists, because a check-in with no
+          baseline has nothing to compare against — it would still call the
+          model and charge for a narrative about a fortnight nobody measured.
+
+          Often this costs NOTHING: the route runs a deterministic pass first
+          and, when nothing material has moved, records the check-in without
+          calling a model at all. That is the expected outcome of a quiet
+          fortnight rather than a failure. */}
+      {canFollowUp && !disabled && (
+        <button
+          type="button"
+          onClick={runCheckIn}
+          disabled={running !== null}
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-black/15 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-50 sm:py-2 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          {running === "checkin" ? "Checking in…" : "Run a Check-In"}
+        </button>
+      )}
 
       {/* The older percentile evaluation, kept reachable underneath a Deep
           Review. It is not the primary read any more, but it is not dead

@@ -334,3 +334,148 @@ test("a pre-v6 legacy evaluation still renders", async ({ page }) => {
   await expect(main.getByText("58").first()).toBeVisible();
   await expect(main.getByText("Imperial College London").first()).toBeVisible();
 });
+
+test("a proposed commitment can be accepted, and then declined ones stay declined", async ({
+  page,
+}) => {
+  const profileId = await signUpAndGetProfile(page, "commit");
+
+  const reviewId = await seedEvaluation({
+    profileId,
+    type: "DEEP_REVIEW",
+    promptVersion: "deep-review/v1",
+    paceStatus: "ON_PACE",
+    thresholdSnapshotJson: JSON.stringify({ band: "gaps to close" }),
+    differentiationSnapshotJson: JSON.stringify({ band: "competitive" }),
+    resultJson: JSON.stringify(deepReviewNarrative),
+  });
+  const commitmentId = newId("cm");
+  await db.query(
+    `INSERT INTO "Commitment"
+       (id, "profileId", "sourceEvaluationId", description, status, "dueDate",
+        "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,$4,'PROPOSED',$5,NOW(),NOW())`,
+    [commitmentId, profileId, reviewId, "Write up the simulation method", new Date("2026-10-01")],
+  );
+
+  await page.goto(`/evaluations/${reviewId}`);
+  const main = page.locator("main");
+
+  // The whole point of this test: before this existed, the API was reachable
+  // and nothing in the app ever called it, so every commitment stayed PROPOSED
+  // forever and the check-in loop had nothing to track.
+  await expect(main.getByRole("button", { name: "I'll do this" })).toBeVisible();
+  await main.getByRole("button", { name: "I'll do this" }).click();
+
+  await expect(main.getByText("you took this on")).toBeVisible();
+  const accepted = await db.query<{ status: string }>(
+    `SELECT status FROM "Commitment" WHERE id = $1`,
+    [commitmentId],
+  );
+  expect(accepted.rows[0]!.status).toBe("ACCEPTED");
+
+  // Accepting replaces the propose/decline pair with the follow-through moves.
+  await expect(main.getByRole("button", { name: "I'll do this" })).toHaveCount(0);
+  await expect(main.getByRole("button", { name: "Done" })).toBeVisible();
+
+  // "Set aside", never "abandoned" or "failed" — dropping something on purpose
+  // is a legitimate outcome and the signal a later review reads.
+  await main.getByRole("button", { name: "Set aside" }).click();
+  await expect(main.getByText("set aside")).toBeVisible();
+
+  const resolved = await db.query<{ status: string; resolvedAt: Date | null }>(
+    `SELECT status, "resolvedAt" FROM "Commitment" WHERE id = $1`,
+    [commitmentId],
+  );
+  expect(resolved.rows[0]!.status).toBe("ABANDONED");
+  expect(resolved.rows[0]!.resolvedAt).not.toBeNull();
+
+  // Terminal on the server, so no buttons remain to contradict that.
+  await expect(main.getByRole("button", { name: "Done" })).toHaveCount(0);
+});
+
+test("a commitment can be accepted from the dashboard too", async ({ page }) => {
+  const profileId = await signUpAndGetProfile(page, "dashcommit");
+
+  const reviewId = await seedEvaluation({
+    profileId,
+    type: "DEEP_REVIEW",
+    promptVersion: "deep-review/v1",
+    paceStatus: "ON_PACE",
+    thresholdSnapshotJson: JSON.stringify({ band: "gaps to close" }),
+    differentiationSnapshotJson: JSON.stringify({ band: "competitive" }),
+    resultJson: JSON.stringify(deepReviewNarrative),
+  });
+  const commitmentId = newId("cm");
+  await db.query(
+    `INSERT INTO "Commitment"
+       (id, "profileId", "sourceEvaluationId", description, status, "dueDate",
+        "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,$4,'PROPOSED',NULL,NOW(),NOW())`,
+    [commitmentId, profileId, reviewId, "Speak to school about Further Maths"],
+  );
+
+  await page.goto("/dashboard");
+  const main = page.locator("main");
+  await expect(main.getByText("Speak to school about Further Maths")).toBeVisible();
+  await main.getByRole("button", { name: "I'll do this" }).click();
+
+  await expect(main.getByText("You committed to this.")).toBeVisible();
+  const row = await db.query<{ status: string }>(
+    `SELECT status FROM "Commitment" WHERE id = $1`,
+    [commitmentId],
+  );
+  expect(row.rows[0]!.status).toBe("ACCEPTED");
+});
+
+test("the Check-In button appears only once there is something to check in against", async ({
+  page,
+}) => {
+  const profileId = await signUpAndGetProfile(page, "checkinbtn");
+
+  // A profile with targets and content but no evaluation: the button must not
+  // be offered, because a check-in with no baseline still calls the model and
+  // charges for a narrative about a fortnight nobody measured.
+  await page.goto("/targets/new");
+  await page.fill('input[name="name"]', "University of Cambridge");
+  await page.selectOption('select[name="country"]', "GB");
+  await page.fill('input[name="course"]', "Physics");
+  await page.getByRole("button", { name: "Add target" }).click();
+  await page.waitForURL("**/targets");
+
+  // Resume content too, or the whole button group is disabled for having
+  // nothing to assess — which is correct, and would otherwise make this test
+  // pass for the wrong reason.
+  await db.query(
+    `INSERT INTO "ResumeItem"
+       (id, "profileId", type, title, description, "startDate", "hoursPerWeek",
+        "createdAt", "updatedAt")
+     VALUES ($1,$2,'project',$3,$4,NOW(),4,NOW(),NOW())`,
+    [
+      newId("ri"),
+      profileId,
+      "Orbital mechanics simulation",
+      "A simulation written over the last year.",
+    ],
+  );
+
+  await page.goto("/evaluations");
+  await expect(
+    page.locator("main").getByRole("button", { name: "Run a Check-In" }),
+  ).toHaveCount(0);
+
+  // Give them a completed evaluation, and it appears.
+  await seedEvaluation({
+    profileId,
+    type: "DEEP_REVIEW",
+    promptVersion: "deep-review/v1",
+    paceStatus: "ON_PACE",
+    thresholdSnapshotJson: JSON.stringify({ band: "gaps to close" }),
+    differentiationSnapshotJson: JSON.stringify({ band: "competitive" }),
+    resultJson: JSON.stringify(deepReviewNarrative),
+  });
+  await page.reload();
+  await expect(
+    page.locator("main").getByRole("button", { name: "Run a Check-In" }),
+  ).toBeVisible();
+});
