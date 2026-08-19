@@ -128,6 +128,68 @@ export default async function DashboardPage() {
               </div>
             )}
 
+          {/* The percentile scores, carried forward when the newest run
+              measured in bands instead.
+
+              Deliberately BELOW the bands and behind a rule, never in the same
+              grid: side by side they would read as four facets of one reading
+              taken at one moment, and they are two different instruments run
+              on different days. The date is part of the label for that reason,
+              not decoration. */}
+          {data.carriedScores && (
+            <div className="mt-5 border-t border-black/10 pt-4 dark:border-white/10">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-sm font-medium text-zinc-500">
+                  Your percentile scores
+                </h3>
+                <Link
+                  href={`/evaluations/${data.carriedScores.id}`}
+                  className="text-xs text-zinc-500 underline underline-offset-2 hover:text-foreground"
+                >
+                  From your evaluation on{" "}
+                  {data.carriedScores.createdAt.toLocaleDateString("en-US", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </Link>
+              </div>
+              <p className="mt-1 max-w-2xl text-xs text-zinc-500">
+                A different measurement from the bands above, not a newer or
+                older version of them — these place you against a pool, those
+                describe what you&apos;ve met and built. Run an evaluation to
+                move these; a Deep Review won&apos;t.
+              </p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Score
+                  label="Readiness for your targets"
+                  value={data.carriedScores.reading.readiness}
+                  note={describeMovement(data.carriedScores.overallMove)}
+                />
+                <Score
+                  label="Compared to your year"
+                  value={data.carriedScores.reading.forYourYear}
+                  note={describeMovement(data.carriedScores.gradeRelativeMove)}
+                />
+              </div>
+              {/* The US/UK split survives the carry-forward. Losing it was the
+                  worst part of the scores disappearing: a single blended
+                  number is the flattening this app exists to refuse. */}
+              {data.carriedScores.reading.perSystem.length > 1 && (
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {data.carriedScores.reading.perSystem.map((s) => (
+                    <span key={s.label}>
+                      {s.label}:{" "}
+                      <strong className="font-semibold text-foreground">
+                        {s.score}
+                      </strong>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {data.stale && (
             <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
               You&apos;ve changed your profile since this ran, so these numbers

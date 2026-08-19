@@ -333,6 +333,151 @@ describe.skipIf(!hasTestDb)("the dashboard across evaluation shapes", () => {
   });
 });
 
+// The scores do not stop existing when the instrument changes.
+//
+// A Deep Review measures in bands, so the moment one became the newest run the
+// percentile block stopped rendering and the scores left the dashboard — taking
+// the US/UK split with them, which is the one reading this app exists to keep
+// separate. Nothing about those numbers had become untrue. They were simply no
+// longer being looked for.
+//
+// The fix must not buy visibility with dishonesty, so these tests pin both
+// halves: the scores come back, AND no band is ever turned into one.
+describe.skipIf(!hasTestDb)("percentile scores survive a tier run", () => {
+  let profileId = "";
+
+  beforeEach(async () => {
+    const { user, profile } = await createUserWithProfile(
+      runTag,
+      `c${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    );
+    sessionUserId.current = user.id;
+    profileId = profile.id;
+  });
+
+  it("carries the last percentiles forward when a deep review is newest", async () => {
+    // The reported symptom, stated as a test.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    // The bands are still the current standing — this does not displace them.
+    expect(data.latest?.standing.kind).toBe("band");
+    // And the scores are on screen again.
+    expect(data.carriedScores?.reading.readiness).toBe(58);
+    expect(data.carriedScores?.reading.forYourYear).toBe(81);
+  });
+
+  it("keeps the US and UK scores separate on the way through", async () => {
+    // The worst part of the disappearance. A student applying to both systems
+    // lost the only place the two were shown apart, and a single blended number
+    // is precisely the flattening this product refuses.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    const perSystem = data.carriedScores?.reading.perSystem ?? [];
+    expect(perSystem.map((s) => s.label).sort()).toEqual(["UK", "US"]);
+    expect(perSystem.find((s) => s.label === "US")?.score).toBe(55);
+    expect(perSystem.find((s) => s.label === "UK")?.score).toBe(71);
+  });
+
+  it("attributes them to the run that produced them, not to the review", async () => {
+    // Undated, they read as a current measurement. The id and date are what
+    // make the block honest rather than merely present.
+    const legacy = await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    expect(data.carriedScores?.id).toBe(legacy.id);
+    expect(data.carriedScores?.createdAt).toEqual(new Date("2026-05-01"));
+  });
+
+  it("carries them forward past a check-in too", async () => {
+    // A check-in is a fortnight's delta and has no standing at all, so the
+    // dashboard went blank of numbers entirely every other week.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await prisma.evaluation.create({
+      data: {
+        profileId,
+        type: "CHECK_IN",
+        status: "completed",
+        completedAt: new Date("2026-06-15"),
+        createdAt: new Date("2026-06-15"),
+        materialChange: true,
+        promptVersion: "check-in/v3",
+        paceStatus: "ON_PACE",
+        resultJson: JSON.stringify(checkInResult),
+      },
+    });
+
+    const data = await loadDashboard();
+    expect(data.latest?.standing.kind).toBe("none");
+    expect(data.carriedScores?.reading.readiness).toBe(58);
+  });
+
+  it("does NOT carry anything when the newest run already has percentiles", async () => {
+    // Otherwise the same two numbers appear twice on one card, once as current
+    // and once as history — which reads as two different readings.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+
+    const data = await loadDashboard();
+    expect(data.latest?.standing.kind).toBe("percentile");
+    expect(data.carriedScores).toBeNull();
+  });
+
+  it("carries nothing for a student who has only ever run a deep review", async () => {
+    // There is no score to show, and inventing one from the bands is the exact
+    // conversion standing.ts exists to forbid.
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    expect(data.carriedScores).toBeNull();
+  });
+
+  it("compares the two scored runs across an intervening deep review", async () => {
+    // A Deep Review landing between two evaluations did not change either
+    // score, so it must not break the comparison between them. Treating the
+    // review as "the previous run" would report no movement where there was a
+    // 17-point rise.
+    await seedLegacy(profileId, new Date("2026-04-01"), 41);
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    const move = data.carriedScores?.overallMove;
+    expect(move?.kind).toBe("moved");
+    if (move?.kind === "moved") {
+      expect(move.delta).toBe(17);
+      expect(move.from).toBe(41);
+    }
+  });
+
+  it("still refuses to compare a percentile to a band", async () => {
+    // The guarantee the carry-forward must not have cost. The top-level
+    // movement spans the shape boundary and stays "first"; only the carried
+    // block, which compares like to like, reports a change.
+    await seedLegacy(profileId, new Date("2026-05-01"), 58);
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    expect(data.overallMove.kind).toBe("first");
+    expect(data.gradeRelativeMove.kind).toBe("first");
+  });
+
+  it("never reads another account's scores into this dashboard", async () => {
+    // The carry-forward reaches further back through history than anything
+    // else on this screen, which makes it worth restating that it reaches back
+    // through ONE student's history.
+    const other = await createUserWithProfile(runTag, `cx${Date.now()}`);
+    await seedLegacy(other.profile.id, new Date("2026-05-01"), 99, "Not yours.");
+    await seedDeepReview(profileId, new Date("2026-06-01"));
+
+    const data = await loadDashboard();
+    expect(data.carriedScores).toBeNull();
+  });
+});
+
 describe("do this next survives a check-in arriving", () => {
   let profileId = "";
 

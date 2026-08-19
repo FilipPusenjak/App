@@ -428,6 +428,98 @@ test("a commitment can be accepted from the dashboard too", async ({ page }) => 
   expect(row.rows[0]!.status).toBe("ACCEPTED");
 });
 
+test("the dashboard keeps showing your scores after a Deep Review", async ({
+  page,
+}) => {
+  // The regression, in the only place it was visible: the dashboard renders
+  // whichever standing the NEWEST run produced, so the day a Deep Review
+  // arrived the percentiles — and the US/UK split with them — left the screen
+  // entirely. Nothing threw, the page still returned 200, and the numbers were
+  // simply gone. Only a browser shows that.
+  const profileId = await signUpAndGetProfile(page, "carried");
+
+  const legacyId = await seedEvaluation({
+    profileId,
+    type: "DEEP_REVIEW", // the schema default every legacy row carries
+    promptVersion: "evaluation/v10",
+    overallScore: 58,
+    resultJson: JSON.stringify({
+      overallScore: 58,
+      gradeRelativeScore: 81,
+      gradeContext: "Two different questions.",
+      headline: "An evaluation with percentiles.",
+      summary: "A summary.",
+      systemScores: [
+        {
+          rubricId: "us_holistic",
+          systemLabel: "US",
+          readinessScore: 55,
+          gradeRelativeScore: 78,
+          assessment: "ok",
+        },
+        {
+          rubricId: "uk_course",
+          systemLabel: "UK",
+          readinessScore: 71,
+          gradeRelativeScore: 84,
+          assessment: "ok",
+        },
+      ],
+      strengths: [],
+      weaknesses: [],
+      narrativeCoherence: { score: 70, assessment: "Coherent." },
+      schoolFits: [],
+      gaps: [],
+      verifyThese: [],
+    }),
+  });
+  // Both rows are inserted with NOW(); without this the ordering between them
+  // is whatever the clock resolution happens to give, and the test would pass
+  // or fail on timing rather than on behaviour.
+  await db.query(
+    `UPDATE "Evaluation" SET "createdAt" = NOW() - interval '30 days' WHERE id = $1`,
+    [legacyId],
+  );
+
+  await seedEvaluation({
+    profileId,
+    type: "DEEP_REVIEW",
+    promptVersion: "deep-review/v3",
+    paceStatus: "ON_PACE",
+    thresholdSnapshotJson: JSON.stringify({ band: "gaps to close" }),
+    differentiationSnapshotJson: JSON.stringify({ band: "competitive" }),
+    resultJson: JSON.stringify(deepReviewNarrative),
+  });
+
+  await page.goto("/dashboard");
+  const main = page.locator("main");
+
+  // The Deep Review is still the current standing, in bands.
+  await expect(main.getByText("physics thread is the one worth")).toBeVisible();
+  await expect(main.getByText("gaps to close").first()).toBeVisible();
+  await expect(main.getByText("competitive").first()).toBeVisible();
+
+  // And the scores are back, under their own heading, dated and attributed.
+  await expect(main.getByText("Your percentile scores")).toBeVisible();
+  await expect(main.getByText("58")).toBeVisible();
+  await expect(main.getByText("81")).toBeVisible();
+  await expect(main.getByText("From your evaluation on")).toBeVisible();
+
+  // The US/UK split survives — losing it was the worst part of the
+  // disappearance, since keeping the two apart is the product's whole premise.
+  await expect(main.getByText("US:")).toBeVisible();
+  await expect(main.getByText("UK:")).toBeVisible();
+
+  // Said in words, on the page: these are a different instrument, not a
+  // stale copy of the bands above.
+  await expect(main.getByText("A different measurement")).toBeVisible();
+
+  await page.screenshot({
+    path: "test-results/dashboard-carried-scores.png",
+    fullPage: true,
+  });
+});
+
 test("the Check-In button appears only once there is something to check in against", async ({
   page,
 }) => {

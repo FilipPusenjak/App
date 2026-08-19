@@ -15,7 +15,11 @@ import {
   getProfileWithRelations,
   getOwnedEvaluations,
 } from "@/lib/ownership";
-import { readStoredEvaluation, headlineOf } from "@/lib/evaluation/stored-shape";
+import {
+  readStoredEvaluation,
+  headlineOf,
+  type StoredShape,
+} from "@/lib/evaluation/stored-shape";
 import { readStanding, type StandingReading } from "./standing";
 import {
   findProfileGaps,
@@ -46,6 +50,40 @@ export type NextStep = {
   status?: string;
 };
 
+/**
+ * How far back to look for a percentile reading to carry forward.
+ *
+ * Bounded because every candidate costs a JSON parse and a schema validation,
+ * and a student who has not scored in twenty runs is not owed a number from
+ * two years ago anyway.
+ */
+const SCORE_LOOKBACK = 12;
+
+/**
+ * The most recent percentile scores the student actually has, shown when the
+ * newest run did not produce any.
+ *
+ * A Deep Review measures in bands, so the moment one becomes the newest run the
+ * percentile block stops rendering — and the scores vanish from the dashboard
+ * along with the US/UK split, which is the one reading this app exists to keep
+ * separate. Nothing about those numbers stopped being true; they were just no
+ * longer being looked for.
+ *
+ * This carries them forward AS WHAT THEY ARE: dated, attributed to the run that
+ * produced them, and never placed alongside a band as though the two were a
+ * matched pair. The rule in standing.ts is untouched — no band is converted
+ * into a score here, and no score into a band.
+ */
+export type CarriedScores = {
+  /** The evaluation these came from, so the student can go read it. */
+  id: string;
+  createdAt: Date;
+  reading: Extract<StandingReading, { kind: "percentile" }>;
+  /** Movement against the previous PERCENTILE run, skipping any tier runs between. */
+  overallMove: ScoreMove;
+  gradeRelativeMove: ScoreMove;
+};
+
 export type DashboardData = {
   studentLabelSource: Awaited<ReturnType<typeof getOrCreateProfile>>;
   gaps: ProfileGap[];
@@ -62,6 +100,8 @@ export type DashboardData = {
   /** Only meaningful for two legacy runs — see scoreMovement. */
   overallMove: ScoreMove;
   gradeRelativeMove: ScoreMove;
+  /** Set only when the newest run is NOT a percentile one. Never both. */
+  carriedScores: CarriedScores | null;
   stale: boolean;
   evaluationCount: number;
 };
@@ -116,6 +156,47 @@ export async function loadDashboard(): Promise<DashboardData> {
 
   const nextSteps = buildNextSteps(shape, commitments);
 
+  // The two most recent runs that produced percentiles, whatever ran in
+  // between. Tier runs are skipped rather than treated as a gap: a Deep Review
+  // arriving between two evaluations did not change either score, so counting
+  // it would break a comparison that is still perfectly valid.
+  const scoredRuns: { row: (typeof real)[number]; shape: StoredShape }[] = [];
+  for (const row of real.slice(0, SCORE_LOOKBACK)) {
+    const s = row === newest ? shape : readStoredEvaluation(row);
+    if (s.kind === "legacy") scoredRuns.push({ row, shape: s });
+    if (scoredRuns.length === 2) break;
+  }
+
+  const [scored, previousScored] = scoredRuns;
+  const carriedScores =
+    // Nothing to carry when the newest run already shows its own percentiles —
+    // rendering both would print the same two numbers twice, once labelled
+    // current and once labelled old.
+    shape.kind === "legacy" || !scored
+      ? null
+      : {
+          id: scored.row.id,
+          createdAt: scored.row.createdAt,
+          reading: readStanding(scored.shape, scored.row) as Extract<
+            StandingReading,
+            { kind: "percentile" }
+          >,
+          overallMove: movementFor(
+            scored.shape,
+            previousScored?.shape ?? { kind: "none" },
+            scored.row,
+            previousScored?.row,
+            "overallScore",
+          ),
+          gradeRelativeMove: movementFor(
+            scored.shape,
+            previousScored?.shape ?? { kind: "none" },
+            scored.row,
+            previousScored?.row,
+            "gradeRelativeScore",
+          ),
+        };
+
   return {
     studentLabelSource: profile,
     gaps,
@@ -142,6 +223,7 @@ export async function loadDashboard(): Promise<DashboardData> {
       previous,
       "gradeRelativeScore",
     ),
+    carriedScores,
     stale: isEvaluationStale(newest?.createdAt ?? null, withRelations.updatedAt),
     evaluationCount: real.length,
   };
