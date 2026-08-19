@@ -20,9 +20,9 @@ import {
   CHECK_IN_SYSTEM_PROMPT,
 } from "@/lib/prompts/tiers/check-in-v3";
 import {
-  DEEP_REVIEW_PROMPT_VERSION,
-  DEEP_REVIEW_SYSTEM_PROMPT,
-} from "@/lib/prompts/tiers/deep-review-v3";
+  PROMPT_VERSION as EVALUATION_PROMPT_VERSION,
+  SYSTEM_PROMPT as EVALUATION_SYSTEM_PROMPT,
+} from "@/lib/prompts/evaluation";
 import { RUNGS } from "@/lib/readiness/rungs";
 import { FEASIBILITY } from "@/lib/readiness/pace";
 
@@ -31,7 +31,6 @@ const ENUMS: Record<string, readonly string[]> = {
   rungs: RUNGS,
   feasibility: FEASIBILITY,
   checkInDirection: ["UP", "FLAT", "DOWN"],
-  trajectoryDirection: ["STEEPENING", "STEADY", "FLATTENING"],
   selectivity: [
     "open",
     "accessible",
@@ -80,28 +79,65 @@ describe("the vocabulary block states every value the schemas accept", () => {
   });
 });
 
-describe("both tier prompts carry it", () => {
-  it("the check-in prompt does", () => {
+describe("the check-in prompt carries it", () => {
+  it("does", () => {
     expect(CHECK_IN_SYSTEM_PROMPT).toContain(OUTPUT_VOCABULARY);
   });
 
-  it("the deep review prompt does", () => {
-    expect(DEEP_REVIEW_SYSTEM_PROMPT).toContain(OUTPUT_VOCABULARY);
-  });
-
-  it("both were version-bumped, so old rows stay pinned to what produced them", () => {
+  it("was version-bumped, so old rows stay pinned to what produced them", () => {
     // An evaluation is immutable and pinned to its prompt version. Editing a
     // prompt without bumping would silently relabel history as having been
     // produced by instructions it never saw.
     expect(CHECK_IN_PROMPT_VERSION).toBe("check-in/v3");
-    expect(DEEP_REVIEW_PROMPT_VERSION).toBe("deep-review/v3");
   });
 
-  it("keeps the prefixes the stored-shape reader dispatches on", () => {
+  it("keeps the prefix the stored-shape reader dispatches on", () => {
     // readStoredEvaluation switches on these prefixes. A rename would make
     // every row written under it unreadable.
     expect(CHECK_IN_PROMPT_VERSION.startsWith("check-in/")).toBe(true);
-    expect(DEEP_REVIEW_PROMPT_VERSION.startsWith("deep-review/")).toBe(true);
+  });
+});
+
+// The evaluation prompt does NOT carry the shared vocabulary block — it states
+// its own contract. That is fine for everything it has always emitted, and NOT
+// fine by default for the one enum it gained when commitments moved onto it.
+describe("the evaluation prompt states the enum it gained with commitments", () => {
+  it("lists every rung, because it now emits targetRung", () => {
+    // The exact shape of the failure that cost a real check-in: an enum the
+    // prompt never mentions is an enum the model guesses at, and the guess is
+    // only caught by Zod after the whole response has been billed. A Deep
+    // Review is the most expensive run in the app to lose this way.
+    for (const rung of RUNGS) {
+      expect(
+        EVALUATION_SYSTEM_PROMPT.includes(`"${rung}"`),
+        `rung "${rung}" is not stated in the evaluation prompt, so a model ` +
+          `writing a commitment has no way to know it is permitted.`,
+      ).toBe(true);
+    }
+  });
+
+  it("says null means null for a commitment with no single activity", () => {
+    expect(EVALUATION_SYSTEM_PROMPT).toMatch(/`null` means `null`/);
+  });
+
+  it("warns that a wrong value discards the whole response, not the field", () => {
+    expect(EVALUATION_SYSTEM_PROMPT).toMatch(/discards your entire\s+response/);
+  });
+
+  it("was version-bumped for the added field", () => {
+    expect(EVALUATION_PROMPT_VERSION).toBe("evaluation/v11");
+    expect(EVALUATION_PROMPT_VERSION.startsWith("evaluation/")).toBe(true);
+  });
+
+  it("tells the model the commitments are proposals, never agreed to", () => {
+    // The rule the whole accept/decline loop rests on. A prompt that phrases
+    // them as instructions would have the app putting words in a teenager's
+    // mouth about work they never said yes to.
+    expect(EVALUATION_SYSTEM_PROMPT).toMatch(/propose, never assume/i);
+  });
+
+  it("distinguishes a commitment from an action, or the loop tracks advice", () => {
+    expect(EVALUATION_SYSTEM_PROMPT).toMatch(/NOT a restatement of/i);
   });
 });
 

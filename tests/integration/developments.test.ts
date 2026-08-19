@@ -39,9 +39,9 @@ const {
 } = await import("@/lib/developments");
 const { detectMaterialChange } = await import("@/lib/evaluation/material-change");
 const { getRecentDevelopments } = await import("@/lib/developments");
-const { buildDeepReviewContext } = await import(
-  "@/lib/evaluation/context/deep-review"
-);
+const { buildUserPromptParts } = await import("@/lib/prompts/evaluation/v11");
+const { buildSnapshot } = await import("@/lib/evaluation/snapshot");
+const { getProfileWithRelations } = await import("@/lib/ownership");
 
 describe.skipIf(!hasTestDb)("developments", () => {
   let profileId = "";
@@ -242,7 +242,7 @@ describe("a reported development makes a check-in worth running", () => {
   });
 });
 
-describe.skipIf(!hasTestDb)("a deep review reads them too", () => {
+describe.skipIf(!hasTestDb)("a full review reads them too", () => {
   let profileId = "";
 
   beforeEach(async () => {
@@ -270,7 +270,7 @@ describe.skipIf(!hasTestDb)("a deep review reads them too", () => {
     expect(forReview[0]!.body).toContain("club folded");
   });
 
-  it("only takes what happened since the last deep review", async () => {
+  it("only takes what happened since the last review", async () => {
     await prisma.development.create({
       data: {
         profileId,
@@ -292,89 +292,34 @@ describe.skipIf(!hasTestDb)("a deep review reads them too", () => {
     expect(recent[0]!.body).toContain("New since then");
   });
 
-  it("puts them in the context, next to the commitment statuses they explain", async () => {
-    const context = buildDeepReviewContext({
-      scored: {
-        rubricVersion: "readiness/v1",
-        gradeLevel: 11,
-        monthsUntilApplication: 14,
-        thresholdBand: "gaps to close",
-        threshold: { schools: [] },
-        differentiation: {
-          band: "developing",
-          activities: [],
-          stalled: [],
-          topRungIndex: 2,
-          sustainedThreadCount: 1,
-        },
-        pace: {
-          status: "ON_PACE",
-          unknownGrade: false,
-          expectedTopRungIndex: 2,
-          expectedSustainedThreads: 1,
-        },
-      } as unknown as Parameters<typeof buildDeepReviewContext>[0]["scored"],
-      priorReviews: [],
-      commitments: [
-        {
-          description: "Run the spring workshop",
-          status: "ABANDONED",
-          dueDate: null,
-          resolvedAt: new Date("2026-05-01"),
-        },
-      ],
-      developments: [
-        { body: "The club folded, so the workshop could not happen.", createdAt: new Date("2026-05-02") },
-      ],
-      intendedMajor: "Physics",
-      careerGoal: "Research",
-      schoolContext: "A state comprehensive.",
-      now: new Date("2026-06-01"),
-    });
+  it("puts what the student wrote into the review's prompt, unedited", async () => {
+    // The whole point of the box. A note the student typed that never reaches
+    // the model is a reply channel that goes nowhere, and the student learns
+    // the box does nothing.
+    const profile = await getProfileWithRelations();
+    const snapshot = buildSnapshot(profile, "US");
 
-    expect(context.text).toContain("What the student reported, in their own words");
-    expect(context.text).toContain("The club folded");
-    // Directly after the commitment history, because that is what it explains:
-    // abandoned-with-a-reason and abandoned-in-silence are opposite signals.
-    const commitments = context.text.indexOf("## Commitments made in past reviews");
-    const reported = context.text.indexOf("## What the student reported");
-    const requirements = context.text.indexOf("## Requirements, per target");
-    expect(commitments).toBeGreaterThan(-1);
-    expect(reported).toBeGreaterThan(commitments);
-    expect(reported).toBeLessThan(requirements);
+    const parts = buildUserPromptParts(snapshot, null, undefined, [], [
+      {
+        body: "The club folded, so the workshop could not happen.",
+        createdAt: new Date("2026-05-02"),
+      },
+    ]);
+
+    expect(parts.variable).toContain("What the student reported since their last review");
+    expect(parts.variable).toContain("The club folded");
+
+    // In `variable`, NEVER in `stable`. The split is a prompt-cache prefix
+    // boundary: putting the most volatile text in the app behind it would
+    // invalidate the rubrics on every run and turn a saving into a surcharge.
+    expect(parts.stable).not.toContain("The club folded");
   });
 
-  it("omits the section entirely when there is nothing to report", () => {
-    const context = buildDeepReviewContext({
-      scored: {
-        rubricVersion: "readiness/v1",
-        gradeLevel: 11,
-        monthsUntilApplication: 14,
-        thresholdBand: "gaps to close",
-        threshold: { schools: [] },
-        differentiation: {
-          band: "developing",
-          activities: [],
-          stalled: [],
-          topRungIndex: 2,
-          sustainedThreadCount: 1,
-        },
-        pace: {
-          status: "ON_PACE",
-          unknownGrade: false,
-          expectedTopRungIndex: 2,
-          expectedSustainedThreads: 1,
-        },
-      } as unknown as Parameters<typeof buildDeepReviewContext>[0]["scored"],
-      priorReviews: [],
-      commitments: [],
-      developments: [],
-      intendedMajor: null,
-      careerGoal: null,
-      schoolContext: null,
-      now: new Date("2026-06-01"),
-    });
+  it("omits the section entirely when there is nothing to report", async () => {
+    const profile = await getProfileWithRelations();
+    const snapshot = buildSnapshot(profile, "US");
+    const parts = buildUserPromptParts(snapshot, null, undefined, [], []);
     // An empty heading invites the model to fill it.
-    expect(context.text).not.toContain("What the student reported");
+    expect(parts.variable).not.toContain("What the student reported");
   });
 });

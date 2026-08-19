@@ -112,6 +112,10 @@ function v6Result() {
       },
     ],
     verifyThese: ["Check each course page for entry requirements."],
+    proposedCommitments: [
+      { description: "Send the write-up to a teacher", targetRung: null, dueInWeeks: 4 },
+      { description: "Enter the olympiad", targetRung: "contributor", dueInWeeks: 8 },
+    ],
   };
 }
 

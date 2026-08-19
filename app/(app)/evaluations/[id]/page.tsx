@@ -10,6 +10,7 @@ import { tierLabel } from "@/lib/evaluation/history";
 import { readStanding } from "@/lib/dashboard/standing";
 import { DeepReviewBody } from "@/components/evaluation/deep-review-body";
 import { CheckInBody } from "@/components/evaluation/check-in-body";
+import { CommitmentsCard } from "@/components/evaluation/commitments-card";
 import { getRubricById } from "@/lib/rubrics";
 import { findRequirementsForTargets } from "@/lib/requirements/lookup";
 import { getOwnedPlannedItems } from "@/lib/ownership";
@@ -224,17 +225,21 @@ export default async function EvaluationPage({
   const shape = readStoredEvaluation(evaluation);
   const result = shape.kind === "legacy" ? shape.result : null;
 
-  // The commitments this Deep Review actually created, with their LIVE status —
-  // a review read weeks later should show what the student did about it, not a
+  // The commitments this review actually created, with their LIVE status — a
+  // review read weeks later should show what the student did about it, not a
   // frozen copy of what it proposed. Scoped by sourceEvaluationId on a row
   // already proven to belong to the caller by findOwnedEvaluation.
-  const reviewCommitments =
-    shape.kind === "deep-review"
-      ? await prisma.commitment.findMany({
-          where: { sourceEvaluationId: evaluation.id },
-          orderBy: [{ status: "asc" }, { dueDate: "asc" }],
-        })
-      : [];
+  //
+  // Queried for BOTH shapes, and not gated on the shape at all. Commitments
+  // used to come only from the retired tier; they now come from the evaluation,
+  // and the rows from each are the same rows in the same table. Asking the
+  // database rather than inferring from the narrative also means a review whose
+  // JSON no longer parses still shows what the student took on — the
+  // commitments outlived the document either way.
+  const reviewCommitments = await prisma.commitment.findMany({
+    where: { sourceEvaluationId: evaluation.id },
+    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+  });
 
   // Requirements shown from the DATABASE, not from the model's output. The
   // model is told to prefer these, but what a student reads as a sourced fact
@@ -372,6 +377,13 @@ export default async function EvaluationPage({
         <p className="text-sm text-zinc-500">
           No result was stored for this evaluation.
         </p>
+      )}
+
+      {/* Outside the `result &&` block on purpose: a review whose narrative no
+          longer parses still had commitments, and what the student took on
+          should not disappear with the document that proposed it. */}
+      {shape.kind !== "deep-review" && shape.kind !== "check-in" && (
+        <CommitmentsCard commitments={reviewCommitments} />
       )}
 
       {result && (

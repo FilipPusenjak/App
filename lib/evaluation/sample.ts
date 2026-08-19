@@ -149,5 +149,23 @@ export function buildSampleResult(
       "Everything above is placeholder text and should not be relied on.",
       "Admissions requirements, entry grades, and test requirements always need verifying on each university's official course page for your year of entry.",
     ],
+    // Present so the sample exercises the commitment path like everything else
+    // — but written as what they are. A sample must never put a real-looking
+    // undertaking in front of a student, because accepting one would start
+    // tracking work that nothing actually assessed.
+    proposedCommitments: [
+      {
+        description:
+          "SAMPLE OUTPUT — a real evaluation proposes specific things you can accept or decline, and asks about them again in your next check-in.",
+        targetRung: null,
+        dueInWeeks: 4,
+      },
+      {
+        description:
+          "SAMPLE OUTPUT — nothing here was assessed, so nothing here is worth committing to.",
+        targetRung: null,
+        dueInWeeks: 8,
+      },
+    ],
   };
 }

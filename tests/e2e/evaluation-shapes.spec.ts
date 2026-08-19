@@ -160,7 +160,11 @@ const checkInNarrative = {
   commitmentPrompts: [],
 };
 
-test("a Deep Review renders in full", async ({ page }) => {
+test("the retired tier's review still renders in full", async ({ page }) => {
+  // The promise made when that tier was retired: no new one can be produced,
+  // and the ones that exist are not lost. A reader deleted along with the route
+  // would render this as "No result was stored for this evaluation" — a page
+  // that loads, returns 200, and tells a student their review does not exist.
   const profileId = await signUpAndGetProfile(page, "deep");
 
   const reviewId = await seedEvaluation({
@@ -194,8 +198,15 @@ test("a Deep Review renders in full", async ({ page }) => {
   // The failure this test exists for.
   await expect(page.getByText("No result was stored")).toHaveCount(0);
 
+  // Named APART from the review that runs today, and asserted exactly —
+  // substring matching would let the live name pass here and hide a collapse
+  // of two very different documents under one label.
   await expect(
-    page.getByRole("heading", { name: "Deep Review", level: 1 }),
+    page.getByRole("heading", {
+      name: "Deep Review (earlier format)",
+      exact: true,
+      level: 1,
+    }),
   ).toBeVisible();
   await expect(main.getByText("physics thread is the one worth")).toBeVisible();
 
@@ -428,7 +439,70 @@ test("a commitment can be accepted from the dashboard too", async ({ page }) => 
   expect(row.rows[0]!.status).toBe("ACCEPTED");
 });
 
-test("the dashboard keeps showing your scores after a Deep Review", async ({
+test("a Deep Review proposes commitments the student can accept", async ({
+  page,
+}) => {
+  // Commitments moved onto the evaluation when the tier was retired, because
+  // the tier was their only producer. This is the loop end to end: proposed by
+  // a review, answered from the review, tracked in the database.
+  const profileId = await signUpAndGetProfile(page, "evalcommit");
+
+  const reviewId = await seedEvaluation({
+    profileId,
+    promptVersion: "evaluation/v11",
+    overallScore: 58,
+    resultJson: JSON.stringify({
+      overallScore: 58,
+      gradeRelativeScore: 81,
+      gradeContext: "Two different questions.",
+      headline: "A review that asks something of you.",
+      summary: "A summary.",
+      strengths: [],
+      weaknesses: [],
+      narrativeCoherence: { score: 70, assessment: "Coherent." },
+      schoolFits: [],
+      gaps: [],
+      verifyThese: [],
+      proposedCommitments: [
+        { description: "Send the write-up to a teacher", targetRung: null, dueInWeeks: 4 },
+        { description: "Enter the olympiad", targetRung: "contributor", dueInWeeks: 8 },
+      ],
+    }),
+  });
+  const commitmentId = newId("cm");
+  await db.query(
+    `INSERT INTO "Commitment"
+       (id, "profileId", "sourceEvaluationId", description, status, "dueDate",
+        "createdAt", "updatedAt")
+     VALUES ($1,$2,$3,$4,'PROPOSED',$5,NOW(),NOW())`,
+    [commitmentId, profileId, reviewId, "Send the write-up to a teacher", new Date("2026-10-01")],
+  );
+
+  await page.goto(`/evaluations/${reviewId}`);
+  const main = page.locator("main");
+
+  // The heading is the new name, and the percentiles are still there.
+  await expect(
+    page.getByRole("heading", { name: "Deep Review", level: 1 }),
+  ).toBeVisible();
+  await expect(main.getByText("58").first()).toBeVisible();
+
+  // The commitments card renders on a percentile review — it used to be
+  // gated to the retired shape, so this section simply did not exist here.
+  await expect(main.getByText("What this review asked of you")).toBeVisible();
+  await expect(main.getByText("Send the write-up to a teacher")).toBeVisible();
+
+  await main.getByRole("button", { name: "I'll do this" }).click();
+  await expect(main.getByText("you took this on")).toBeVisible();
+
+  const row = await db.query<{ status: string }>(
+    `SELECT status FROM "Commitment" WHERE id = $1`,
+    [commitmentId],
+  );
+  expect(row.rows[0]!.status).toBe("ACCEPTED");
+});
+
+test("the dashboard keeps showing your scores when the newest run has none", async ({
   page,
 }) => {
   // The regression, in the only place it was visible: the dashboard renders
@@ -500,19 +574,22 @@ test("the dashboard keeps showing your scores after a Deep Review", async ({
   await expect(main.getByText("competitive").first()).toBeVisible();
 
   // And the scores are back, under their own heading, dated and attributed.
-  await expect(main.getByText("Your percentile scores")).toBeVisible();
+  await expect(
+    main.getByText("Where your last Deep Review left you"),
+  ).toBeVisible();
   await expect(main.getByText("58")).toBeVisible();
   await expect(main.getByText("81")).toBeVisible();
-  await expect(main.getByText("From your evaluation on")).toBeVisible();
 
   // The US/UK split survives — losing it was the worst part of the
   // disappearance, since keeping the two apart is the product's whole premise.
   await expect(main.getByText("US:")).toBeVisible();
   await expect(main.getByText("UK:")).toBeVisible();
 
-  // Said in words, on the page: these are a different instrument, not a
-  // stale copy of the bands above.
-  await expect(main.getByText("A different measurement")).toBeVisible();
+  // Said in words, on the page: these came from a different run than the one
+  // at the top of the card, not a stale copy of what is shown above them.
+  await expect(
+    main.getByText("come from the Deep Review dated above"),
+  ).toBeVisible();
 
   await page.screenshot({
     path: "test-results/dashboard-carried-scores.png",

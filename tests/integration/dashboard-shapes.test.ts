@@ -167,10 +167,12 @@ describe.skipIf(!hasTestDb)("the dashboard across evaluation shapes", () => {
     const data = await loadDashboard();
     expect(data.latest?.headline).toBe("Legacy headline.");
     expect(data.latest?.standing.kind).toBe("percentile");
-    expect(data.latest?.label).toBe("Evaluation");
+    // The percentile evaluation IS the Deep Review — the name moved onto it
+    // when the separate band-based tier was retired.
+    expect(data.latest?.label).toBe("Deep Review");
   });
 
-  it("shows bands for a student whose latest run is a deep review", async () => {
+  it("shows bands for a student whose latest run is a retired-tier review", async () => {
     await seedDeepReview(profileId, new Date("2026-06-01"));
 
     const data = await loadDashboard();
@@ -180,8 +182,8 @@ describe.skipIf(!hasTestDb)("the dashboard across evaluation shapes", () => {
     expect(standing.requirements).toBe("mostly met");
     expect(standing.differentiation).toBe("developing");
     expect(standing.pace).toBe("ON_PACE");
-    expect(data.latest?.label).toBe("Deep Review");
-    // The headline is the deep review's own, not a leftover from anything else.
+    expect(data.latest?.label).toBe("Deep Review (earlier format)");
+    // The headline is the review's own, not a leftover from anything else.
     expect(data.latest?.headline).toContain("physics thread");
   });
 

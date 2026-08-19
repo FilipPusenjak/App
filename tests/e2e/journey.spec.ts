@@ -53,15 +53,15 @@ test("a student's full journey", async ({ page }) => {
   await page.waitForURL("**/targets");
   await expect(page.getByText("University of Cambridge")).toBeVisible();
 
-  // ── 4. Run an evaluation (no API key on this server → sample mode) ──────
+  // ── 4. Run a Deep Review (no API key on this server → sample mode) ──────
   await page.goto("/evaluations");
-  // "Run evaluation" is a client-side button: `next dev` serves the HTML
+  // "Run a Deep Review" is a client-side button: `next dev` serves the HTML
   // before React hydrates, and a click in that window does nothing (this
   // genuinely happened — the POST never fired). Retry until the click takes.
   await expect(async () => {
     if (/\/evaluations\/[a-z0-9]+/.test(page.url())) return;
     await page
-      .getByRole("button", { name: "Run evaluation" })
+      .getByRole("button", { name: "Run a Deep Review" })
       .click({ timeout: 2_000 });
     await page.waitForURL(/\/evaluations\/[a-z0-9]+/, { timeout: 15_000 });
   }).toPass({ timeout: 90_000 });

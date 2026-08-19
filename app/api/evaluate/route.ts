@@ -1,25 +1,22 @@
-// POST /api/evaluate — the legacy percentile evaluation. DEPRECATED, NOT DEAD.
+// POST /api/evaluate — the Deep Review. The only review the app runs.
 //
-// The Deep Review has replaced this as the primary read: it is what the "Run a
-// Deep Review" button calls, and it is the shape every new surface is written
-// against. This route is no longer the default path.
+// It was briefly the other way round. A separate band-based tier held the name
+// "Deep Review" and this route was marked deprecated beneath it; that tier is
+// retired and the name has come back to the thing that measures. What survives
+// from the attempt is the part that was genuinely better — commitments the
+// student accepts or declines, and a fortnightly check-in that follows them up
+// — both of which now hang off this route.
 //
-// It is deliberately still here, and deleting it would break two things that
-// are not obviously connected to it:
+// The two reasons the old header gave for keeping this route alive were the
+// right ones and are worth preserving, because they are the reasons the
+// percentile reading is load-bearing rather than merely historical:
 //
-//   THE TREND CHART is expressed in 0-100 percentiles. A deep review measures
-//   in bands, and bands are never converted into scores (see
-//   lib/dashboard/standing.ts), so with this route gone a student's series
-//   would simply stop — not migrate, stop — at whatever point they switched.
+//   THE TREND CHART is expressed in 0-100 percentiles, so a student's series
+//   only continues while something produces them.
 //
-//   THE PROJECTION BASELINE reads the most recent percentile evaluation, for
-//   the same reason: "45 -> 58" needs a measured 45. With no route producing
-//   one, projections would degrade to guessing their own starting point as
-//   existing evaluations aged out.
-//
-// Retiring it properly means giving projections a band-shaped baseline and the
-// chart something band-shaped to plot. Until that exists, removing the route
-// would not simplify the app; it would quietly delete two features.
+//   THE PROJECTION BASELINE reads the most recent percentile evaluation for
+//   the same reason: "45 -> 58" needs a measured 45, and a projection with no
+//   measured start says so rather than inventing one.
 //
 // Server-side only. The browser never sees the API key; it can only ask this
 // route to run an evaluation for the currently authenticated user. The profile
@@ -51,6 +48,7 @@ import {
   type ModelChoice,
 } from "@/lib/evaluation/model-choice";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
+import { getRecentDevelopments } from "@/lib/developments";
 import { findRequirementsForTargets } from "@/lib/requirements/lookup";
 import { buildSampleResult } from "@/lib/evaluation/sample";
 import { loadPreviousContext } from "@/lib/evaluation/previous";
@@ -385,6 +383,12 @@ export async function POST(request: Request) {
   });
 
   // 6a. No API key: store a clearly-labelled sample so the feature is usable.
+  //
+  // This returns before the commitment write below, and must keep doing so.
+  // The sample carries proposedCommitments so the stored shape is complete, but
+  // turning them into real Commitment rows would put an accept button under
+  // placeholder text — and a student who pressed it would have the app tracking
+  // work that nothing ever assessed.
   if (isSample) {
     const sample = buildSampleResult(snapshot);
     await prisma.evaluation.update({
@@ -415,11 +419,18 @@ export async function POST(request: Request) {
     const sourcedRequirements = await findRequirementsForTargets(
       snapshot.targets,
     );
+    // Since the last REVIEW, not since a check-in read them. A check-in
+    // marking a note read means that check-in answered it; the full review has
+    // still never seen it, and a fortnight's news is exactly the raw material a
+    // months-long read is made of.
+    const reported = await getRecentDevelopments(profile.id, lastRunAt ?? null);
+
     const prompt = buildUserPromptParts(
       snapshot,
       diff,
       reuse,
       sourcedRequirements,
+      reported,
     );
 
     // A correction is appended AFTER the variable part, so the cached prefix
@@ -531,6 +542,31 @@ export async function POST(request: Request) {
         ...usage,
       },
     });
+
+    // Proposed, never accepted on the student's behalf. They opt in, and only
+    // then does a commitment start appearing in check-ins.
+    //
+    // Written AFTER the evaluation is marked completed, and deliberately not
+    // inside a transaction with it: a failure here costs a set of proposals
+    // that can be read back out of resultJson, while rolling the evaluation
+    // back would throw away a run the student has already paid for.
+    //
+    // dueInWeeks is turned into a date HERE rather than by the model, so every
+    // due date is measured from the moment the evaluation completed instead of
+    // from whenever the model believed "today" to be.
+    const now = Date.now();
+    if (result.proposedCommitments.length > 0) {
+      await prisma.commitment.createMany({
+        data: result.proposedCommitments.map((c) => ({
+          profileId: evaluation.profileId,
+          sourceEvaluationId: evaluation.id,
+          description: c.description,
+          targetRung: c.targetRung,
+          dueDate: new Date(now + c.dueInWeeks * 7 * 86_400_000),
+          status: "PROPOSED",
+        })),
+      });
+    }
 
     return NextResponse.json({ id: evaluation.id, isSample: false });
   } catch (error) {

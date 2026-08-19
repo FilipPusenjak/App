@@ -21,6 +21,7 @@ import {
   type StoredShape,
 } from "@/lib/evaluation/stored-shape";
 import { readStanding, type StandingReading } from "./standing";
+import { REVIEW_LABEL, RETIRED_REVIEW_LABEL } from "@/lib/evaluation/history";
 import {
   findProfileGaps,
   isEvaluationStale,
@@ -230,9 +231,9 @@ export async function loadDashboard(): Promise<DashboardData> {
 }
 
 function labelFor(kind: string): string {
-  if (kind === "deep-review") return "Deep Review";
+  if (kind === "deep-review") return RETIRED_REVIEW_LABEL;
   if (kind === "check-in") return "Check-In";
-  return "Evaluation";
+  return REVIEW_LABEL;
 }
 
 function buildNextSteps(

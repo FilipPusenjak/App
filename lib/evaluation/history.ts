@@ -106,6 +106,26 @@ export function summariseHistoryRow(row: Row): HistoryEntry {
 }
 
 /**
+ * What the percentile evaluation is called. It is the only review that runs.
+ *
+ * The name moved rather than the thing: "Deep Review" used to mean a separate
+ * band-based tier, which has been retired. Everything a student runs today is
+ * this.
+ */
+export const REVIEW_LABEL = "Deep Review";
+
+/**
+ * What the retired tier's rows are called.
+ *
+ * They cannot simply be called "Deep Review" as well. A handful of rows exist
+ * in the old band shape, and a student opening one would find no percentile
+ * anywhere in a document sharing its name with the scored review they ran last
+ * week — so the name says which it is. It is not called "old" or "legacy",
+ * because neither tells them anything about what they are about to read.
+ */
+export const RETIRED_REVIEW_LABEL = "Deep Review (earlier format)";
+
+/**
  * What to call this run.
  *
  * The order here is load-bearing, and getting it wrong is exactly the mistake
@@ -113,11 +133,9 @@ export function summariseHistoryRow(row: Row): HistoryEntry {
  *
  * `type` looks like the authority and is not, because its column DEFAULTS to
  * "DEEP_REVIEW". That default was chosen so pre-tier rows would not be
- * mislabelled as check-ins — but it means every legacy percentile evaluation
- * ever written now carries type = DEEP_REVIEW too. Reading `type` first
- * labelled a row showing "58/100" under "evaluation/v10" as a Deep Review: a
- * band-shaped name on a percentile-shaped run, which is the flattening this
- * whole surface was built to avoid.
+ * mislabelled as check-ins, but it means every row of every kind carries it,
+ * and reading it first has caused two separate faults already — a mislabelled
+ * history and a 21-day lockout measured against a review that never ran.
  *
  * `promptVersion` is the honest discriminator. It records the prompt that
  * actually produced the row, it is never defaulted, and it survives a narrative
@@ -130,21 +148,23 @@ export function tierLabel(
 ): string {
   // 1. What produced it. Never defaulted, so never lies.
   const version = row.promptVersion ?? "";
-  if (version.startsWith("deep-review/")) return "Deep Review";
+  if (version.startsWith("deep-review/")) return RETIRED_REVIEW_LABEL;
   if (version.startsWith("check-in/")) return "Check-In";
-  if (version.startsWith("evaluation/")) return "Evaluation";
+  if (version.startsWith("evaluation/")) return REVIEW_LABEL;
 
   // 2. What it parsed as. Only reached for rows written before promptVersion
   //    was recorded at all.
-  if (shape.kind === "deep-review") return "Deep Review";
+  if (shape.kind === "deep-review") return RETIRED_REVIEW_LABEL;
   if (shape.kind === "check-in") return "Check-In";
-  if (shape.kind === "legacy") return "Evaluation";
+  if (shape.kind === "legacy") return REVIEW_LABEL;
 
   // 3. The column, last — it is the only thing left for a row whose narrative
-  //    is unreadable, and its default is why it cannot be trusted sooner.
+  //    is unreadable. Its default finally agrees with reality now that the
+  //    evaluation is the Deep Review, but it is still consulted last: a row
+  //    that genuinely came from the retired tier is indistinguishable here, and
+  //    guessing the commoner of the two is the best that can be done blind.
   if (row.type === "CHECK_IN") return "Check-In";
-  if (row.type === "DEEP_REVIEW") return "Deep Review";
-  return "Evaluation";
+  return REVIEW_LABEL;
 }
 
 function bandOf(json: string | null): string | null {

@@ -67,7 +67,7 @@ function Movement({
           <span className="text-sm text-zinc-500">projected</span>
         </div>
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-          No measured starting point for this system — run an evaluation to get
+          No measured starting point for this system — run a Deep Review to get
           a real before-and-after.
         </p>
       </div>

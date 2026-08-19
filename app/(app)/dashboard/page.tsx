@@ -128,25 +128,25 @@ export default async function DashboardPage() {
               </div>
             )}
 
-          {/* The percentile scores, carried forward when the newest run
-              measured in bands instead.
+          {/* The scores, carried forward when the newest run did not produce
+              any — which now means a check-in is newest, or the one retired
+              band-shaped review is.
 
-              Deliberately BELOW the bands and behind a rule, never in the same
-              grid: side by side they would read as four facets of one reading
-              taken at one moment, and they are two different instruments run
-              on different days. The date is part of the label for that reason,
-              not decoration. */}
+              Deliberately BELOW anything above it and behind a rule, never in
+              the same grid: side by side the two would read as facets of one
+              reading taken at one moment, and they are different instruments
+              run on different days. The date is part of the label for that
+              reason, not decoration. */}
           {data.carriedScores && (
             <div className="mt-5 border-t border-black/10 pt-4 dark:border-white/10">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <h3 className="text-sm font-medium text-zinc-500">
-                  Your percentile scores
+                  Where your last Deep Review left you
                 </h3>
                 <Link
                   href={`/evaluations/${data.carriedScores.id}`}
                   className="text-xs text-zinc-500 underline underline-offset-2 hover:text-foreground"
                 >
-                  From your evaluation on{" "}
                   {data.carriedScores.createdAt.toLocaleDateString("en-US", {
                     day: "numeric",
                     month: "short",
@@ -155,10 +155,10 @@ export default async function DashboardPage() {
                 </Link>
               </div>
               <p className="mt-1 max-w-2xl text-xs text-zinc-500">
-                A different measurement from the bands above, not a newer or
-                older version of them — these place you against a pool, those
-                describe what you&apos;ve met and built. Run an evaluation to
-                move these; a Deep Review won&apos;t.
+                These come from the Deep Review dated above, not from the run at
+                the top of this card. A check-in reports what moved since your
+                last review — it doesn&apos;t re-score you, so these stay put
+                until the next full one.
               </p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Score
@@ -195,7 +195,7 @@ export default async function DashboardPage() {
               You&apos;ve changed your profile since this ran, so these numbers
               describe an older version of it.{" "}
               <Link href="/evaluations" className="font-medium underline">
-                Run a new evaluation
+                Run a new Deep Review
               </Link>
               .
             </p>
@@ -208,7 +208,7 @@ export default async function DashboardPage() {
           </h2>
           <p className="mt-1 max-w-2xl text-zinc-600 dark:text-zinc-400">
             Build your profile, add the universities you&apos;re aiming at, then
-            run an evaluation for an honest read on how your profile fits each
+            run a Deep Review for an honest read on how your profile fits each
             one — judged by that country&apos;s admissions rubric.
           </p>
         </section>
@@ -342,7 +342,7 @@ export default async function DashboardPage() {
           href="/evaluations"
           className="inline-flex items-center justify-center rounded-md border border-black/15 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-black/5 sm:py-2 dark:border-white/20 dark:hover:bg-white/10"
         >
-          {latest ? "Run a new evaluation" : "Evaluate my profile"}
+          {latest ? "Run a new Deep Review" : "Run my first Deep Review"}
         </Link>
       </div>
     </div>

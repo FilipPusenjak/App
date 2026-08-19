@@ -62,6 +62,10 @@ function complete() {
     actions: [],
     gaps: [],
     verifyThese: ["check this"],
+    proposedCommitments: [
+      { description: "Send the write-up to a teacher", targetRung: null, dueInWeeks: 4 },
+      { description: "Enter the olympiad", targetRung: "contributor", dueInWeeks: 8 },
+    ],
   };
 }
 

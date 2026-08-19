@@ -133,10 +133,11 @@ describe.skipIf(!hasTestDb)("a tier run that failed after spending", () => {
     const rows = await prisma.evaluation.findMany({ where: { profileId } });
     expect(buildProgress(rows).points).toHaveLength(0);
 
-    // But it IS visible in history, labelled as what it is.
+    // But it IS visible in history, labelled as what it is — the retired
+    // tier's name, since that is the prompt version that burned the tokens.
     const entry = summariseHistoryRow(rows[0]!);
     expect(entry.badge).toBe("Failed");
-    expect(entry.tier).toBe("Deep Review");
+    expect(entry.tier).toBe("Deep Review (earlier format)");
   });
 
   it("does not throw when the row cannot be written", async () => {

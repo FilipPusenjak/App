@@ -74,8 +74,12 @@ describe("the schema actually sent to the model is small enough to compile", () 
     const flat = Object.keys(schemaOf(evaluationResultSchema).properties!);
     const wire = Object.keys(schemaOf(evaluationWireSchema).properties!);
 
-    // 16 top-level properties is what tripped the limit.
-    expect(flat.length).toBe(16);
+    // 16 top-level properties is what tripped the limit, and the flat schema is
+    // at or past that — it grew to 17 when commitments moved onto the
+    // evaluation. That number is allowed to keep climbing. What must not climb
+    // is the wire count: every new field belongs inside an existing group, and
+    // a seventh top-level sibling would double the whole grammar's state count.
+    expect(flat.length).toBeGreaterThanOrEqual(16);
     expect(wire.length).toBeLessThanOrEqual(6);
   });
 
@@ -177,6 +181,10 @@ describe("the wire envelope round-trips to the stored shape", () => {
         { title: "No field evidence", detail: "None.", timing: "now", appliesTo: ["all"] },
       ],
       verifyThese: ["Check the course pages."],
+      proposedCommitments: [
+        { description: "Send the write-up to a teacher", targetRung: null, dueInWeeks: 4 },
+        { description: "Enter the olympiad", targetRung: "contributor", dueInWeeks: 8 },
+      ],
     },
     overview: {
       headline: "Solid foundation.",

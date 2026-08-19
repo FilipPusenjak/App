@@ -25,7 +25,7 @@ import { genericRubric, renderRubric, ukRubric, usRubric } from "@/lib/rubrics";
 
 describe("fitScore is defined at all — it never was", () => {
   it("is still in force on the active prompt", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v10");
+    expect(PROMPT_VERSION).toBe("evaluation/v11");
   });
 
   it("says outright that fit is not the headline score repeated", () => {
@@ -227,6 +227,10 @@ describe("the contract, and what it does to older evaluations", () => {
       actions: [],
       gaps: [],
       verifyThese: ["Check the entry requirements."],
+      proposedCommitments: [
+        { description: "Send the write-up to a teacher", targetRung: null, dueInWeeks: 4 },
+        { description: "Enter the olympiad", targetRung: "contributor", dueInWeeks: 8 },
+      ],
     };
   }
 

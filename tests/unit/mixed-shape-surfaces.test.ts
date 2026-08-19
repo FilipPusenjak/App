@@ -252,15 +252,20 @@ describe("history states which instrument produced each row", () => {
     const entry = summariseHistoryRow(legacyRow());
     expect(entry.badge).toBe("58/100");
     expect(entry.badgeIsScore).toBe(true);
-    expect(entry.tier).toBe("Evaluation");
+    // The percentile evaluation IS the Deep Review — the name moved onto it
+    // when the separate band-based tier was retired.
+    expect(entry.tier).toBe("Deep Review");
   });
 
-  it("shows bands for a deep review, and never marks them as a score", () => {
+  it("shows bands for a retired-tier review, and never marks them as a score", () => {
     const entry = summariseHistoryRow(deepRow());
     expect(entry.badgeIsScore).toBe(false);
     expect(entry.badge).toContain("mostly met");
     expect(entry.detail).toContain("developing");
-    expect(entry.tier).toBe("Deep Review");
+    // Distinguished from the review that runs today. A student opening this
+    // would otherwise find no percentile anywhere in a document sharing its
+    // name with the one they ran last week.
+    expect(entry.tier).toBe("Deep Review (earlier format)");
   });
 
   it("never reduces a completed row to the bare word 'completed'", () => {
@@ -278,11 +283,11 @@ describe("history states which instrument produced each row", () => {
     expect(entry.tier).toBe("Check-In");
   });
 
-  it("names the tier from the type column even when the narrative won't parse", () => {
+  it("names the tier from the prompt version even when the narrative won't parse", () => {
     const entry = summariseHistoryRow(
       deepRow({ resultJson: "{ not json" }),
     );
-    expect(entry.tier).toBe("Deep Review");
+    expect(entry.tier).toBe("Deep Review (earlier format)");
   });
 
   it("keeps pending and failed runs legible in every shape", () => {
@@ -291,42 +296,48 @@ describe("history states which instrument produced each row", () => {
   });
 });
 
-describe("the tier label never trusts the backfilled type column", () => {
-  // Evaluation.type DEFAULTS to "DEEP_REVIEW". That default exists so pre-tier
-  // rows are not mislabelled as check-ins — but it means every legacy
-  // percentile evaluation ever written carries type = DEEP_REVIEW too.
-  // Reading it first put a band-shaped name on a percentile-shaped run.
-  it("calls a legacy row an Evaluation even though its type says DEEP_REVIEW", () => {
+describe("the tier label separates the two things called Deep Review", () => {
+  // Evaluation.type DEFAULTS to "DEEP_REVIEW", so it cannot tell a percentile
+  // evaluation from a retired band-shaped review — every row of every kind
+  // carries it. promptVersion is the only honest discriminator, and reading
+  // `type` first has already caused a mislabelled history and a 21-day lockout
+  // measured against a review that never ran.
+  it("calls a percentile row a Deep Review, and shows its percentile", () => {
     const entry = summariseHistoryRow(
       legacyRow({ type: "DEEP_REVIEW", promptVersion: "evaluation/v10" }),
     );
-    expect(entry.tier).toBe("Evaluation");
-    // And still shows its percentile, so the row is internally consistent.
+    expect(entry.tier).toBe("Deep Review");
     expect(entry.badge).toBe("58/100");
     expect(entry.badgeIsScore).toBe(true);
   });
 
-  it("calls a row with no promptVersion at all an Evaluation, by its shape", () => {
+  it("names a row with no promptVersion at all by its shape", () => {
     // Written before promptVersion was recorded. The shape is the only honest
     // evidence, and the type column is the default rather than a decision.
     const entry = summariseHistoryRow(
       legacyRow({ type: "DEEP_REVIEW", promptVersion: null }),
     );
-    expect(entry.tier).toBe("Evaluation");
+    expect(entry.tier).toBe("Deep Review");
   });
 
-  it("still names a real deep review correctly", () => {
-    // The fix must not have been bought by never saying "Deep Review".
-    expect(summariseHistoryRow(deepRow()).tier).toBe("Deep Review");
+  it("does NOT give the retired tier the same name as the live one", () => {
+    // The rename must not have been bought by collapsing two different
+    // documents under one label. A band-shaped review and a percentile one
+    // read completely differently.
+    expect(summariseHistoryRow(deepRow()).tier).toBe("Deep Review (earlier format)");
+    expect(summariseHistoryRow(legacyRow()).tier).toBe("Deep Review");
+    expect(summariseHistoryRow(deepRow()).tier).not.toBe(
+      summariseHistoryRow(legacyRow()).tier,
+    );
   });
 
-  it("names a FAILED deep review from its prompt version", () => {
+  it("names a FAILED retired review from its prompt version", () => {
     // The case the type column was originally reached for: the narrative does
     // not parse, so the shape is unknown. promptVersion still knows.
     const entry = summariseHistoryRow(
       deepRow({ status: "failed", resultJson: "{ not json", promptVersion: "deep-review/v3" }),
     );
-    expect(entry.tier).toBe("Deep Review");
+    expect(entry.tier).toBe("Deep Review (earlier format)");
     expect(entry.badge).toBe("Failed");
   });
 

@@ -1,9 +1,11 @@
-// Loading everything the two tiers need, ownership-scoped.
+// Loading everything a check-in needs, ownership-scoped.
 //
-// This is DB access plus the deterministic scoring layer — the one thing both
-// tiers legitimately share. What each tier then does with it diverges
-// completely: see context/check-in.ts and context/deep-review.ts, which share
-// no code path with each other on purpose.
+// This is DB access plus the deterministic scoring layer. It was shared by two
+// tiers; the Deep Review tier has since been retired, and the percentile
+// evaluation — now called the Deep Review — loads its own context through
+// lib/evaluation/snapshot.ts instead. The `type` parameter is kept because the
+// Evaluation table still holds rows of both kinds and a check-in must be
+// measured against the last CHECK_IN, never against an evaluation.
 //
 // Every read here resolves the profile from the session through lib/ownership.
 // Nothing takes an id from a request.
@@ -18,7 +20,6 @@ import {
 } from "@/lib/readiness/score";
 import type { Rung } from "@/lib/readiness/rungs";
 import type { EvaluationType } from "@/lib/validation/tiers";
-import { tierWhere } from "./tier-rows";
 import { COUNTRIES } from "@/lib/data/countries";
 
 const countryName = (code: string) =>
@@ -69,13 +70,18 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
   const profile = await getProfileWithRelations();
 
   const [preceding, digestRows, commitments] = await Promise.all([
-    // Same type: a check-in is measured against the last check-in, a deep
-    // review against the last deep review. Mixing them would compare a
-    // fortnight's delta to a month's strategy.
+    // Same type: a check-in is measured against the last check-in. Comparing
+    // it to an evaluation would measure a fortnight's delta against a full
+    // reassessment, and report the difference between two instruments as
+    // movement in the student.
+    //
+    // No promptVersion guard, deliberately. A no-change check-in stores none at
+    // all, and requiring one would drop exactly the rows the next check-in
+    // measures itself against.
     prisma.evaluation.findFirst({
       where: {
         profileId: profile.id,
-        ...tierWhere(type),
+        type,
         status: "completed",
         isSample: false,
       },

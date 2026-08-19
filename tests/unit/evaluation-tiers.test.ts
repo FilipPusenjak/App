@@ -9,16 +9,7 @@ import {
   buildCheckInContext,
   CHECK_IN_TOKEN_BUDGET,
 } from "@/lib/evaluation/context/check-in";
-import {
-  buildDeepReviewContext,
-  DEEP_REVIEW_TOKEN_BUDGET,
-} from "@/lib/evaluation/context/deep-review";
 import { detectMaterialChange } from "@/lib/evaluation/material-change";
-import {
-  checkDeepReviewAllowed,
-  DEEP_REVIEW_INTERVAL_DAYS,
-  tierForUser,
-} from "@/lib/evaluation/tier-access";
 import {
   checkInNarrativeSchema,
   deepReviewNarrativeSchema,
@@ -116,14 +107,15 @@ describe("check-in context stays inside its budget", () => {
     expect(built.estimatedTokens).toBeLessThanOrEqual(CHECK_IN_TOKEN_BUDGET);
   });
 
-  it("is materially smaller than a deep review over the same profile", () => {
-    // If the two were the same size, the price difference would be a gate
-    // rather than a genuine difference in what the model is given.
+  it("stays well under budget even with ten items to summarise", () => {
+    // The check-in is the cheap tier, and it is cheap because of what it is
+    // NOT given. A context that grew with the profile would quietly turn the
+    // fortnightly rhythm into a second full review at full price.
     const s = scored({
       resumeItems: Array.from({ length: 10 }, (_, n) => item({ title: `A${n}` })),
     });
     const checkIn = buildCheckInContext({
-    developments: [],
+      developments: [],
       scored: s,
       changes: [],
       openCommitments: [],
@@ -131,20 +123,7 @@ describe("check-in context stays inside its budget", () => {
       precedingAt: NOW,
       now: NOW,
     });
-    const deep = buildDeepReviewContext({
-    developments: [],
-      scored: s,
-      priorReviews: [],
-      commitments: [],
-      intendedMajor: "Computer Science",
-      careerGoal: "Software",
-      schoolContext: "Offers 8 APs.",
-      now: NOW,
-    });
-    expect(deep.estimatedTokens).toBeLessThanOrEqual(DEEP_REVIEW_TOKEN_BUDGET);
-    // Not a strict ratio — the point is that they differ, not by how much on
-    // one fixture.
-    expect(checkIn.text).not.toBe(deep.text);
+    expect(checkIn.estimatedTokens).toBeLessThanOrEqual(CHECK_IN_TOKEN_BUDGET);
   });
 
   it("never puts raw prior-year entries in a check-in", () => {
@@ -245,66 +224,6 @@ describe("the no-change path", () => {
       now: NOW,
     });
     expect(verdict.material).toBe(true);
-  });
-});
-
-describe("the deep-review gates", () => {
-  const lastWeek = new Date(NOW.getTime() - 7 * 86_400_000);
-
-  it("rejects a second review inside the interval, even with quota left", () => {
-    // Pedagogical, not economic: a plan rewritten weekly never gets far enough
-    // to show whether it was working.
-    const gate = checkDeepReviewAllowed({
-      tier: "PAID",
-      lastDeepReviewAt: lastWeek,
-      now: NOW,
-    });
-    expect(gate.allowed).toBe(false);
-    if (!gate.allowed && gate.reason === "interval") {
-      expect(gate.daysRemaining).toBe(DEEP_REVIEW_INTERVAL_DAYS - 7);
-      // The reason is explained, because an unexplained limit reads as a paywall.
-      expect(gate.message).toMatch(/on purpose/i);
-      expect(gate.message).toMatch(/check-ins/i);
-    }
-  });
-
-  it("allows one once the interval has passed", () => {
-    expect(
-      checkDeepReviewAllowed({
-        tier: "PAID",
-        lastDeepReviewAt: new Date(NOW.getTime() - 22 * 86_400_000),
-        now: NOW,
-      }).allowed,
-    ).toBe(true);
-  });
-
-  it("allows the first one ever", () => {
-    expect(
-      checkDeepReviewAllowed({ tier: "PAID", lastDeepReviewAt: null, now: NOW })
-        .allowed,
-    ).toBe(true);
-  });
-
-  it("refuses the free tier before it even looks at the interval", () => {
-    const gate = checkDeepReviewAllowed({
-      tier: "FREE",
-      lastDeepReviewAt: null,
-      now: NOW,
-    });
-    expect(gate.allowed).toBe(false);
-    if (!gate.allowed) expect(gate.reason).toBe("tier");
-  });
-
-  it("defaults an account to FREE when no allowlist is set", () => {
-    // Defaulting open would make this test pass while gating nothing — the
-    // failure that only shows up on the first real invoice.
-    const original = process.env.DEEP_REVIEW_ALLOWED_EMAILS;
-    delete process.env.DEEP_REVIEW_ALLOWED_EMAILS;
-    try {
-      expect(tierForUser({ email: "someone@example.test" })).toBe("FREE");
-    } finally {
-      if (original !== undefined) process.env.DEEP_REVIEW_ALLOWED_EMAILS = original;
-    }
   });
 });
 

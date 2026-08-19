@@ -10,6 +10,7 @@
 // actually matter for shape. Milestone 5 covers the OVERALL assessment and
 // gaps; per-item assessments and the prioritized action list arrive in M6.
 import { z } from "zod";
+import { RUNGS } from "@/lib/readiness/rungs";
 
 /* -----------------------------------------------------------------------------
    STRICT ABOUT THE FINDING, TOLERANT ABOUT ITS ANNOTATIONS.
@@ -294,6 +295,31 @@ export const evaluationResultSchema = z.object({
    * instead of being asserted as fact.
    */
   verifyThese: z.array(z.string()).optional().default([]),
+  /**
+   * 2-4 concrete undertakings, PROPOSED for the student to accept or decline.
+   *
+   * Distinct from `actions`, which are advice the student reads and forgets.
+   * A commitment is a row with a status and a due date: something a later
+   * check-in can ask about by name, and something the student had to say yes
+   * to. That difference is the entire follow-through loop — advice nobody
+   * agreed to is advice nobody is tracking.
+   *
+   * Never auto-accepted. The route writes them as PROPOSED and the student
+   * opts in; anything else would be putting words in a teenager's mouth about
+   * work they never agreed to do.
+   */
+  proposedCommitments: z
+    .array(
+      z.object({
+        description: z.string().trim().min(1).max(300),
+        /** The rung this is meant to reach, when it is about one activity. */
+        targetRung: z.enum(RUNGS).nullable(),
+        /** Weeks from now, so the SERVER sets the real date, not the model. */
+        dueInWeeks: z.number().int().min(1).max(104),
+      }),
+    )
+    .min(2)
+    .max(4),
 });
 
 /**
@@ -306,6 +332,22 @@ export const evaluationResultSchema = z.object({
  */
 export const storedEvaluationResultSchema = evaluationResultSchema.extend({
   actions: z.array(actionSchema).optional().default([]),
+  // Added in prompt v11, when commitments moved onto the evaluation. EVERY row
+  // written before it has none, which is most of the table — requiring the
+  // field here would refuse the entire existing history, which is the exact
+  // failure stored-shape.ts documents at length. The commitments themselves
+  // live in their own table regardless; this array is only the proposal the
+  // model made at the time.
+  proposedCommitments: z
+    .array(
+      z.object({
+        description: z.string(),
+        targetRung: z.string().nullable().optional(),
+        dueInWeeks: z.number(),
+      }),
+    )
+    .optional()
+    .default([]),
   // Added in prompt v3. Left undefined (not defaulted to a number) on older
   // evaluations so the UI can omit the section rather than display a fabricated
   // score of 0.

@@ -79,6 +79,11 @@ export const VERSION_HISTORY: VersionEntry[] = [
     redefined: [],
     why: "Carries unchanged item assessments forward to cut cost. No score means anything different, so nothing is released.",
   },
+  {
+    version: "evaluation/v11",
+    redefined: [],
+    why: "Adds proposed commitments, which the retired Deep Review tier used to produce. Purely an addition to the output — a student's numbers must not move because the shape grew a field.",
+  },
 ];
 
 /**

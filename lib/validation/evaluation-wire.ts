@@ -69,6 +69,15 @@ const ANALYSIS_KEYS = {
   actions: true,
   gaps: true,
   verifyThese: true,
+  // Inside analysis rather than at the top level, and that placement is a
+  // grammar decision, not a taxonomy one. Top-level siblings cost 2^n states;
+  // a seventh would double the whole schema's state count, which is the creep
+  // that caused the 400 this file exists because of. Nested here it costs one
+  // property on a small object and leaves the top level at six.
+  //
+  // It also happens to be right on the merits: a commitment is a finding the
+  // student is asked to act on, which is what everything else in this group is.
+  proposedCommitments: true,
 } as const;
 
 export const evaluationAnalysisSchema =

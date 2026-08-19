@@ -112,8 +112,7 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `DATABASE_URL` | **Yes** | Your **production** Postgres string. Set automatically if you use Vercel Postgres. |
 | `AUTH_SECRET` | **Yes** | Generate a **new** one for production: `openssl rand -base64 32`. Do not reuse your local value. |
 | `SIGNUP_ALLOWED_EMAILS` | **Strongly recommended** | Comma-separated addresses allowed to register. See the warning below. |
-| `DEEP_REVIEW_ALLOWED_EMAILS` | For Deep Reviews | Comma-separated addresses on the paid tier. **Unset means nobody**, which is deliberate — see below. `*` opens it to everyone. |
-| `ANTHROPIC_API_KEY` | For real evaluations | Without it the app produces clearly-labelled sample output instead. |
+| `ANTHROPIC_API_KEY` | For real Deep Reviews | Without it the app produces clearly-labelled sample output instead. |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5`. |
 | `ANTHROPIC_EFFORT` | No | `low` \| `medium` \| `high` \| `xhigh` \| `max`. Defaults to `medium`. |
 | `ANTHROPIC_FOLLOWUP_MODEL` | No | Model for anchored follow-up runs. Defaults to `claude-sonnet-5`; `off` runs every evaluation on the full model. See below. |
@@ -132,32 +131,27 @@ you use it). There are no `.env` files in production — these *are* the config.
 
 `AUTH_TRUST_HOST` is not needed on Vercel — it detects the host itself.
 
-### Turning on Deep Reviews
+### Deep Reviews
 
-`DEEP_REVIEW_ALLOWED_EMAILS` unset means **nobody** is on the paid tier, and the
-"Run a Deep Review" button never appears. That default is deliberate: defaulting
-open would make the entitlement check pass while gating nothing, which is the
-kind of mistake that only shows up on the first real invoice.
+A Deep Review is the full assessment: two percentiles, a per-system US/UK read,
+per-item and per-school judgements, ranked actions, and 2-4 commitments the
+student accepts or declines. It is the only review the app runs, and it needs no
+entitlement variable — `DEEP_REVIEW_ALLOWED_EMAILS` is gone, along with the paid
+tier and the 21-day floor that used to sit in front of a separate band-based
+tier of the same name. That tier is retired; rows produced by it are still
+readable in history, labelled "Deep Review (earlier format)".
 
-```
-DEEP_REVIEW_ALLOWED_EMAILS=you@example.com
-```
+One thing to expect:
 
-The address matched is **the one the account signed up with**, not the one on
-your hosting account. `*` opens Deep Reviews to everyone who can log in.
-
-Two things to expect on the first one:
-
-- **The spending cap applies first.** A Deep Review runs on the strong model
-  with roughly three times a normal evaluation's context, so it is the most
-  expensive single thing the app does. With `ACCOUNT_SPEND_LIMIT_USD` at its
-  **$3** default, an account that has already run a few evaluations may be
-  refused with "spending limit reached" before the review starts. Raise the cap
+- **The spending cap applies first.** With `ACCOUNT_SPEND_LIMIT_USD` at its
+  **$3** default, an account that has already run several reviews may be refused
+  with "spending limit reached" before the next one starts. Raise the cap
   deliberately rather than by accident.
-- **A 21-day floor** between Deep Reviews, enforced server-side and not
-  configurable. It is pedagogical, not commercial: a plan re-litigated every
-  week never runs long enough to show whether it was working. Check-Ins carry on
-  in between.
+
+Check-Ins run between reviews on the fortnightly rhythm. They read what the
+student reported under "recent developments", follow up on accepted commitments
+by name, and cost nothing at all when the deterministic pass finds nothing
+material moved.
 
 If a review is discarded — the model's output fails its schema, or contains
 phrasing the app refuses to show a student — the attempt is still recorded in

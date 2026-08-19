@@ -21,7 +21,7 @@
 import Link from "next/link";
 import type { DeepReviewNarrative } from "@/lib/validation/tiers";
 import { BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
-import { CommitmentControls } from "./commitment-controls";
+import { CommitmentsCard, type ReviewCommitment } from "./commitments-card";
 import {
   Card,
   Pill,
@@ -33,15 +33,10 @@ import {
   FOUNDATIONAL_LABELS,
   HELPFULNESS_STYLES,
   SELECTIVITY_LABELS,
-  dueLabel,
 } from "./detail-ui";
 
-export type DeepReviewCommitment = {
-  id: string;
-  description: string;
-  status: string;
-  dueDate: Date | null;
-};
+/** Kept as a re-export: the retired body and the evaluation share one type. */
+export type DeepReviewCommitment = ReviewCommitment;
 
 export function DeepReviewBody({
   narrative,
@@ -167,35 +162,7 @@ export function DeepReviewBody({
         )}
       </Card>
 
-      {/* ── Commitments ───────────────────────────────────────────────── */}
-      {commitments.length > 0 && (
-        <Card
-          title="What this review asked of you"
-          subtitle="Proposed, never accepted on your behalf. A commitment only starts appearing in your check-ins once you take it on."
-        >
-          <ul className="space-y-3">
-            {commitments.map((c) => (
-              <li
-                key={c.id}
-                className="rounded-lg border border-black/10 p-3 dark:border-white/15"
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Pill tone={COMMITMENT_STYLES[c.status]}>
-                    {COMMITMENT_LABELS[c.status] ?? c.status}
-                  </Pill>
-                  {dueLabel(c.dueDate) && (
-                    <span className="text-xs text-zinc-500">
-                      {dueLabel(c.dueDate)}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1.5 text-sm">{c.description}</p>
-                <CommitmentControls id={c.id} status={c.status} />
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
+      <CommitmentsCard commitments={commitments} />
 
       {/* ── Per target ────────────────────────────────────────────────── */}
       {narrative.schoolFits.length > 0 && (
@@ -388,23 +355,3 @@ function BandReading({
     </div>
   );
 }
-
-const COMMITMENT_STYLES: Record<string, string> = {
-  PROPOSED: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300",
-  ACCEPTED:
-    "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
-  IN_PROGRESS:
-    "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
-  COMPLETED: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
-  ABANDONED: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
-};
-
-const COMMITMENT_LABELS: Record<string, string> = {
-  PROPOSED: "proposed",
-  ACCEPTED: "you took this on",
-  IN_PROGRESS: "in progress",
-  COMPLETED: "done",
-  // Not "failed". Dropping something deliberately is a legitimate outcome, and
-  // the app should not moralise about a student who changed direction.
-  ABANDONED: "set aside",
-};

@@ -1,18 +1,12 @@
 import Link from "next/link";
 import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
-import { getCurrentUser } from "@/lib/session";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
-import {
-  checkDeepReviewAllowed,
-  tierForUser,
-} from "@/lib/evaluation/tier-access";
 import {
   buildProgress,
   schoolSeries,
   deltaFromPrevious,
 } from "@/lib/evaluation/progress";
 import { summariseHistoryRow } from "@/lib/evaluation/history";
-import { isDeepReviewRow } from "@/lib/evaluation/tier-rows";
 import { ScoreTrend } from "@/components/score-trend";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import { RunEvaluationButton } from "./run-evaluation-button";
@@ -70,30 +64,10 @@ export default async function EvaluationsPage() {
   // evaluation is shown as failed-with-a-reason rather than "pending" forever.
   await failStalePendingEvaluations();
 
-  const [user, profile, evaluations] = await Promise.all([
-    getCurrentUser(),
+  const [profile, evaluations] = await Promise.all([
     getProfileWithRelations(),
     getOwnedEvaluations(),
   ]);
-
-  // Whether a Deep Review is available is resolved HERE, not discovered by
-  // clicking. The route enforces both gates regardless — this is presentation,
-  // not security — but a student who is inside the 21-day floor deserves to
-  // read the reason on the page rather than receive it as a failed request,
-  // and one whose plan does not include Deep Reviews should not be offered a
-  // button whose only outcome is a 403.
-  // isDeepReviewRow, not `type === "DEEP_REVIEW"`. The type column defaults to
-  // DEEP_REVIEW, so matching on it counted a legacy evaluation as a Deep Review
-  // and started the 21-day floor against a run that never happened — locking an
-  // account out of its FIRST review for three weeks. The route decides this
-  // with the same rule, from the same module.
-  const lastDeepReview = evaluations.find(isDeepReviewRow);
-  const deepReviewGate = user
-    ? checkDeepReviewAllowed({
-        tier: tierForUser(user),
-        lastDeepReviewAt: lastDeepReview?.createdAt ?? null,
-      })
-    : ({ allowed: false, reason: "tier", message: "Not signed in." } as const);
 
   const progress = buildProgress(evaluations);
   const points = progress.points;
@@ -134,10 +108,6 @@ export default async function EvaluationsPage() {
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
           canFollowUp={canFollowUp}
-          deepReviewAllowed={deepReviewGate.allowed}
-          deepReviewBlockedReason={
-            deepReviewGate.allowed ? undefined : deepReviewGate.message
-          }
         />
       </div>
 
@@ -358,7 +328,7 @@ export default async function EvaluationsPage() {
             <p className="text-sm text-zinc-500">
               No evaluations yet.{" "}
               {disabledReason ??
-                "Click “Run evaluation” to get your first assessment."}
+                "Click “Run a Deep Review” to get your first assessment."}
             </p>
           </div>
         )}

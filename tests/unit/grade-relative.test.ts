@@ -19,7 +19,7 @@ import { STAGE_TRACKS } from "@/lib/validation/evaluation";
 
 describe("gradeRelativeScore has one pool, and it is the broad one", () => {
   it("is still in force on the active prompt", () => {
-    expect(PROMPT_VERSION).toBe("evaluation/v10");
+    expect(PROMPT_VERSION).toBe("evaluation/v11");
   });
 
   it("names the ordinary university-bound cohort", () => {

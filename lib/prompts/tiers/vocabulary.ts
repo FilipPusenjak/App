@@ -12,9 +12,15 @@
 // failed on shape, and nothing in either prompt had ever told the model what the
 // permitted values were.
 //
-// Shared by both tiers so the two cannot drift, and generated from the same
-// constants the validator uses so this file cannot state a value the schema
-// rejects.
+// Carried by the check-in prompt, and generated from the same constants the
+// validator uses so this file cannot state a value the schema rejects.
+//
+// It was shared by two tier prompts until the band-based Deep Review tier was
+// retired; the trajectory enum it used went with it. The evaluation prompt does
+// not carry this block — its own output contract is stated in v11 — but it does
+// emit `targetRung`, so the rung values are asserted against BOTH prompts in
+// tests/unit/tier-vocabulary.test.ts. An enum stated in only one of the two
+// places a model can reach it is the failure this file was written for.
 import { RUNGS } from "@/lib/readiness/rungs";
 
 const list = (values: readonly string[]) => values.map((v) => `"${v}"`).join(" | ");
@@ -42,7 +48,6 @@ below prints one beside the value.
   The context prints these as \`contributor (Doing real work in it)\`. The value
   is \`contributor\`. The parenthetical is a gloss for you, never an output.
 - Check-in \`movement.direction\`: ${list(["UP", "FLAT", "DOWN"])}
-- Deep review \`trajectory.direction\`: ${list(["STEEPENING", "STEADY", "FLATTENING"])}
 - \`selectivity\`: ${list(["open", "accessible", "selective", "highly_selective", "extremely_selective"])}
 - \`classification\`: ${list(["reach", "match", "safety"])}
 - \`helpfulness\`: ${list(["high", "moderate", "low", "negligible"])}

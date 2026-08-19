@@ -13,10 +13,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const ROUTES = [
-  "app/api/evaluations/deep-review/route.ts",
-  "app/api/evaluations/check-in/route.ts",
-];
+// One route now, not two — the deep-review tier is retired. The rule still has
+// teeth for the one that remains, and the list is kept as a list so a future
+// tier is added here rather than escaping the check.
+const ROUTES = ["app/api/evaluations/check-in/route.ts"];
 
 describe("tier routes never spend without recording", () => {
   for (const path of ROUTES) {
