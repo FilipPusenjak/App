@@ -69,6 +69,13 @@ import {
   fromWireResult,
 } from "@/lib/validation/evaluation-wire";
 import {
+  RUN_BUDGET_USD,
+  MIN_USEFUL_OUTPUT_TOKENS,
+  estimateInputTokens,
+  maxOutputTokensFor,
+  remainingBudget,
+} from "@/lib/cost-budget";
+import {
   isGrammarTooLargeError,
   isStructuredOutputParseError,
   parseModelJson,
@@ -76,10 +83,6 @@ import {
   renderSchemaInstructions,
   type ModelAttempt,
 } from "@/lib/structured-output";
-
-// Thinking + a structured result need headroom; stream so long runs don't hit
-// an HTTP timeout.
-const MAX_TOKENS = 32000;
 
 /**
  * How many open commitments the review is shown.
@@ -197,6 +200,15 @@ async function requestEvaluation(
   previous: { at: Date | null; model: string | null },
   choice: ModelChoice,
   signal: AbortSignal | undefined,
+  /**
+   * The output allowance this attempt may spend, in tokens.
+   *
+   * Passed in rather than read from a constant because it is derived from what
+   * is left of this RUN's budget — see lib/cost-budget.ts. A retry gets a
+   * smaller number than the first attempt, because the first attempt already
+   * spent part of the ceiling.
+   */
+  maxTokens: number,
 ) {
   const { model, effort } = choice;
   // Only writes a cache entry when one plausibly still exists to be read AND
@@ -222,7 +234,7 @@ async function requestEvaluation(
     const message = await client.messages
       .stream({
         model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         system,
         output_config: {
           effort,
@@ -253,7 +265,7 @@ async function requestEvaluation(
     const message = await client.messages
       .stream({
         model,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         system,
         output_config: { effort },
         messages: [
@@ -453,10 +465,41 @@ export async function POST(request: Request) {
       { developments: reported, openCommitments },
     );
 
+    // ── The cost ceiling, sized into the request ────────────────────────────
+    //
+    // Not a tripwire. The output allowance is whatever is left of this run's
+    // budget once the prompt we are about to send is paid for, so the model
+    // writes freely up to a number that was already affordable — nothing
+    // aborts, and the ceiling holds by arithmetic rather than by watching.
+    //
+    // Measured against the prompt we actually assembled, not a constant, so a
+    // profile that grows buys itself a smaller allowance rather than a bigger
+    // bill.
+    const promptTokens = estimateInputTokens(
+      SYSTEM_PROMPT,
+      prompt.stable,
+      prompt.variable,
+    );
+    const firstAllowance = maxOutputTokensFor({
+      budgetUsd: RUN_BUDGET_USD.DEEP_REVIEW,
+      inputTokens: promptTokens,
+      model: choice.model,
+    });
+
+    if (firstAllowance < MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW) {
+      // The context has outgrown what the budget can serve. Spending the
+      // remainder anyway would buy an answer that runs out mid-object and
+      // parses as nothing — the whole allowance gone, with no review. Say which
+      // of the two numbers has to move instead.
+      throw new Error(
+        `This profile assembles a ${promptTokens.toLocaleString()}-token prompt, which leaves too little of the $${RUN_BUDGET_USD.DEEP_REVIEW.toFixed(2)} per-review budget for the review itself. Raise DEEP_REVIEW_BUDGET_USD or reduce what the review is given.`,
+      );
+    }
+
     // A correction is appended AFTER the variable part, so the cached prefix
     // is identical on the retry and the second attempt reads the cache rather
     // than writing a new entry.
-    const attempt = async (extra = ""): Promise<ModelAttempt> => {
+    const attempt = async (extra = "", allowance = firstAllowance): Promise<ModelAttempt> => {
       const budgetMs = remainingModelBudgetMs(startedAt);
       const outcome = await requestEvaluation(
         client,
@@ -469,6 +512,7 @@ export async function POST(request: Request) {
         Number.isFinite(budgetMs)
           ? AbortSignal.timeout(Math.max(budgetMs, 1_000))
           : undefined,
+        allowance,
       );
       if ("parseError" in outcome) {
         return {
@@ -489,7 +533,7 @@ export async function POST(request: Request) {
       }
       if (message.stop_reason === "max_tokens") {
         throw new Error(
-          `The evaluation ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or reduce the size of your profile.`,
+          `The evaluation ran out of room before it finished (max_tokens ${allowance}, the most the $${RUN_BUDGET_USD.DEEP_REVIEW.toFixed(2)} per-review budget allows after a ${promptTokens.toLocaleString()}-token prompt). Try again, or reduce the size of your profile.`,
         );
       }
       // Accumulated rather than assigned: a retry is a second billed request,
@@ -522,11 +566,31 @@ export async function POST(request: Request) {
     // stochastic — a single malformed response is usually not repeated — and
     // losing an entire evaluation to one bad roll is a much worse outcome than
     // one extra request.
-    if (!outcome.ok && retryFits(startedAt)) {
+    //
+    // A retry is a SECOND BILL, which is how a 60-cent ceiling quietly becomes
+    // 120. So it is sized from what the ceiling has left after the first
+    // attempt — and the first attempt's usage is exact, reported on its own
+    // response, rather than estimated. `usage` has already accumulated it.
+    const retryAllowance = maxOutputTokensFor({
+      budgetUsd: remainingBudget(RUN_BUDGET_USD.DEEP_REVIEW, usage, choice.model),
+      inputTokens: promptTokens,
+      model: choice.model,
+    });
+
+    // Declining to retry is not the run giving up: the first attempt's failure
+    // still gets recorded with what it cost, exactly as before. It is the same
+    // judgement retryFits already makes about time, applied to money — a second
+    // attempt too small to finish would spend the rest of the ceiling to
+    // produce another unparseable answer.
+    if (
+      !outcome.ok &&
+      retryFits(startedAt) &&
+      retryAllowance >= MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW
+    ) {
       console.warn("Evaluation response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
         evaluationWireSchema,
-        await attempt(renderRetryNote(outcome.reason)),
+        await attempt(renderRetryNote(outcome.reason), retryAllowance),
         "model's response",
       );
       // Report the FIRST failure if both fail: it describes the original

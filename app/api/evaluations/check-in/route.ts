@@ -37,6 +37,12 @@ import {
   buildCheckInUserPrompt,
 } from "@/lib/prompts/tiers/check-in-v3";
 import { checkInNarrativeSchema, findBannedPhrasing } from "@/lib/validation/tiers";
+import {
+  RUN_BUDGET_USD,
+  MIN_USEFUL_OUTPUT_TOKENS,
+  estimateInputTokens,
+  maxOutputTokensFor,
+} from "@/lib/cost-budget";
 import { rungMap } from "@/lib/readiness/score";
 
 export const maxDuration = 120;
@@ -145,11 +151,42 @@ export async function POST() {
   // so routing can change without a pricing conversation.
   const model = getFollowupModel() ?? "claude-sonnet-5";
 
+  // ── The cost ceiling, sized into the request ──────────────────────────────
+  //
+  // Same construction as the review's, at a twelfth of the budget: measure the
+  // prompt, pay for it, spend what remains on the output allowance. A check-in
+  // is the cheap tier and this is where "cheap" stops being a claim about which
+  // model it uses and becomes a number it cannot exceed.
+  //
+  // 2,000 was the old fixed allowance, and at Sonnet's rate that alone is 3
+  // cents before a single input token — most of the budget spent on a ceiling
+  // nothing was measuring against.
+  const userPrompt = buildCheckInUserPrompt(context.text);
+  const promptTokens = estimateInputTokens(CHECK_IN_SYSTEM_PROMPT, userPrompt);
+  const allowance = maxOutputTokensFor({
+    budgetUsd: RUN_BUDGET_USD.CHECK_IN,
+    inputTokens: promptTokens,
+    model,
+  });
+
+  if (allowance < MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN) {
+    // The context has outgrown the budget. Reported rather than half-spent:
+    // an allowance too small to finish buys an unparseable answer and still
+    // bills for it. buildCheckInContext holds itself to 4,000 tokens, so this
+    // fires only if that budget is raised without raising this one.
+    return NextResponse.json(
+      {
+        error: `A check-in for this profile assembles a ${promptTokens.toLocaleString()}-token prompt, which leaves too little of the $${RUN_BUDGET_USD.CHECK_IN.toFixed(2)} per-check-in budget for the answer. Raise CHECK_IN_BUDGET_USD or reduce what the check-in is given.`,
+      },
+      { status: 507 },
+    );
+  }
+
   const message = await client.messages.create({
     model,
-    max_tokens: 2000,
+    max_tokens: allowance,
     system: CHECK_IN_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildCheckInUserPrompt(context.text) }],
+    messages: [{ role: "user", content: userPrompt }],
     // Explicit, for the same reason as the deep review. getFollowupEffort
     // defaults to the baseline effort rather than dropping it: a check-in that
     // both changed model AND lowered effort would make an unexplained movement

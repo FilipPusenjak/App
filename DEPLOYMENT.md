@@ -121,6 +121,8 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
 | `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
 | `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 3; `0` disables. An estimate, not your bill — see below. |
+| `DEEP_REVIEW_BUDGET_USD` | No | Ceiling for ONE Deep Review. Default 0.60. Not a tripwire — the output allowance is sized so the run cannot exceed it. |
+| `CHECK_IN_BUDGET_USD` | No | Ceiling for ONE Check-In. Default 0.05, same construction. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
 | `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
@@ -147,6 +149,28 @@ One thing to expect:
   **$3** default, an account that has already run several reviews may be refused
   with "spending limit reached" before the next one starts. Raise the cap
   deliberately rather than by accident.
+
+### What a single run can cost
+
+Two ceilings, and they work differently from `ACCOUNT_SPEND_LIMIT_USD`. That one
+is a tripwire checked before a run starts: it stops the NEXT run once the total
+is reached. These bound the run itself.
+
+The mechanism is arithmetic rather than supervision. Output is capped exactly by
+`max_tokens`, and input is whatever we chose to send — so each route measures
+the prompt it has assembled, works out what that will bill, and spends the
+remainder of the budget on the output allowance. The model then writes freely up
+to a number that was already affordable. Nothing aborts mid-generation and no
+answer is discarded for going over.
+
+- A Deep Review measured around **$0.19** in practice against a **$0.60** cap,
+  so the ceiling is roughly three times the expected cost. It exists for the run
+  that goes wrong, not the one that goes normally.
+- A retry is a second bill, so it is sized from what the first attempt actually
+  left — the pair stays inside one cap.
+- If a profile ever assembles a prompt so large that too little budget remains
+  for a usable answer, the run is refused with a message naming both numbers.
+  That is the case to raise the budget for, or to send the review less.
 
 Check-Ins run between reviews on the fortnightly rhythm. They read what the
 student reported under "recent developments", follow up on accepted commitments
