@@ -29,6 +29,19 @@ export const COMMITMENT_STATUSES = [
   "IN_PROGRESS",
   "COMPLETED",
   "ABANDONED",
+  /**
+   * A proposal a later review replaced before the student ever answered it.
+   *
+   * Deliberately NOT reused from ABANDONED, which would be the tempting
+   * shortcut. ABANDONED means the student looked at something and said no, and
+   * a deep review reads that pattern as one of the most honest signals in the
+   * table. Filing an unanswered proposal there would put a decision in their
+   * mouth that they never made, and then quote it back to them as evidence.
+   *
+   * The student cannot reach this status: it is absent from every transition
+   * in the PATCH route's ALLOWED map, so only a completing review sets it.
+   */
+  "SUPERSEDED",
 ] as const;
 export const commitmentStatusSchema = z.enum(COMMITMENT_STATUSES);
 export type CommitmentStatus = (typeof COMMITMENT_STATUSES)[number];

@@ -29,6 +29,12 @@ const ALLOWED: Record<string, string[]> = {
   IN_PROGRESS: ["COMPLETED", "ABANDONED"],
   COMPLETED: [],
   ABANDONED: [],
+  // Terminal, and unreachable from here in BOTH directions. SUPERSEDED appears
+  // as no transition's target anywhere in this map, so a client cannot set it —
+  // only a completing review does, and only on a proposal the student never
+  // answered. It is empty as a source for the same reason COMPLETED is: a
+  // resolved commitment that can be rewritten is not a history.
+  SUPERSEDED: [],
 };
 
 export async function PATCH(

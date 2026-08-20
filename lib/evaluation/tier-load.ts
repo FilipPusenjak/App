@@ -21,6 +21,16 @@ import {
 import type { Rung } from "@/lib/readiness/rungs";
 import type { EvaluationType } from "@/lib/validation/tiers";
 import { COUNTRIES } from "@/lib/data/countries";
+import { OPEN_STATUSES } from "@/lib/commitments/store";
+
+/**
+ * How many open commitments a check-in is shown.
+ *
+ * Smaller than the review's limit on purpose. A check-in is the cheap tier and
+ * is cheap because of what it is NOT given; a list that grows with every review
+ * would turn the fortnightly rhythm into a second full-price read.
+ */
+const CHECK_IN_COMMITMENT_LIMIT = 12;
 
 const countryName = (code: string) =>
   COUNTRIES.find((c) => c.code === code)?.name ?? code;
@@ -98,9 +108,16 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
       where: { profileId: profile.id },
       orderBy: { throughGrade: "asc" },
     }),
+    // Only what is still open, bounded, most pressing first. This used to load
+    // every commitment ever and filter in memory, which was harmless while a
+    // profile had a handful — but every review adds two to four more, and an
+    // unbounded list rendered into a prompt is a context budget nobody is
+    // watching. Ordering by due date means a cut drops the undated tail rather
+    // than whatever is newest.
     prisma.commitment.findMany({
-      where: { profileId: profile.id },
-      orderBy: { createdAt: "desc" },
+      where: { profileId: profile.id, status: { in: [...OPEN_STATUSES] } },
+      orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
+      take: CHECK_IN_COMMITMENT_LIMIT,
     }),
   ]);
 
@@ -180,14 +197,12 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
     profileId: profile.id,
     scored,
     digests,
-    openCommitments: commitments
-      .filter((c) => ["PROPOSED", "ACCEPTED", "IN_PROGRESS"].includes(c.status))
-      .map((c) => ({
-        id: c.id,
-        description: c.description,
-        status: c.status,
-        dueDate: c.dueDate,
-      })),
+    openCommitments: commitments.map((c) => ({
+      id: c.id,
+      description: c.description,
+      status: c.status,
+      dueDate: c.dueDate,
+    })),
     intendedMajor: profile.intendedMajor,
     careerGoal: profile.careerGoal,
     schoolContext: profile.schoolContext,
@@ -209,18 +224,4 @@ export async function loadForTier(type: EvaluationType): Promise<LoadedTierData>
       : null,
     changeCount,
   };
-}
-
-/** All commitments, including abandoned — deep reviews read the pattern. */
-export async function loadCommitmentHistory(profileId: string) {
-  return prisma.commitment.findMany({
-    where: { profileId },
-    orderBy: { createdAt: "asc" },
-    select: {
-      description: true,
-      status: true,
-      dueDate: true,
-      resolvedAt: true,
-    },
-  });
 }

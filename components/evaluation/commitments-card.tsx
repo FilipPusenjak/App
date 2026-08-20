@@ -62,6 +62,7 @@ const COMMITMENT_STYLES: Record<string, string> = {
     "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300",
   COMPLETED: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
   ABANDONED: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
+  SUPERSEDED: "bg-zinc-100 text-zinc-600 dark:bg-white/10 dark:text-zinc-300",
 };
 
 const COMMITMENT_LABELS: Record<string, string> = {
@@ -72,4 +73,7 @@ const COMMITMENT_LABELS: Record<string, string> = {
   // Not "failed". Dropping something deliberately is a legitimate outcome, and
   // the app should not moralise about a student who changed direction.
   ABANDONED: "set aside",
+  // Says who did it, because the student did not. Anything shorter reads as an
+  // outcome they are responsible for.
+  SUPERSEDED: "replaced by a later review",
 };

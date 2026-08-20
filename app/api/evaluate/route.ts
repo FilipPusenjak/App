@@ -49,6 +49,10 @@ import {
 } from "@/lib/evaluation/model-choice";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { getRecentDevelopments } from "@/lib/developments";
+import {
+  loadOpenCommitments,
+  recordProposedCommitments,
+} from "@/lib/commitments/store";
 import { findRequirementsForTargets } from "@/lib/requirements/lookup";
 import { buildSampleResult } from "@/lib/evaluation/sample";
 import { loadPreviousContext } from "@/lib/evaluation/previous";
@@ -76,6 +80,16 @@ import {
 // Thinking + a structured result need headroom; stream so long runs don't hit
 // an HTTP timeout.
 const MAX_TOKENS = 32000;
+
+/**
+ * How many open commitments the review is shown.
+ *
+ * Bounded because this list is unbounded in the database — a student can accept
+ * as many as they like over four years — and an unbounded section in a prompt
+ * is a context budget nobody is watching. Ordered by due date at the source, so
+ * what survives the cut is what has a deadline rather than what is oldest.
+ */
+const REVIEW_COMMITMENT_LIMIT = 20;
 
 /**
  * Maximum seconds this route may run for.
@@ -423,14 +437,20 @@ export async function POST(request: Request) {
     // marking a note read means that check-in answered it; the full review has
     // still never seen it, and a fortnight's news is exactly the raw material a
     // months-long read is made of.
-    const reported = await getRecentDevelopments(profile.id, lastRunAt ?? null);
+    // Since the last REVIEW for developments; everything currently outstanding
+    // for commitments — a commitment does not stop being owed because a
+    // fortnight passed.
+    const [reported, openCommitments] = await Promise.all([
+      getRecentDevelopments(profile.id, lastRunAt ?? null),
+      loadOpenCommitments(profile.id, REVIEW_COMMITMENT_LIMIT),
+    ]);
 
     const prompt = buildUserPromptParts(
       snapshot,
       diff,
       reuse,
       sourcedRequirements,
-      reported,
+      { developments: reported, openCommitments },
     );
 
     // A correction is appended AFTER the variable part, so the cached prefix
@@ -551,22 +571,18 @@ export async function POST(request: Request) {
     // that can be read back out of resultJson, while rolling the evaluation
     // back would throw away a run the student has already paid for.
     //
-    // dueInWeeks is turned into a date HERE rather than by the model, so every
-    // due date is measured from the moment the evaluation completed instead of
-    // from whenever the model believed "today" to be.
-    const now = Date.now();
-    if (result.proposedCommitments.length > 0) {
-      await prisma.commitment.createMany({
-        data: result.proposedCommitments.map((c) => ({
-          profileId: evaluation.profileId,
-          sourceEvaluationId: evaluation.id,
-          description: c.description,
-          targetRung: c.targetRung,
-          dueDate: new Date(now + c.dueInWeeks * 7 * 86_400_000),
-          status: "PROPOSED",
-        })),
-      });
-    }
+    // This also retires the proposals THIS review replaces — see the store, and
+    // note that only unanswered ones are retired. What the student accepted is
+    // theirs and survives.
+    await recordProposedCommitments({
+      profileId: evaluation.profileId,
+      evaluationId: evaluation.id,
+      proposals: result.proposedCommitments.map((c) => ({
+        description: c.description,
+        targetRung: c.targetRung ?? null,
+        dueInWeeks: c.dueInWeeks,
+      })),
+    });
 
     return NextResponse.json({ id: evaluation.id, isSample: false });
   } catch (error) {

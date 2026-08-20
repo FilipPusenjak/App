@@ -87,43 +87,105 @@ response rather than the field.
 
 **Propose, never assume.** The student accepts or declines each of these. Write
 them as things they could take on, not as things they have agreed to or as
-instructions. Nobody has said yes yet.`;
+instructions. Nobody has said yes yet.
+
+**Do not re-propose what they already took on.** When the context lists
+commitments they have accepted, those are live and being tracked already.
+Proposing one again asks them to agree to something they agreed to weeks ago,
+and it then appears twice everywhere. If an accepted commitment is still the
+right thing and has not happened, say so in your assessment — that is a finding
+about follow-through, and it is more useful than a duplicate row.`;
 
 export const SYSTEM_PROMPT = V10_SYSTEM_PROMPT + COMMITMENTS_SECTION;
 
+/** A commitment the student still has in front of them. */
+export type OpenCommitmentLine = {
+  description: string;
+  status: string;
+  dueDate: Date | null;
+};
+
 /**
- * v10's prompt, plus what the student reported since their last review.
+ * The two things v11 adds to v10's context, both about the student's own
+ * follow-through rather than their profile.
  *
- * Developments used to be read by the retired tier and by check-ins. Losing the
+ * An options object rather than two more positional parameters: five was
+ * already at the edge, and `(snapshot, null, undefined, [], [], [])` at a call
+ * site is a bug waiting to be written.
+ */
+export type EvaluationExtras = {
+  /** What the student wrote, since their last REVIEW — not since a check-in. */
+  developments?: ReportedDevelopment[];
+  /** What is already outstanding, so the review does not re-propose it. */
+  openCommitments?: OpenCommitmentLine[];
+};
+
+/**
+ * v10's prompt, plus what the student said and what they are already on the
+ * hook for.
+ *
+ * DEVELOPMENTS used to be read by the retired tier and by check-ins. Losing the
  * tier must not lose the reading: a student who writes "the club folded, so the
  * workshop could not happen" and is then handed a review that judges the
  * abandoned commitment in silence has been ignored by the one feature built to
  * listen to them.
  *
- * Appended to `variable`, never to `stable`. The split exists for prompt
- * caching, which is a PREFIX match — putting the most volatile text in the app
- * behind the cache breakpoint would invalidate the rubrics on every run and
- * turn a saving into a surcharge.
+ * OPEN COMMITMENTS are here because this review proposes more of them. A review
+ * that cannot see what the student already accepted proposes it again, and the
+ * accept/decline loop fills with duplicates of itself — the failure that shows
+ * up on the second review, not the first.
+ *
+ * Both are appended to `variable`, never to `stable`. The split exists for
+ * prompt caching, which is a PREFIX match: putting the most volatile text in
+ * the app behind the cache breakpoint would invalidate the rubrics on every run
+ * and turn a saving into a surcharge.
  */
 export function buildUserPromptParts(
   snapshot: EvaluationSnapshot,
   diff: SnapshotDiff | null = null,
   reuse: ItemReuse = NO_REUSE,
   requirements: ResolvedRequirement[] = [],
-  developments: ReportedDevelopment[] = [],
+  extras: EvaluationExtras = {},
 ): { stable: string; variable: string } {
   const parts = buildV10Parts(snapshot, diff, reuse, requirements);
+  const developments = extras.developments ?? [];
+  const openCommitments = extras.openCommitments ?? [];
+
   // No heading when there is nothing under it — an empty section is an
   // invitation to invent something to put in it.
-  if (developments.length === 0) return parts;
+  let variable = parts.variable;
 
-  const reported = developments
-    .map((d) => `- ${d.createdAt.toISOString().slice(0, 10)}: ${d.body}`)
-    .join("\n");
+  if (openCommitments.length > 0) {
+    const lines = openCommitments
+      .map((c) => {
+        const due = c.dueDate
+          ? ` (due ${c.dueDate.toISOString().slice(0, 10)})`
+          : "";
+        return `- ${c.description} — ${c.status}${due}`;
+      })
+      .join("\n");
 
-  return {
-    stable: parts.stable,
-    variable: `${parts.variable}
+    variable += `
+
+# Commitments already open
+
+What this student has been asked to do, and whether they took it on. PROPOSED
+means the last review suggested it and they have not answered. ACCEPTED and
+IN_PROGRESS mean they said yes and it is being tracked.
+
+Do not propose an ACCEPTED or IN_PROGRESS item again. If one of them has not
+happened and still should, that belongs in your assessment as a finding about
+follow-through — not in proposedCommitments as a duplicate.
+
+${lines}`;
+  }
+
+  if (developments.length > 0) {
+    const reported = developments
+      .map((d) => `- ${d.createdAt.toISOString().slice(0, 10)}: ${d.body}`)
+      .join("\n");
+
+    variable += `
 
 # What the student reported since their last review
 
@@ -132,6 +194,8 @@ Everything else here is something the app computed about them. Read these before
 judging anything they explain — an activity that stopped for a reason the
 student gave you is a different fact from one that stopped in silence.
 
-${reported}`,
-  };
+${reported}`;
+  }
+
+  return { stable: parts.stable, variable };
 }

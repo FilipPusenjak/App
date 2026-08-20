@@ -299,12 +299,14 @@ describe.skipIf(!hasTestDb)("a full review reads them too", () => {
     const profile = await getProfileWithRelations();
     const snapshot = buildSnapshot(profile, "US");
 
-    const parts = buildUserPromptParts(snapshot, null, undefined, [], [
-      {
-        body: "The club folded, so the workshop could not happen.",
-        createdAt: new Date("2026-05-02"),
-      },
-    ]);
+    const parts = buildUserPromptParts(snapshot, null, undefined, [], {
+      developments: [
+        {
+          body: "The club folded, so the workshop could not happen.",
+          createdAt: new Date("2026-05-02"),
+        },
+      ],
+    });
 
     expect(parts.variable).toContain("What the student reported since their last review");
     expect(parts.variable).toContain("The club folded");
@@ -318,7 +320,7 @@ describe.skipIf(!hasTestDb)("a full review reads them too", () => {
   it("omits the section entirely when there is nothing to report", async () => {
     const profile = await getProfileWithRelations();
     const snapshot = buildSnapshot(profile, "US");
-    const parts = buildUserPromptParts(snapshot, null, undefined, [], []);
+    const parts = buildUserPromptParts(snapshot, null, undefined, [], {});
     // An empty heading invites the model to fill it.
     expect(parts.variable).not.toContain("What the student reported");
   });
