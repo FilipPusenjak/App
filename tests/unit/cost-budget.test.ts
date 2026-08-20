@@ -15,6 +15,9 @@ import {
   remainingBudget,
 } from "@/lib/cost-budget";
 import { estimateCost } from "@/lib/cost";
+import { CHECK_IN_SYSTEM_PROMPT } from "@/lib/prompts/tiers/check-in-v3";
+import { CHECK_IN_TOKEN_BUDGET } from "@/lib/evaluation/context/check-in";
+import { SYSTEM_PROMPT } from "@/lib/prompts/evaluation";
 
 /** What a run costs at its worst: every input token billed as a cache write. */
 function worstCaseCost(inputTokens: number, outputTokens: number, model: string) {
@@ -163,16 +166,60 @@ describe("the budgets leave room for the reviews they govern", () => {
     expect(allowance).toBeGreaterThanOrEqual(MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW);
   });
 
-  it("a check-in at its own context budget still buys a usable allowance", () => {
-    // buildCheckInContext holds itself to 4,000 tokens. Estimated at three
-    // characters per token that reads as more, so this checks the pessimistic
-    // figure rather than the friendly one.
+  it("a check-in with a FULL context and its real system prompt still runs", () => {
+    // Measured, not assumed — and the first version of this budget failed it.
+    //
+    // The check-in system prompt is real here rather than guessed, and the
+    // context is taken at the whole 4,000 tokens buildCheckInContext allows
+    // itself. That is the worst case a real student produces: four years of
+    // digests, open commitments, and reported developments.
+    //
+    // At the pessimistic three-characters-per-token estimate this is roughly
+    // 7,700 tokens of input against a five cent budget, which leaves very
+    // little room. It fits only because the check-in does not cache.
+    const inputTokens =
+      estimateInputTokens(CHECK_IN_SYSTEM_PROMPT) +
+      estimateInputTokens("x".repeat(CHECK_IN_TOKEN_BUDGET * 4));
+
     const allowance = maxOutputTokensFor({
       budgetUsd: RUN_BUDGET_USD.CHECK_IN,
-      inputTokens: 5_500,
+      inputTokens,
+      model: "claude-sonnet-5",
+      cachesInput: false,
+    });
+    expect(
+      allowance,
+      `a full check-in context leaves only ${allowance} output tokens, under the ${MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN} floor — the route would refuse to run it`,
+    ).toBeGreaterThanOrEqual(MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN);
+  });
+
+  it("pricing the check-in as a cache write would refuse it outright", () => {
+    // Why cachesInput exists, stated as the failure it prevents. Charging a
+    // route double for a cache it never writes is not conservative, it is
+    // wrong, and at this budget the difference is the whole margin.
+    const inputTokens =
+      estimateInputTokens(CHECK_IN_SYSTEM_PROMPT) +
+      estimateInputTokens("x".repeat(CHECK_IN_TOKEN_BUDGET * 4));
+
+    const asCacheWrite = maxOutputTokensFor({
+      budgetUsd: RUN_BUDGET_USD.CHECK_IN,
+      inputTokens,
       model: "claude-sonnet-5",
     });
-    expect(allowance).toBeGreaterThanOrEqual(MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN);
+    expect(asCacheWrite).toBeLessThan(MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN);
+  });
+
+  it("a Deep Review with its real system prompt keeps a wide margin", () => {
+    // The review's system prompt is far larger than the check-in's, and its
+    // budget is twelve times bigger. Pinned so a growing prompt shows up here
+    // rather than on a student's run.
+    const inputTokens = estimateInputTokens(SYSTEM_PROMPT) + 12_000;
+    const allowance = maxOutputTokensFor({
+      budgetUsd: RUN_BUDGET_USD.DEEP_REVIEW,
+      inputTokens,
+      model: "claude-opus-5",
+    });
+    expect(allowance).toBeGreaterThan(MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW * 2);
   });
 
   it("reports zero rather than a negative allowance when input alone overruns", () => {
@@ -200,6 +247,13 @@ describe("the caps are the ones that were asked for", () => {
 // Nothing below would notice a future edit that reinstated a constant
 // max_tokens — the run would simply cost whatever it cost, quietly, and no
 // behavioural test would fail.
+/** Source with block and line comments removed, so prose is not evidence. */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 describe("neither route can go back to a fixed allowance", () => {
   const ROUTES = [
     "app/api/evaluate/route.ts",
@@ -221,6 +275,22 @@ describe("neither route can go back to a fixed allowance", () => {
     it(`${path} refuses to send below the useful floor`, () => {
       // The floor is what stops a request whose input alone breaches the cap.
       expect(source).toContain("MIN_USEFUL_OUTPUT_TOKENS");
+    });
+
+    it(`${path} only claims cachesInput:false if it really sends no cache`, () => {
+      // "This route does not cache" is a fact about code, and a future edit
+      // adding cache_control would make the cheaper pricing an under-count —
+      // which breaks the ceiling silently rather than loudly.
+      //
+      // Read against the CODE with comments stripped. The first version of
+      // this test failed on the comment explaining why the route does not
+      // cache, which is the right failure to have had: a grep over prose is
+      // not a check on behaviour.
+      if (!stripComments(source).includes("cachesInput: false")) return;
+      expect(
+        stripComments(source).includes("cache_control"),
+        `${path} claims cachesInput:false but sends cache_control. Its input would bill at 2x and the budget would be under-counted.`,
+      ).toBe(false);
     });
   }
 });

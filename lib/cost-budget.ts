@@ -62,10 +62,22 @@ export function estimateInputTokens(...parts: string[]): number {
 /**
  * The output allowance that fits in what remains of a budget.
  *
- * Input is priced as a CACHE WRITE (2x base) whether or not one happens. A
- * cache write is the most expensive way an input token can bill, and assuming
- * it keeps the ceiling true on the runs that do write one — see lib/cost.ts,
- * where the same worst-case reasoning governs the spend cap.
+ * `cachesInput` decides how the prompt is priced, and getting it wrong is not a
+ * rounding error — it doubles or halves the input side of the calculation.
+ *
+ *   TRUE (the default) prices every input token as a CACHE WRITE at 2x base.
+ *   That is the most expensive way an input token can bill, so it keeps the
+ *   ceiling honest on a route that sends cache_control — see lib/cost.ts, where
+ *   the same worst-case reasoning governs the spend cap.
+ *
+ *   FALSE prices it as plain input, and is only correct for a route that sends
+ *   no cache_control at all. Passing it on a route that does cache would
+ *   under-count and break the ceiling.
+ *
+ * The default is the safe one. A caller has to assert the cheaper case
+ * deliberately, and the check-in route's claim is guarded by a test that reads
+ * its source for cache_control — because "this route does not cache" is a fact
+ * about code that a future edit can silently falsify.
  *
  * Returns zero when the input alone has consumed the budget. Callers decide
  * what that means; this function does not throw, because a cost calculation is
@@ -75,14 +87,23 @@ export function maxOutputTokensFor(input: {
   budgetUsd: number;
   inputTokens: number;
   model: string;
+  cachesInput?: boolean;
 }): number {
+  const cachesInput = input.cachesInput ?? true;
   const inputCost = estimateCost(
-    {
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheWriteTokens: input.inputTokens,
-      cacheReadTokens: 0,
-    },
+    cachesInput
+      ? {
+          inputTokens: 0,
+          outputTokens: 0,
+          cacheWriteTokens: input.inputTokens,
+          cacheReadTokens: 0,
+        }
+      : {
+          inputTokens: input.inputTokens,
+          outputTokens: 0,
+          cacheWriteTokens: 0,
+          cacheReadTokens: 0,
+        },
     input.model,
   ) ?? 0;
 

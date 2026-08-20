@@ -167,6 +167,15 @@ export async function POST() {
     budgetUsd: RUN_BUDGET_USD.CHECK_IN,
     inputTokens: promptTokens,
     model,
+    // This route sends NO cache_control — the request below is a plain
+    // messages.create with a system string and one user turn. Pricing its input
+    // as a cache write would charge it double for something it never does, and
+    // at a five cent budget that difference is the whole margin: it put the
+    // allowance under the floor and refused check-ins that fit comfortably.
+    //
+    // Guarded by a test that greps this file for cache_control, because the
+    // claim is about code and a future edit could quietly make it false.
+    cachesInput: false,
   });
 
   if (allowance < MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN) {
