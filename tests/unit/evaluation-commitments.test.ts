@@ -63,17 +63,21 @@ describe("what the model must return", () => {
     expect(evaluationResultSchema.safeParse(result()).success).toBe(true);
   });
 
-  it("requires at least two, so a review cannot propose a single thing", () => {
-    // One commitment is a suggestion. The count is what makes it a choice.
+  it("accepts ONE, rather than discarding a paid response over a count", () => {
+    // This asserted the opposite yesterday, and the opposite was wrong.
+    // Structured outputs constrain shape, not counts, so `.min(2)` here did not
+    // stop the model returning one — it only made Zod throw the whole response
+    // away afterwards, once it had been generated and billed. The prompt still
+    // asks for two to four; the schema no longer charges for the difference.
     const one = result({
       proposedCommitments: [
         { description: "d", targetRung: null, dueInWeeks: 4 },
       ],
     });
-    expect(evaluationResultSchema.safeParse(one).success).toBe(false);
+    expect(evaluationResultSchema.safeParse(one).success).toBe(true);
   });
 
-  it("caps at four, so a check-in is not handed a to-do list", () => {
+  it("accepts FIVE, and lets the writer trim rather than the parser reject", () => {
     const five = result({
       proposedCommitments: Array.from({ length: 5 }, () => ({
         description: "d",
@@ -81,13 +85,30 @@ describe("what the model must return", () => {
         dueInWeeks: 4,
       })),
     });
-    expect(evaluationResultSchema.safeParse(five).success).toBe(false);
+    expect(evaluationResultSchema.safeParse(five).success).toBe(true);
   });
 
-  it("rejects a commitment with no commitments at all", () => {
+  it("accepts an empty list rather than losing the assessment with it", () => {
+    // A review with no proposals is a degraded review. A review that was
+    // thrown away is no review, and the student paid for it either way.
     expect(
       evaluationResultSchema.safeParse(result({ proposedCommitments: [] })).success,
-    ).toBe(false);
+    ).toBe(true);
+  });
+
+  it("accepts a due window the server will have to clamp", () => {
+    // Every one of these was a rejection yesterday. All of them are a model
+    // slip around an assessment that is probably fine.
+    for (const weeks of [0, -4, 200, 1.5]) {
+      const parsed = evaluationResultSchema.safeParse(
+        result({
+          proposedCommitments: [
+            { description: "a", targetRung: null, dueInWeeks: weeks },
+          ],
+        }),
+      );
+      expect(parsed.success, `dueInWeeks ${weeks} was rejected`).toBe(true);
+    }
   });
 
   it("accepts every real rung as a target", () => {
@@ -104,7 +125,12 @@ describe("what the model must return", () => {
     }
   });
 
-  it("rejects the human label printed beside a rung in the context", () => {
+  it("still rejects the human label printed beside a rung in the context", () => {
+    // Kept strict, unlike the counts above, and the difference is that an enum
+    // IS expressible in the output format — the API constrains generation to
+    // these values, so a wrong one means something has genuinely gone wrong
+    // rather than the model having merely miscounted.
+    //
     // The exact failure that cost a real check-in: the context prints
     // `contributor (Doing real work in it)` and the model emitted the gloss.
     const parsed = evaluationResultSchema.safeParse(
@@ -118,21 +144,6 @@ describe("what the model must return", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("refuses a due window the server cannot turn into a sane date", () => {
-    // dueInWeeks becomes a real date on the server. Zero would be due on the
-    // day it was proposed; two hundred weeks is past the end of school.
-    for (const weeks of [0, -4, 200, 1.5]) {
-      const parsed = evaluationResultSchema.safeParse(
-        result({
-          proposedCommitments: [
-            { description: "a", targetRung: null, dueInWeeks: weeks },
-            { description: "b", targetRung: null, dueInWeeks: 6 },
-          ],
-        }),
-      );
-      expect(parsed.success, `dueInWeeks ${weeks} was accepted`).toBe(false);
-    }
-  });
 });
 
 describe("what the app must still be able to read", () => {

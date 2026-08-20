@@ -11,7 +11,7 @@
 // resolved from the session through lib/ownership. Nothing here accepts an id
 // from a request.
 import { prisma } from "@/lib/db";
-import { commitmentsToWrite } from "./text";
+import { commitmentsToWrite, sanitizeProposals } from "./text";
 
 /** Statuses that mean the student still has this in front of them. */
 export const OPEN_STATUSES = ["PROPOSED", "ACCEPTED", "IN_PROGRESS"] as const;
@@ -102,7 +102,12 @@ export async function recordProposedCommitments(input: {
     select: { description: true },
   });
 
-  const toWrite = commitmentsToWrite(input.proposals, stillOpen);
+  // Clamped BEFORE deduping, so a fifth proposal cannot displace a real one by
+  // surviving the cut and then being dropped as a duplicate.
+  const toWrite = commitmentsToWrite(
+    sanitizeProposals(input.proposals),
+    stillOpen,
+  );
   if (toWrite.length === 0) return { superseded, created: 0 };
 
   // dueInWeeks becomes a date HERE rather than in the model's output, so every

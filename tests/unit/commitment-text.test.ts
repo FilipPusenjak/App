@@ -10,7 +10,70 @@ import {
   commitmentsToWrite,
   normalizeDescription,
   sameCommitment,
+  sanitizeProposals,
+  MAX_PROPOSED_COMMITMENTS,
 } from "@/lib/commitments/text";
+
+const proposal = (over: Partial<{ description: string; targetRung: string | null; dueInWeeks: number }> = {}) => ({
+  description: "Send the write-up to a teacher",
+  targetRung: null,
+  dueInWeeks: 4,
+  ...over,
+});
+
+// Clamping rather than rejecting, and the difference is a Deep Review's worth
+// of tokens. Structured outputs constrain shape, not counts or ranges — so a
+// `.min(2)` in the schema never stopped the model returning one, it only made
+// Zod discard the whole billed response afterwards. These are the same rules,
+// applied where applying them is free.
+describe("bringing a review's proposals inside bounds", () => {
+  it("trims to four rather than refusing five", () => {
+    const out = sanitizeProposals(
+      Array.from({ length: 5 }, (_, n) => proposal({ description: `A${n}` })),
+    );
+    expect(out).toHaveLength(MAX_PROPOSED_COMMITMENTS);
+    // The first four, not an arbitrary sample — the model ranks them.
+    expect(out.map((p) => p.description)).toEqual(["A0", "A1", "A2", "A3"]);
+  });
+
+  it("keeps a single proposal rather than demanding two", () => {
+    expect(sanitizeProposals([proposal()])).toHaveLength(1);
+  });
+
+  it("clamps a due window instead of throwing the review away", () => {
+    expect(sanitizeProposals([proposal({ dueInWeeks: 0 })])[0]!.dueInWeeks).toBe(1);
+    expect(sanitizeProposals([proposal({ dueInWeeks: -4 })])[0]!.dueInWeeks).toBe(1);
+    expect(sanitizeProposals([proposal({ dueInWeeks: 500 })])[0]!.dueInWeeks).toBe(104);
+  });
+
+  it("rounds a fractional week — nobody asked for a Thursday afternoon", () => {
+    expect(sanitizeProposals([proposal({ dueInWeeks: 4.4 })])[0]!.dueInWeeks).toBe(4);
+    expect(sanitizeProposals([proposal({ dueInWeeks: 4.6 })])[0]!.dueInWeeks).toBe(5);
+  });
+
+  it("drops a proposal with no text, because there is no honest repair", () => {
+    // Everything else here is a value fixed around an assessment that is fine.
+    // A commitment that does not say what to do cannot be fixed, and offering
+    // a student an empty row to accept is worse than offering nothing.
+    const out = sanitizeProposals([proposal({ description: "   " }), proposal()]);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.description).toBe("Send the write-up to a teacher");
+  });
+
+  it("does NOT truncate a long description", () => {
+    // Cutting mid-sentence can invert a commitment: "do X, but only after Y"
+    // truncated at the comma says the opposite of what was written. The column
+    // is unbounded text and the card wraps, so there is nothing to gain.
+    const long = "x".repeat(900);
+    expect(sanitizeProposals([proposal({ description: long })])[0]!.description)
+      .toHaveLength(900);
+  });
+
+  it("leaves a well-formed set completely alone", () => {
+    const input = [proposal({ description: "A" }), proposal({ description: "B" })];
+    expect(sanitizeProposals(input)).toEqual(input);
+  });
+});
 
 describe("what counts as the same commitment", () => {
   it("ignores case, padding and a trailing full stop", () => {

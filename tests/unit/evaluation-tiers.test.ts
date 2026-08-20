@@ -249,10 +249,12 @@ describe("output shapes", () => {
     expect(many.success).toBe(false);
   });
 
-  it("requires 2 to 4 proposed commitments on a deep review", () => {
+  it("reads a retired review's commitments without policing the count", () => {
+    // This schema is now a READER — the tier that produced these rows is
+    // retired, so nothing validates a fresh response against it. A `.min(2)`
+    // here can only refuse to render something already stored, which is the
+    // failure this surface has been fixed for twice.
     const base = {
-      // headline, schoolFits, itemAssessments and verifyThese arrived when the
-      // deep review absorbed the evaluation it replaces.
       headline: "A one-sentence headline.",
       sinceLastReview: "Baseline.",
       trajectory: { assessment: "a", direction: "STEADY" },
@@ -266,17 +268,17 @@ describe("output shapes", () => {
         { description: "d", targetRung: null, dueInWeeks: 4 },
       ],
     });
-    expect(one.success).toBe(false);
+    expect(one.success).toBe(true);
 
-    const three = deepReviewNarrativeSchema.safeParse({
+    const many = deepReviewNarrativeSchema.safeParse({
       ...base,
-      proposedCommitments: Array.from({ length: 3 }, () => ({
+      proposedCommitments: Array.from({ length: 6 }, () => ({
         description: "d",
         targetRung: null,
         dueInWeeks: 4,
       })),
     });
-    expect(three.success).toBe(true);
+    expect(many.success).toBe(true);
   });
 
   it("never surfaces a model name to the user", () => {

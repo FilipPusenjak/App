@@ -308,18 +308,35 @@ export const evaluationResultSchema = z.object({
    * opts in; anything else would be putting words in a teenager's mouth about
    * work they never agreed to do.
    */
-  proposedCommitments: z
-    .array(
-      z.object({
-        description: z.string().trim().min(1).max(300),
-        /** The rung this is meant to reach, when it is about one activity. */
-        targetRung: z.enum(RUNGS).nullable(),
-        /** Weeks from now, so the SERVER sets the real date, not the model. */
-        dueInWeeks: z.number().int().min(1).max(104),
-      }),
-    )
-    .min(2)
-    .max(4),
+  /*
+   * NO RANGE CONSTRAINTS HERE. This originally read
+   * `.min(2).max(4)` on the array, `.min(1).max(300)` on the description and
+   * `.min(1).max(104)` on dueInWeeks, which is exactly what this file's header
+   * forbids and for exactly the reason it gives.
+   *
+   * Structured outputs constrain SHAPE. A min/max survives the trip only as
+   * prose inside a description string, so the API happily returns five
+   * commitments and Zod rejects the whole response afterwards — after it has
+   * been generated and billed. The route retries once with a correction, so
+   * the usual cost is a Deep Review at double price; when the first attempt ran
+   * long enough that a second will not fit the time budget, the run is simply
+   * lost. Both outcomes over a count.
+   *
+   * The intent is real and is enforced where enforcement is free: the prompt
+   * asks for 2-4, and sanitizeProposals in lib/commitments/text.ts clamps what
+   * arrives before any of it reaches the database. A model that returns five is
+   * trimmed to four; one that returns one gets one written. Neither loses the
+   * assessment that came with it.
+   */
+  proposedCommitments: z.array(
+    z.object({
+      description: z.string().trim(),
+      /** The rung this is meant to reach, when it is about one activity. */
+      targetRung: z.enum(RUNGS).nullable(),
+      /** Weeks from now, so the SERVER sets the real date, not the model. */
+      dueInWeeks: z.number(),
+    }),
+  ),
 });
 
 /**

@@ -165,18 +165,23 @@ export const deepReviewNarrativeSchema = z.object({
    * an admissions fact you cannot source, put it here instead.
    */
   verifyThese: z.array(z.string().trim().min(1).max(400)).max(15).default([]),
-  /** 2-4, proposed for the student to accept or decline. */
-  proposedCommitments: z
-    .array(
-      z.object({
-        description: z.string().trim().min(1).max(300),
-        targetRung: z.enum(RUNGS).nullable(),
-        /** Weeks from now, so the server sets a real date. */
-        dueInWeeks: z.number().int().min(1).max(104),
-      }),
-    )
-    .min(2)
-    .max(4),
+  /**
+   * Proposed for the student to accept or decline.
+   *
+   * Unconstrained on count and length because this schema is now a READER.
+   * The tier that produced these rows is retired, so nothing validates a fresh
+   * response against it — the only thing a `.min(2)` can do here is refuse to
+   * render a stored review, which is the failure this file's neighbours have
+   * been fixed for twice already.
+   */
+  proposedCommitments: z.array(
+    z.object({
+      description: z.string().trim(),
+      targetRung: z.enum(RUNGS).nullable(),
+      /** Weeks from the review, which the server turned into a real date. */
+      dueInWeeks: z.number(),
+    }),
+  ),
 });
 export type DeepReviewNarrative = z.infer<typeof deepReviewNarrativeSchema>;
 

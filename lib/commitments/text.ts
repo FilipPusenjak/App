@@ -17,6 +17,58 @@
 // wants to check the rule without a Postgres.
 
 /**
+ * The most commitments one review may put in front of a student.
+ *
+ * Four, because the prompt asks for two to four and because a check-in that
+ * opens with six outstanding items is a to-do list rather than a rhythm. This
+ * is where that number is ENFORCED; the schema deliberately does not, since a
+ * count constraint there discards a whole paid response instead of trimming it.
+ */
+export const MAX_PROPOSED_COMMITMENTS = 4;
+
+/** The longest a due window may be, in weeks — two years. */
+const MAX_DUE_WEEKS = 104;
+
+export type Proposal = {
+  description: string;
+  targetRung: string | null;
+  dueInWeeks: number;
+};
+
+/**
+ * Bring a review's proposals inside the bounds the prompt asked for.
+ *
+ * Clamping rather than rejecting, and the difference is a Deep Review's worth
+ * of tokens. Everything here is a value the model got mildly wrong around an
+ * assessment it got right, and none of it justifies throwing the assessment
+ * away — the lesson this codebase already learned once over a missing list of
+ * school names.
+ *
+ * What is DROPPED rather than fixed is a proposal with no text: there is no
+ * honest repair for a commitment that does not say what to do, and showing a
+ * student an empty row to accept would be worse than showing them nothing.
+ *
+ * Length is deliberately NOT capped. The column is unbounded text, the card
+ * wraps, and truncating mid-sentence can invert a commitment's meaning — "do X,
+ * but only after Y" cut at the comma says the opposite of what was written.
+ */
+export function sanitizeProposals(proposals: Proposal[]): Proposal[] {
+  return proposals
+    .map((p) => ({
+      ...p,
+      description: p.description.trim(),
+      // Rounded before clamping: a fractional week is a model slip, not a
+      // request for a Thursday afternoon.
+      dueInWeeks: Math.min(
+        Math.max(Math.round(p.dueInWeeks) || 1, 1),
+        MAX_DUE_WEEKS,
+      ),
+    }))
+    .filter((p) => p.description.length > 0)
+    .slice(0, MAX_PROPOSED_COMMITMENTS);
+}
+
+/**
  * The comparable form of a commitment description.
  *
  * Case, surrounding whitespace, internal runs of whitespace and trailing

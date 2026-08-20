@@ -256,6 +256,47 @@ describe.skipIf(!hasTestDb)("a second review does not stack proposals", () => {
     expect(open[0]!.description).toBe("Sooner");
   });
 
+  it("writes four rows when the model returns five, and loses nothing else", async () => {
+    // End to end over the decision this replaced. The schema used to reject a
+    // fifth commitment, which discarded the entire billed response — scores,
+    // school fits, item assessments and all — over a count. Now the review
+    // lands and the writer trims.
+    const only = await review();
+    const result = await recordProposedCommitments({
+      profileId,
+      evaluationId: only.id,
+      proposals: Array.from({ length: 5 }, (_, n) => ({
+        description: `Commitment ${n}`,
+        targetRung: null,
+        dueInWeeks: 4,
+      })),
+    });
+
+    expect(result.created).toBe(4);
+    expect(await loadOpenCommitments(profileId)).toHaveLength(4);
+  });
+
+  it("turns an out-of-range due window into a real date rather than failing", async () => {
+    const only = await review();
+    const at = new Date("2026-08-20T00:00:00Z");
+    await recordProposedCommitments({
+      profileId,
+      evaluationId: only.id,
+      proposals: [
+        { description: "Far too soon", targetRung: null, dueInWeeks: 0 },
+        { description: "Far too late", targetRung: null, dueInWeeks: 900 },
+      ],
+      now: at,
+    });
+
+    const open = await loadOpenCommitments(profileId);
+    const soon = open.find((c) => c.description === "Far too soon")!;
+    const late = open.find((c) => c.description === "Far too late")!;
+    // Clamped to one week and to 104, both measured from the review.
+    expect(soon.dueDate).toEqual(new Date(at.getTime() + 7 * 86_400_000));
+    expect(late.dueDate).toEqual(new Date(at.getTime() + 104 * 7 * 86_400_000));
+  });
+
   it("never reads another account's commitments", async () => {
     const other = await createUserWithProfile(runTag, `x${Date.now()}`);
     const theirs = await prisma.evaluation.create({
