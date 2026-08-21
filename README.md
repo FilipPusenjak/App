@@ -50,8 +50,54 @@ student is judged against Grade 9, not against applicants submitting this year,
 and is never prompted for a test they will not sit for two years.
 
 **Nothing is public or shareable.** Every query is scoped to the authenticated
-user through `lib/ownership.ts`. There is no sharing, no cross-account access,
-and no client-supplied ids.
+user through `lib/ownership.ts`. There is no public link, no share button, and
+no client-supplied ids.
+
+There is exactly **one** way data reaches somebody outside the account, and it
+is the Counselor Edition below. It reads through `lib/counselor/access.ts`
+rather than `lib/ownership.ts`, and that module is the only door: it requires an
+ACTIVE link plus **both** a student and a guardian consent as conditions inside
+the Prisma query, applies the grant's scope in the `SELECT` rather than in a
+component, logs every read where the student can see it, and contains no write
+path to any student-owned table at all. A student ends a grant instantly, alone,
+without a reason and without the counselor's agreement.
+
+## The Counselor Edition
+
+A separate product surface, at `/caseload`, for an independent counselor or
+tutor running a caseload. It is not the student app with a different header: the
+question it answers is *who needs me this week, and what do I say to them*,
+which is an attention-allocation problem rather than an advice problem.
+
+**Triage ranks by need, never by quality.** Eight deterministic detectors —
+stale profile, a prerequisite that just became binding, an overdue commitment, a
+stalled activity, a deadline, and so on — write signals with a severity that is
+grade- and time-aware, because the same unmet prerequisite is a plan for a Grade
+9 student and a crisis for a Grade 12 one. There is no readiness number, band or
+percentile anywhere on the caseload surface. A leaderboard of a counselor's own
+students would be professionally toxic and useless: the strongest student may
+need the most attention.
+
+**Triage calls no model at all.** That is what makes monitoring forty students
+free, and it is also why the margin works — a counselor generates prep for the
+handful triage surfaced, not for the caseload.
+
+**Session prep is drafting material, and every claim in it names its source.**
+Each discussion point and option carries a `basis` naming the computed signal it
+came from, because a counselor is about to repeat some of it to a fee-paying
+parent and "the system said so" is not something a professional can repeat. The
+model writes options with their costs, never recommendations — it knows less
+about admissions than its reader does.
+
+**It never states odds of admission**, in any phrasing, and a prep containing
+one is discarded rather than shown. The run is still recorded with what it cost.
+
+**What the counselor declined to pass on is recorded.** That judgement is the
+one thing here the model never makes. It is surfaced as pattern observation
+only: no effectiveness metric, no comparison between counselors, and no join to
+admissions outcomes — that last one looks the most valuable and is the most
+dangerous, because across a caseload of forty it would imply causation from a
+sample that cannot support it.
 
 ## Deliberately not built: activity discovery
 

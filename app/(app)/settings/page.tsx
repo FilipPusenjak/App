@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
+import { listGrantsForStudent } from "@/lib/counselor/access";
 import {
   getOwnedEvaluations,
   getOwnedPlannedItems,
@@ -32,6 +34,14 @@ export default async function SettingsPage() {
   const ai = getAiStatus();
   const deployment = getDeploymentInfo();
   const spend = await getSpendStatus();
+
+  // Counted as "live" only when the link is ACTIVE and BOTH consents are in —
+  // the same condition readableLinkWhere enforces. A pending invite must not
+  // read as somebody already looking.
+  const grants = await listGrantsForStudent();
+  const liveGrants = grants.filter(
+    (g) => g.status === "ACTIVE" && g.studentConsentAt && g.guardianConsentAt,
+  ).length;
 
   const counts = [
     { label: "resume items", n: profile.resumeItems.length },
@@ -279,6 +289,26 @@ export default async function SettingsPage() {
             and the full text of every evaluation. Your password is not included
             — it is stored only as a hash and is never exported.
           </p>
+        </div>
+      </section>
+
+      {/* Always shown, including — especially — when the answer is "nobody".
+          A sharing control that only appears once sharing exists cannot be used
+          to check whether sharing exists. */}
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold">Who can see this</h2>
+        <p className="mt-0.5 text-sm text-zinc-500">
+          {liveGrants === 0
+            ? "Nobody outside this account. Nothing here is public or shareable by default."
+            : `${liveGrants} counselor or tutor ${liveGrants === 1 ? "grant is" : "grants are"} live. You can end any of them instantly.`}
+        </p>
+        <div className="mt-4">
+          <Link
+            href="/settings/access"
+            className="inline-flex items-center rounded-md border border-black/15 px-3 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          >
+            Manage access and see what was read
+          </Link>
         </div>
       </section>
 

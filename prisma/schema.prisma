@@ -145,6 +145,24 @@ model Profile {
   /// putting them into the wrong one.
   majorCategory   String?
   careerGoal      String?
+
+  /// A short-lived, single-use code the STUDENT generates and hands to a
+  /// counselor, who redeems it to open a caseload link.
+  ///
+  /// The invitation runs in this direction on purpose. The obvious design —
+  /// the counselor types a student's email address — turns this app into an
+  /// oracle for whether a given address belongs to a minor's account, and it
+  /// cannot say WHICH student when one account holds several siblings. A code
+  /// the student issues answers both: nothing is disclosed to an address that
+  /// never asked, and the student has already named the profile by choosing
+  /// where to generate it.
+  ///
+  /// Redeeming it counts as the student's own consent, because generating and
+  /// handing it over IS that act. A guardian still has to agree separately
+  /// before anything is readable.
+  counselorInviteCode      String?   @unique
+  counselorInviteExpiresAt DateTime?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -869,7 +887,13 @@ model SessionPrep {
 
   /// Pinned like every generated artefact in this app. A prep is immutable and
   /// is never recomputed when the rubric moves on.
+  ///
+  /// promptVersion is here although the brief's field list omits it, for the
+  /// same reason every other generated row in this codebase carries one: a prep
+  /// read back in six months was produced by instructions that have since
+  /// changed, and without the version there is no way to tell which.
   rubricVersion     String
+  promptVersion     String?
   sourceDataVersion String?
   modelUsed         String?
 

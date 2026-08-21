@@ -34,6 +34,16 @@ import { estimateCost, type TokenUsage } from "./cost";
 export const RUN_BUDGET_USD = {
   DEEP_REVIEW: envBudget("DEEP_REVIEW_BUDGET_USD", 0.6),
   CHECK_IN: envBudget("CHECK_IN_BUDGET_USD", 0.05),
+  /**
+   * One counselor session prep.
+   *
+   * Between the two, and closer to the check-in: it runs on the cheaper model
+   * over a bounded 8k context. It is also the ONLY per-student model cost in
+   * the counselor edition — triage calls nothing — so this number multiplied by
+   * the handful of students triage surfaces each week is that product's entire
+   * variable cost.
+   */
+  SESSION_PREP: envBudget("SESSION_PREP_BUDGET_USD", 0.12),
 } as const;
 
 function envBudget(name: string, fallback: number): number {
@@ -169,4 +179,9 @@ export function remainingBudget(
 export const MIN_USEFUL_OUTPUT_TOKENS = {
   DEEP_REVIEW: 4000,
   CHECK_IN: 600,
+  /**
+   * A prep carries four sections and a handful of structured items, so it needs
+   * more room than a check-in and far less than a full review.
+   */
+  SESSION_PREP: 1200,
 } as const;

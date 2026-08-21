@@ -198,13 +198,39 @@ export const RECOMMENDATION_TRANSITIONS: Record<string, RecommendationStatus[]> 
  * around, while a counselor repeating it to a fee-paying parent has staked their
  * professional credibility on it.
  */
+/**
+ * The probability words, PLURALS INCLUDED.
+ *
+ * Written once because getting it wrong once is enough: "chance of admission"
+ * was caught and "chances of admission" was not, which is the form a model
+ * actually writes.
+ */
+const ODDS_WORD = "(?:chances?|likelihoods?|probabilit(?:y|ies)|odds|shots?)";
+
+/** Small numbers as words as well as digits — "one in three" is a ratio too. */
+const SMALL_NUMBER =
+  "(?:one|two|three|four|five|six|seven|eight|nine|ten|\\d{1,3})";
+
 const BANNED_PATTERNS: { pattern: RegExp; why: string }[] = [
-  { pattern: /\b\d{1,3}\s*(?:%|percent)\s*(?:chance|likelihood|probability|odds|shot)/i, why: "a stated percentage chance" },
-  { pattern: /\b(?:chance|likelihood|probability|odds)\s+of\s+(?:admission|acceptance|getting in|being accepted)/i, why: "odds of admission" },
+  { pattern: new RegExp(`\\b\\d{1,3}\\s*(?:%|percent)\\s*${ODDS_WORD}`, "i"), why: "a stated percentage chance" },
+  // The same claim with the number AFTER the word — "chances of admission
+  // improve to about 60 percent" — which the pattern above cannot see.
+  { pattern: new RegExp(`${ODDS_WORD}[^.!?]{0,60}?\\b\\d{1,3}\\s*(?:%|percent)\\b`, "i"), why: "a stated percentage chance" },
+  { pattern: new RegExp(`\\b${ODDS_WORD}\\s+(?:of|at)\\s+(?:admission|acceptance|getting in|being accepted|an offer)`, "i"), why: "odds of admission" },
   { pattern: /\b(?:will|won'?t|will not)\s+(?:get|be)\s+(?:in|admitted|accepted)\b/i, why: "a prediction of the decision" },
   { pattern: /\b(?:guaranteed|certain|sure)\s+(?:admission|acceptance|to get in)/i, why: "a guarantee of admission" },
-  { pattern: /\b\d{1,2}\s*(?:in|out of)\s*\d{1,3}\s+(?:chance|shot)/i, why: "odds expressed as a ratio" },
-  { pattern: /\blikely\s+to\s+be\s+(?:admitted|accepted|rejected|denied)\b/i, why: "a likelihood of the decision" },
+  // A hedged prediction is still a prediction, and is the form a model reaches
+  // for once the blunt ones are refused. Requires the probability adverb, so
+  // "she will get an offer decision in December" — a fact about a calendar —
+  // is left alone.
+  { pattern: /\b(?:will|would|is|are|'ll|they'?ll|he'?ll|she'?ll)\s+(?:very\s+|almost\s+)?(?:probably|likely|certainly|surely|undoubtedly)\s+(?:get|receive|be given|land|secure|win)\b/i, why: "a hedged prediction of the decision" },
+  { pattern: new RegExp(`\\b${SMALL_NUMBER}\\s*(?:in|out of)\\s*${SMALL_NUMBER}\\s+(?:chance|shot)`, "i"), why: "odds expressed as a ratio" },
+  // A base rate stated as a ratio — "roughly one in three applicants like this
+  // get in". The admissions word is REQUIRED within the sentence, so ordinary
+  // counselling arithmetic ("three of their five targets require chemistry")
+  // does not trip it.
+  { pattern: new RegExp(`\\b${SMALL_NUMBER}\\s+(?:in|out of)\\s+${SMALL_NUMBER}\\b[^.!?]{0,60}?\\b(?:applicants?|admitted|accepted|gets? in|an offer|offers?)\\b`, "i"), why: "an admission rate applied to this student" },
+  { pattern: /\blikely\s+to\s+(?:be\s+(?:admitted|accepted|rejected|denied)|get\s+in)\b/i, why: "a likelihood of the decision" },
   { pattern: /\b(?:safety|match|reach)\s+with\s+\d{1,3}\s*%/i, why: "a classification with a percentage" },
   { pattern: /\bno\s+(?:real\s+)?(?:chance|hope)\s+(?:of|at)\b/i, why: "a claim that admission is impossible" },
 ];

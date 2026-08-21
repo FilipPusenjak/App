@@ -123,6 +123,10 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 3; `0` disables. An estimate, not your bill — see below. |
 | `DEEP_REVIEW_BUDGET_USD` | No | Ceiling for ONE Deep Review. Default 0.60. Not a tripwire — the output allowance is sized so the run cannot exceed it. |
 | `CHECK_IN_BUDGET_USD` | No | Ceiling for ONE Check-In. Default 0.05, same construction. |
+| `SESSION_PREP_BUDGET_USD` | No | Ceiling for ONE counselor session prep. Default 0.12, same construction. |
+| `CRON_SECRET` | For the counselor edition | Bearer token the nightly triage job authenticates with (`vercel.json` schedules it; Vercel sets this header for you when the variable is set). **Unset means no request is ever treated as the scheduler**, so triage only ever runs when a signed-in counselor asks for their own caseload. |
+| `COUNSELOR_PRICE_PER_LINK_USD` | No | List price per active student per month, used only by the internal cost view's margin arithmetic. Default 12. Nothing in this app charges anybody. |
+| `OPERATOR_EMAILS` | No | Comma-separated addresses that may read `/operations`, the internal cost-per-caseload view. **Fails closed** — unset means nobody, and the page 404s for everyone else. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
 | `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
