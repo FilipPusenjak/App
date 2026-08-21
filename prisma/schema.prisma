@@ -57,6 +57,15 @@ model User {
   // user, so a stale or tampered value falls back rather than leaking.
   activeProfileId String?
 
+  // The counselor edition. Absent on an ordinary account, which is what makes
+  // the two products separate rather than one with a mode flag.
+  counselorAccount CounselorAccount?
+
+  // Links where THIS account is the student side — the grants it has given and
+  // can revoke. Named, because the counselor side of a link points at a
+  // CounselorAccount rather than at a User.
+  caseloadGrants CaseloadLink[] @relation("CaseloadStudentUser")
+
   /// Does this account run several students — a counselor, tutor or parent?
   ///
   /// Presentation only, and deliberately so. It decides whether the Students
@@ -147,6 +156,9 @@ model Profile {
   projections      Projection[]
   commitments      Commitment[]
   digests          ProfileDigest[]
+  /// Counselor access GRANTED on this student. Read-only by construction — a
+  /// link carries no write path to any field on this model.
+  caseloadLinks    CaseloadLink[]
   developments     Development[]
   discoveryConsent DiscoveryConsent?
 
@@ -526,6 +538,11 @@ model Commitment {
   profileId String
   profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
+  /// Set when this commitment began as a counselor's recommendation the student
+  /// accepted. The direction matters: the counselor proposes, the student
+  /// accepts, and only then does a row appear on the student's own side.
+  fromRecommendations CounselorRecommendation[]
+
   sourceEvaluationId String?
   sourceEvaluation   Evaluation? @relation("CommitmentSource", fields: [sourceEvaluationId], references: [id], onDelete: SetNull)
 
@@ -687,4 +704,282 @@ model CourseRequirement {
   updatedAt DateTime @updatedAt
 
   @@index([country])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COUNSELOR EDITION
+//
+// A separate product surface for a professional running a caseload, not the
+// student app with a switcher. The question it answers is "who needs me this
+// week, and what do I say", which is an attention-allocation problem rather
+// than an advice problem.
+//
+// Two things about these tables are load-bearing and easy to lose:
+//
+//   THE COUNSELOR IS A PROCESSOR, NOT AN OWNER. Nothing here grants ownership
+//   of a student record. A CaseloadLink is a revocable grant of READ access,
+//   held by the account that owns the profile, and every counselor read goes
+//   through lib/counselor/access.ts — the same structural pattern as
+//   lib/ownership.ts, for the same reason.
+//
+//   SCORING IS NOT DUPLICATED HERE. There is no readiness column on any of
+//   these tables. A counselor sees exactly what scoreProfile() produces for the
+//   same profile at the same rubricVersion, computed by the same code. A number
+//   stored here would be a second source of truth and would eventually disagree
+//   with the student's own screen.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A professional account holding a caseload.
+model CounselorAccount {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orgName String?
+
+  /// Zod enum: INDEPENDENT | SCHOOL_BASED | TUTORING_CENTER.
+  ///
+  /// SCHOOL_BASED is carried from the start although only INDEPENDENT ships:
+  /// a school-employed counselor is inside FERPA's education-records regime and
+  /// an independent one is not, which changes retention, disclosure and the
+  /// parent's rights over the record. Retrofitting an access-control model onto
+  /// live data is far worse than carrying an unused value.
+  type String @default("INDEPENDENT")
+
+  /// Enforced server-side on every link creation, not merely displayed. Costs
+  /// scale with caseload, so an unbounded caseload is an unbounded bill.
+  caseloadLimit Int @default(40)
+
+  links        CaseloadLink[]
+  sessionPreps SessionPrep[]
+  reads        CounselorReadLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// One counselor's revocable access to one student.
+model CaseloadLink {
+  id                 String           @id @default(cuid())
+  counselorAccountId String
+  counselorAccount   CounselorAccount @relation(fields: [counselorAccountId], references: [id], onDelete: Cascade)
+
+  /// The ACCOUNT that owns the student's record — who consents and who revokes.
+  ///
+  /// The brief specifies this field alone. In this codebase students do not log
+  /// in: a User owns many Profile rows, and "a solo student is just an account
+  /// with one profile". So a user id cannot name WHICH student when an account
+  /// holds several, and studentProfileId below is a necessary addition rather
+  /// than a liberty — without it the grant is ambiguous, and an ambiguous
+  /// access grant is a leak waiting to happen.
+  studentUserId String
+  studentUser   User   @relation("CaseloadStudentUser", fields: [studentUserId], references: [id], onDelete: Cascade)
+
+  /// The single student this link grants access to. Access is per STUDENT, never
+  /// per account: a counselor tutoring one sibling gets no sight of the other.
+  studentProfileId String
+  studentProfile   Profile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  /// Zod enum: PENDING | ACTIVE | PAUSED | ENDED.
+  status String @default("PENDING")
+
+  /// Zod enum: COUNSELOR | STUDENT | GUARDIAN. Who initiated, which decides
+  /// nothing about access and everything about how the invite is presented.
+  invitedBy String
+
+  /// DUAL CONSENT. Both must be non-null before any student data is readable,
+  /// and that is checked in lib/counselor/access.ts rather than in a component.
+  /// A counselor-initiated invite creates PENDING and shows nothing at all.
+  guardianConsentAt DateTime?
+  studentConsentAt  DateTime?
+
+  /// Zod enum: FULL | ACADEMIC_ONLY | ACTIVITIES_ONLY.
+  ///
+  /// Enforced in the Prisma SELECT, not by hiding a component. A subject tutor
+  /// on ACADEMIC_ONLY has no business reading an activity portfolio, and the
+  /// difference between "not rendered" and "not fetched" is the difference
+  /// between a UI convention and a security property.
+  scope String @default("FULL")
+
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  signals         TriageSignal[]
+  sessionPreps    SessionPrep[]
+  recommendations CounselorRecommendation[]
+  reads           CounselorReadLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One live link per counselor per student. A second row would double every
+  /// triage signal and make revocation ambiguous.
+  @@unique([counselorAccountId, studentProfileId])
+  @@index([counselorAccountId, status])
+  @@index([studentUserId, status])
+}
+
+/// A computed reason one student needs attention. NEVER a quality judgement.
+model TriageSignal {
+  id             String       @id @default(cuid())
+  caseloadLinkId String
+  caseloadLink   CaseloadLink @relation(fields: [caseloadLinkId], references: [id], onDelete: Cascade)
+
+  /// Denormalized from the link so the caseload query can filter and sort
+  /// without a join. The index below is the one the attention list rides on.
+  counselorAccountId String
+
+  /// Zod enum: STALE_PROFILE | THRESHOLD_NEWLY_BINDING | COMMITMENT_OVERDUE |
+  /// TRAJECTORY_DROP | DEADLINE_APPROACHING | GOAL_TRAJECTORY_MISMATCH |
+  /// RUNG_STALLED | NO_RECENT_SESSION.
+  kind String
+
+  /// 1-5, GRADE- AND TIME-AWARE rather than a constant per kind. The same unmet
+  /// prerequisite is a plan for a 9th grader and a crisis for a 12th grader,
+  /// because remaining time is what decides which it is.
+  severity Int
+
+  computedAt DateTime  @default(now())
+  resolvedAt DateTime?
+
+  /// The deterministic facts that produced this signal, so a counselor can vet
+  /// it. Every model claim downstream traces back to one of these.
+  basis Json
+
+  createdAt DateTime @default(now())
+
+  @@index([counselorAccountId, severity, resolvedAt])
+  @@index([caseloadLinkId, resolvedAt])
+}
+
+/// Drafting material for a conversation the counselor will have.
+///
+/// NOT a report the student reads. The only per-student model cost in this
+/// product, generated on demand for the handful triage surfaced rather than for
+/// a whole caseload.
+model SessionPrep {
+  id             String       @id @default(cuid())
+  caseloadLinkId String
+  caseloadLink   CaseloadLink @relation(fields: [caseloadLinkId], references: [id], onDelete: Cascade)
+
+  counselorAccountId String
+  counselorAccount   CounselorAccount @relation(fields: [counselorAccountId], references: [id], onDelete: Cascade)
+
+  generatedAt DateTime @default(now())
+
+  /// Pinned like every generated artefact in this app. A prep is immutable and
+  /// is never recomputed when the rubric moves on.
+  rubricVersion     String
+  sourceDataVersion String?
+  modelUsed         String?
+
+  /// Which signals this prep was written against, so it can be read back beside
+  /// the reasons it existed.
+  triageSignalIds String[]
+
+  /// Validated JSON, same discipline as every other structured value here.
+  narrative Json?
+
+  /// The counselor's own words. Feeds the NEXT prep's context — this is how the
+  /// product learns what the model cannot see.
+  counselorNotes String?
+
+  /// Zod enum: PENDING | HELD | SKIPPED | RESCHEDULED.
+  outcome String @default("PENDING")
+
+  /// Recorded on every prep, including failed ones. A run that spent money
+  /// always leaves a trace.
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheWriteTokens Int?
+  cacheReadTokens  Int?
+  costCents        Int?
+
+  /// Set when generation failed, with what it burned.
+  error String?
+
+  recommendations CounselorRecommendation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([counselorAccountId, generatedAt])
+  @@index([caseloadLinkId, generatedAt])
+}
+
+/// What the counselor actually chose to deliver, and what came of it.
+///
+/// The one dataset the student app cannot have. Surfaced as pattern observation
+/// only: there is no effectiveness score, no cross-counselor benchmark, and no
+/// join to admissions outcomes anywhere in this product.
+model CounselorRecommendation {
+  id            String       @id @default(cuid())
+  sessionPrepId String?
+  sessionPrep   SessionPrep? @relation(fields: [sessionPrepId], references: [id], onDelete: SetNull)
+
+  caseloadLinkId String
+  caseloadLink   CaseloadLink @relation(fields: [caseloadLinkId], references: [id], onDelete: Cascade)
+
+  text String
+
+  /// The computed fact behind it. Non-null by construction for model-suggested
+  /// rows; a counselor-authored one carries their own reason.
+  basis String
+
+  /// Zod enum: MODEL_SUGGESTED | COUNSELOR_AUTHORED.
+  source String
+
+  /// Zod enum: PROPOSED | DELIVERED | DECLINED_BY_COUNSELOR | ACCEPTED_BY_STUDENT.
+  ///
+  /// DECLINED_BY_COUNSELOR is the interesting one and the reason this table
+  /// exists: what a professional chose NOT to pass on is a judgement the model
+  /// never made, and it is the only place that judgement is recorded.
+  status String @default("PROPOSED")
+
+  /// Set once the student accepts and it becomes a tracked commitment on their
+  /// own side. The counselor proposes; the student accepts.
+  linkedCommitmentId String?
+  linkedCommitment   Commitment? @relation(fields: [linkedCommitmentId], references: [id], onDelete: SetNull)
+
+  deliveredAt   DateTime?
+  declineReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([caseloadLinkId, status])
+  @@index([sessionPrepId])
+}
+
+/// Every counselor read of student data, visible to the student.
+///
+/// Not in the brief's table list, and required by it: "audit log every counselor
+/// read of student data, retained and visible to the student". An audit log the
+/// subject cannot see is a log for the operator's benefit, which is the opposite
+/// of what this one is for.
+model CounselorReadLog {
+  id                 String           @id @default(cuid())
+  counselorAccountId String
+  counselorAccount   CounselorAccount @relation(fields: [counselorAccountId], references: [id], onDelete: Cascade)
+
+  caseloadLinkId String
+  caseloadLink   CaseloadLink @relation(fields: [caseloadLinkId], references: [id], onDelete: Cascade)
+
+  /// Denormalized so the student's own view can query their reads directly,
+  /// and so the row survives as a record of what was seen.
+  studentProfileId String
+
+  /// What was read, in the app's terms — "caseload.attention", "prep.generate",
+  /// "student.detail". Coarse on purpose: a per-field log nobody reads is worse
+  /// than a per-surface log a student can actually understand.
+  surface String
+
+  /// The scope in force at the time. A link narrowed later must not make an
+  /// earlier broader read look narrower than it was.
+  scope String
+
+  readAt DateTime @default(now())
+
+  @@index([studentProfileId, readAt])
+  @@index([counselorAccountId, readAt])
 }
