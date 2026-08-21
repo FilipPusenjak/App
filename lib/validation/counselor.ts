@@ -37,7 +37,23 @@ export type LinkStatus = (typeof LINK_STATUSES)[number];
 export const INVITED_BY = ["COUNSELOR", "STUDENT", "GUARDIAN"] as const;
 export const invitedBySchema = z.enum(INVITED_BY);
 
-export const LINK_SCOPES = ["FULL", "ACADEMIC_ONLY", "ACTIVITIES_ONLY"] as const;
+export const LINK_SCOPES = [
+  "FULL",
+  "ACADEMIC_ONLY",
+  "ACTIVITIES_ONLY",
+  /**
+   * The test-prep edition's scope, and the narrowest in the product.
+   *
+   * Deliberately NOT handled by scopedProfileInclude or
+   * scopedProfileSelectFields below — both compute their permissions from
+   * `academics` and `activities` flags that TEST_PREP_ONLY sets neither of, so
+   * both FAIL CLOSED for it and return nothing. That is the correct default and
+   * not an oversight: a test-prep tutor reads through lib/testprep/access.ts,
+   * which has its own explicit allow-list, and anything routed through the
+   * counselor helpers by accident should come back empty rather than guess.
+   */
+  "TEST_PREP_ONLY",
+] as const;
 export const linkScopeSchema = z.enum(LINK_SCOPES);
 export type LinkScope = (typeof LINK_SCOPES)[number];
 
@@ -46,6 +62,8 @@ export const SCOPE_MEANINGS: Record<LinkScope, string> = {
   FULL: "Your grades, courses, test scores, activities and targets",
   ACADEMIC_ONLY: "Your grades, courses and test scores — not your activities",
   ACTIVITIES_ONLY: "Your activities and targets — not your grades or test scores",
+  TEST_PREP_ONLY:
+    "Your test scores and target schools only — not your grades, activities, essays or anything else",
 };
 
 /* ── Triage ──────────────────────────────────────────────────────────────── */

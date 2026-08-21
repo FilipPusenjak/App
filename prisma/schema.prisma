@@ -66,6 +66,14 @@ model User {
   // CounselorAccount rather than at a User.
   caseloadGrants CaseloadLink[] @relation("CaseloadStudentUser")
 
+  /// The test-prep edition, where THIS account is the student being tutored.
+  /// Named for the same reason as caseloadGrants: the tutor side of all of this
+  /// hangs off a CounselorAccount, not off a User.
+  scoreAttempts     ScoreAttempt[]     @relation("TestPrepStudent")
+  scoreTargets      ScoreTarget[]      @relation("TestPrepStudent")
+  stoppingSignals   StoppingSignal[]   @relation("TestPrepStudent")
+  progressArtifacts ProgressArtifact[] @relation("TestPrepStudent")
+
   passwordResetTokens PasswordResetToken[]
 }
 
@@ -95,12 +103,12 @@ model PasswordResetToken {
 // ---------------------------------------------------------------------------
 
 model Profile {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   // NOT unique: one account holds many students. Every ownership check in
   // lib/ownership still routes through this column, so widening it changed
   // who can hold a profile without changing who can read one.
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   // What the account calls this student. Null on the profile a solo student
   // made before this existed, where "your profile" is the honest label.
   studentName     String?
@@ -118,7 +126,7 @@ model Profile {
   // an unmatched school must degrade to "no discovery cohort" rather than
   // silently attaching the student to the wrong one.
   schoolId        String?
-  school          School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  school          School? @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   // Expected year of leaving school. Discovery groups by year to compare like
   // with like; gradeLevel alone cannot do that, since "Grade 11" means a
   // different cohort each September.
@@ -153,8 +161,8 @@ model Profile {
   counselorInviteCode      String?   @unique
   counselorInviteExpiresAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   resumeItems      ResumeItem[]
   testScores       TestScore[]
@@ -327,6 +335,12 @@ model School {
   updatedAt DateTime @updatedAt
 
   profiles Profile[]
+
+  /// What this school does with each test, per admissions cycle.
+  testPolicies      SchoolTestPolicy[]
+  /// Targets this school happens to set. Nullable on the other side, so a
+  /// school that stops being the binding one does not take the target with it.
+  bindsScoreTargets ScoreTarget[]
 
   /// One row per school per country — the same name recurs across countries.
   @@unique([name, country, region])
@@ -745,13 +759,20 @@ model CounselorAccount {
 
   orgName String?
 
-  /// Zod enum: INDEPENDENT | SCHOOL_BASED | TUTORING_CENTER.
+  /// Zod enum: INDEPENDENT | SCHOOL_BASED | TUTORING_CENTER | TEST_PREP_TUTOR.
   ///
   /// SCHOOL_BASED is carried from the start although only INDEPENDENT ships:
   /// a school-employed counselor is inside FERPA's education-records regime and
   /// an independent one is not, which changes retention, disclosure and the
   /// parent's rights over the record. Retrofitting an access-control model onto
   /// live data is far worse than carrying an unused value.
+  ///
+  /// TEST_PREP_TUTOR is a DIFFERENT PRODUCT sharing this table, not a counselor
+  /// with fewer permissions. A counselor's scarce resource is attention across a
+  /// caseload, so they get triage; a test-prep tutor already knows who they are
+  /// seeing on Tuesday and their scarce resource is JUSTIFICATION — what am I
+  /// aiming at, and when do we stop. They share an account row because they
+  /// share the consent and caseload machinery, and nothing else.
   type String @default("INDEPENDENT")
 
   /// Enforced server-side on every link creation, not merely displayed. Costs
@@ -801,21 +822,30 @@ model CaseloadLink {
   guardianConsentAt DateTime?
   studentConsentAt  DateTime?
 
-  /// Zod enum: FULL | ACADEMIC_ONLY | ACTIVITIES_ONLY.
+  /// Zod enum: FULL | ACADEMIC_ONLY | ACTIVITIES_ONLY | TEST_PREP_ONLY.
   ///
   /// Enforced in the Prisma SELECT, not by hiding a component. A subject tutor
   /// on ACADEMIC_ONLY has no business reading an activity portfolio, and the
   /// difference between "not rendered" and "not fetched" is the difference
   /// between a UI convention and a security property.
+  ///
+  /// TEST_PREP_ONLY is the NARROWEST scope in the product: score history, the
+  /// target school list, and the thresholds derived from those two. No
+  /// activities, no essays, no differentiation data, no counselor notes. A
+  /// test-prep tutor is engaged for one number; everything else about this
+  /// student is somebody else's business, and lib/testprep/access.ts is where
+  /// that stops being a promise and becomes a WHERE clause.
   scope String @default("FULL")
 
   startedAt DateTime?
   endedAt   DateTime?
 
-  signals         TriageSignal[]
-  sessionPreps    SessionPrep[]
-  recommendations CounselorRecommendation[]
-  reads           CounselorReadLog[]
+  signals           TriageSignal[]
+  sessionPreps      SessionPrep[]
+  recommendations   CounselorRecommendation[]
+  reads             CounselorReadLog[]
+  /// The test-prep edition's parent-facing output, when this link is a tutor's.
+  progressArtifacts ProgressArtifact[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -996,4 +1026,300 @@ model CounselorReadLog {
 
   @@index([studentProfileId, readAt])
   @@index([counselorAccountId, readAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEST-PREP TUTOR EDITION
+//
+// A third surface, and the narrowest. Deliberately NOT the counselor edition
+// with fewer fields: a counselor allocates attention across a caseload and gets
+// a triage engine, while a test-prep tutor already knows who they are seeing on
+// Tuesday. Their scarce resource is JUSTIFICATION — what am I aiming at, and
+// when do we stop — so what they get is a TARGET DERIVATION engine instead.
+// There is no triage anywhere in this product and there must not be.
+//
+// Three things about these tables are load-bearing:
+//
+//   THE STOPPING SIGNAL IS THE PRODUCT. A threshold caps at MET (see
+//   lib/readiness/threshold.ts, which has said so since it was written): once a
+//   score clears the band for every school on the list, more points buy nothing.
+//   Every other test-prep tool is silent here because saying so shortens the
+//   engagement. StoppingSignal is a first-class table for the same reason the
+//   audit log is: a thing the operator is tempted to suppress belongs in the
+//   schema, not in a render condition.
+//
+//   NOTHING HERE PREDICTS A SCORE. There is no projected composite, no
+//   trajectory, no target date. Practice-to-real variance is large, and a
+//   predicted score shown to a parent becomes a promise the tutor has to answer
+//   for. Observed history and current gap only — enforced by a phrasing check on
+//   the one generated surface, the same way the student app bans probabilities.
+//
+//   THE MODEL COMPUTES NOTHING. Targets, bands, section allocation and stopping
+//   are pure functions over these rows. The model writes one narrative per
+//   student per month and is never asked to recall a percentile.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A test that can be sat, and the shape of its score.
+///
+/// A row rather than an enum because the section structure IS data: the SAT has
+/// two sections summing to a composite, the ACT has four averaging to one, the
+/// UCAT has four cognitive subtests plus a band that is not numeric at all, and
+/// an AP has a single 1-5. Hard-coding that shape would make adding a test a
+/// migration, and would put the composite rule in code where it cannot be
+/// inspected beside the scores it produced.
+model TestType {
+  id   String @id @default(cuid())
+  /// SAT, ACT, UCAT, LNAT, AP_BIOLOGY, ... Stable, and referenced in prose.
+  code String @unique
+  /// Human label for the tutor's screen.
+  name String
+
+  /// Section names, per-section min/max, and anything the composite rule needs.
+  /// Validated by testSectionSchemaSchema in lib/validation/testprep.ts.
+  sectionSchema Json
+
+  /// Zod enum: SUM | AVERAGE | HIGHEST_SECTION | NONE.
+  ///
+  /// NONE is real and not a placeholder — the LNAT's essay is not scored
+  /// numerically at all, so a composite would be a number nobody reports.
+  compositeRule String
+
+  attempts ScoreAttempt[]
+  policies SchoolTestPolicy[]
+  targets  ScoreTarget[]
+  stopping StoppingSignal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// One sitting: a diagnostic, a practice test, or the real thing.
+///
+/// `kind` is not cosmetic. A DIAGNOSTIC anchors the starting point a progress
+/// artifact reports from, an OFFICIAL is the only kind that can actually clear a
+/// threshold, and a PRACTICE is noisy — the artifact is required to say so every
+/// time it shows one.
+model ScoreAttempt {
+  id            String   @id @default(cuid())
+  studentUserId String
+  studentUser   User     @relation("TestPrepStudent", fields: [studentUserId], references: [id], onDelete: Cascade)
+  testTypeId    String
+  testType      TestType @relation(fields: [testTypeId], references: [id], onDelete: Cascade)
+
+  /// Zod enum: DIAGNOSTIC | PRACTICE | OFFICIAL.
+  kind    String
+  takenAt DateTime
+
+  /// { sectionName: score }. Shape validated against the TestType's schema.
+  sectionScores Json
+  /// Derived from sectionScores by the TestType's compositeRule, never entered
+  /// by hand — a typed composite that disagrees with its sections is a number
+  /// nobody can explain later. Null when the rule is NONE.
+  composite     Int?
+
+  /// Zod enum: STUDENT | TUTOR. Who typed it in.
+  enteredBy  String
+  /// Whether anybody checked it against a score report. A tutor reporting
+  /// progress to a parent from unverified self-reported scores is the failure
+  /// this flag exists to make visible.
+  isVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The engine's read pattern: this student, this test, in time order.
+  @@index([studentUserId, testTypeId, takenAt])
+}
+
+/// What one school does with one test, for one admissions cycle.
+///
+/// VERSIONED BY CYCLE, because these change annually and a target derived from
+/// last year's policy is wrong in a way nobody notices. A test-blind school that
+/// went back to requiring scores would otherwise stay silently excluded from a
+/// student's binding target for a whole year.
+model SchoolTestPolicy {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  testTypeId String
+  testType   TestType @relation(fields: [testTypeId], references: [id], onDelete: Cascade)
+
+  /// Zod enum: REQUIRED | OPTIONAL | BLIND.
+  ///
+  /// BLIND is the one that changes the arithmetic rather than shading it: a
+  /// test-blind school cannot contribute a threshold at all, so it is excluded
+  /// from the binding computation entirely rather than weighted down.
+  policy String
+
+  /// Whether the school combines best sections across sittings. This decides
+  /// whether a single-section retake is rational, so it is stored per school and
+  /// never assumed.
+  superscores Boolean @default(false)
+  /// Whether the student may choose which sittings to send.
+  scoreChoice Boolean @default(false)
+
+  /// Common Data Set quartiles for admitted students. Nullable because plenty of
+  /// schools do not publish them, and a guessed quartile is worse than none.
+  p25 Int?
+  p50 Int?
+  p75 Int?
+
+  sourceDataVersion String
+  /// The cycle this policy was published for, e.g. 2026.
+  effectiveCycle    Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One policy per school per test per cycle.
+  @@unique([schoolId, testTypeId, effectiveCycle])
+  @@index([schoolId, testTypeId])
+  @@index([sourceDataVersion])
+}
+
+/// The score that actually clears this student's list, and who sets it.
+///
+/// `bindingSchoolId` is the point of this table. "1500" is a number a student
+/// cannot act on; "1500, and it is Duke that asks for it" tells them what to do
+/// about it — including the option of changing the list rather than the score.
+model ScoreTarget {
+  id            String   @id @default(cuid())
+  studentUserId String
+  studentUser   User     @relation("TestPrepStudent", fields: [studentUserId], references: [id], onDelete: Cascade)
+  testTypeId    String
+  testType      TestType @relation(fields: [testTypeId], references: [id], onDelete: Cascade)
+
+  /// The composite that clears the realistic portion of the list. Null when no
+  /// school on the list contributes a threshold — every one test-blind, or none
+  /// publishing quartiles — which is a real answer and not a missing value.
+  bindingComposite Int?
+  /// Which school sets it. Null for the same reason.
+  bindingSchoolId  String?
+  bindingSchool    School? @relation(fields: [bindingSchoolId], references: [id], onDelete: SetNull)
+
+  /// A BAND, not a point. CDS quartiles are a distribution of admitted students,
+  /// not a cutoff, and reporting p75 as "the number to hit" invents a precision
+  /// the source does not have.
+  bandLow  Int?
+  bandHigh Int?
+
+  /// Named so the student can see WHY a school they listed is not in the maths.
+  excludedBlindSchoolIds      String[]
+  /// Test-optional schools that did not raise the target, and are shown as such.
+  nonBindingOptionalSchoolIds String[]
+
+  computedAt        DateTime @default(now())
+  rubricVersion     String
+  sourceDataVersion String
+
+  allocations SectionAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One live target per student per test.
+  @@unique([studentUserId, testTypeId])
+}
+
+/// Where the composite is cheapest to move, section by section.
+model SectionAllocation {
+  id            String      @id @default(cuid())
+  scoreTargetId String
+  scoreTarget   ScoreTarget @relation(fields: [scoreTargetId], references: [id], onDelete: Cascade)
+
+  sectionName  String
+  currentScore Int?
+  /// Distance from current to the section maximum. Where the room is.
+  headroom     Int
+
+  /// A HEURISTIC, and labelled as one everywhere it is rendered.
+  ///
+  /// It models where headroom exists against what the composite rule does with
+  /// it. It is NOT evidence about this student's learning rate, and presenting
+  /// it as a measurement would be inventing a fact about a person from a fact
+  /// about arithmetic.
+  pointsPerUnitEffort Float
+
+  recommendedFocus Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([scoreTargetId])
+}
+
+/// The moment more points stop buying anything.
+///
+/// A table, not a computed view, for one reason: it has to be ACKNOWLEDGED. A
+/// signal the tutor can scroll past is a signal the business case says to scroll
+/// past, so the acknowledgement is a column and the tutor view will not settle
+/// until it is set.
+model StoppingSignal {
+  id            String   @id @default(cuid())
+  studentUserId String
+  studentUser   User     @relation("TestPrepStudent", fields: [studentUserId], references: [id], onDelete: Cascade)
+  testTypeId    String
+  testType      TestType @relation(fields: [testTypeId], references: [id], onDelete: Cascade)
+
+  /// Zod enum: ALL_TARGETS_MET | MARGINAL_VALUE_ZERO | SUPERSCORE_COMPLETE |
+  /// DIMINISHING_RETURNS | RETAKE_NOT_INDICATED.
+  kind String
+
+  firedAt               DateTime  @default(now())
+  acknowledgedByTutorAt DateTime?
+  /// Set when the facts stop holding — a target added, a policy changed. Kept
+  /// rather than deleted so a parent asking "you told us to stop in March" can
+  /// be answered.
+  resolvedAt            DateTime?
+
+  /// The computed facts behind it, so a tutor can check it before repeating it.
+  basis Json
+
+  createdAt DateTime @default(now())
+
+  @@index([studentUserId, testTypeId, resolvedAt])
+}
+
+/// What the parent actually receives. The ONE model-generated surface here.
+///
+/// Reviewed by the tutor, then shared. The tutor may append their own context;
+/// they may not edit the generated body, and they may not remove the stopping
+/// notice — which is the whole reason the body is not editable.
+model ProgressArtifact {
+  id             String       @id @default(cuid())
+  studentUserId  String
+  studentUser    User         @relation("TestPrepStudent", fields: [studentUserId], references: [id], onDelete: Cascade)
+  caseloadLinkId String
+  caseloadLink   CaseloadLink @relation(fields: [caseloadLinkId], references: [id], onDelete: Cascade)
+
+  periodStart DateTime
+  periodEnd   DateTime
+  generatedAt DateTime @default(now())
+
+  /// Validated JSON. Null when generation failed — the row still records cost.
+  narrative Json?
+
+  /// The tutor's own words, appended to the artifact rather than mixed into it.
+  tutorNote String?
+
+  sharedWithGuardianAt DateTime?
+
+  rubricVersion     String
+  sourceDataVersion String?
+  promptVersion     String?
+  modelUsed         String?
+
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheWriteTokens Int?
+  cacheReadTokens  Int?
+  costCents        Int?
+
+  /// Set when generation failed, with what it burned.
+  error String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentUserId, periodEnd])
+  @@index([caseloadLinkId, generatedAt])
 }
