@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getCurrentDbUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import {
   RESUME_ITEM_TYPE_LABELS,
@@ -30,12 +29,7 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 export default async function ProfilePage() {
-  // getCurrentDbUser already carries countryOfOrigin and is deduplicated per
-  // request, so this needs no separate user query.
-  const [profile, user] = await Promise.all([
-    getProfileWithRelations(),
-    getCurrentDbUser(),
-  ]);
+  const profile = await getProfileWithRelations();
 
   return (
     <div className="space-y-8">
@@ -59,12 +53,16 @@ export default async function ProfilePage() {
             gpaScale: profile.gpaScale,
             intendedMajor: profile.intendedMajor,
             careerGoal: profile.careerGoal,
-            countryOfOrigin: user?.countryOfOrigin ?? null,
+            // The STUDENT's own value, not the account default. updateProfileAction
+            // writes to profile.countryOfOrigin — reading the form back from
+            // User.countryOfOrigin showed the pre-signup default and made every
+            // successful save look like it had silently reverted.
+            countryOfOrigin: profile.countryOfOrigin,
           }}
         />
-        {user?.countryOfOrigin && (
+        {profile.countryOfOrigin && (
           <p className="mt-3 text-xs text-zinc-400">
-            Country of origin: {countryName(user?.countryOfOrigin)}
+            Country of origin: {countryName(profile.countryOfOrigin)}
           </p>
         )}
       </Card>

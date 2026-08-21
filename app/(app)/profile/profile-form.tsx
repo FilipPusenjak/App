@@ -63,7 +63,10 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
         </Field>
 
         <Field label="Curriculum" htmlFor="curriculum" error={fe.curriculum}>
+          {/* Keyed by its own value, not the form's — see the country field
+              below for why. This select otherwise never reflects a save. */}
           <Select
+            key={values.curriculum ?? ""}
             id="curriculum"
             name="curriculum"
             defaultValue={values.curriculum ?? ""}
@@ -136,7 +139,22 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
           error={fe.countryOfOrigin}
           hint="Affects domestic vs international admissions."
         >
+          {/* React only reads a <select>'s defaultValue AT MOUNT. On every
+              later re-render it silently reapplies whatever it captured
+              then — never the new prop, and not even the option the user
+              just clicked — so without a key that changes when the SAVED
+              value changes, this field visibly snaps back to whatever it
+              showed on first load the instant "Profile saved." appears. A
+              plain <input defaultValue> doesn't have this problem (its DOM
+              node is simply left alone on update, so a typed value
+              survives); <select> uniquely does, which is why only this and
+              curriculum need the fix. Keyed by the field's OWN value rather
+              than something on the whole form, so a successful save remounts
+              just this control — not the surrounding useActionState, which
+              is what shows the "Profile saved." message and would vanish on
+              its own remount. */}
           <Select
+            key={values.countryOfOrigin ?? ""}
             id="countryOfOrigin"
             name="countryOfOrigin"
             defaultValue={values.countryOfOrigin ?? ""}
