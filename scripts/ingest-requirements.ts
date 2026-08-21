@@ -90,6 +90,15 @@ async function main() {
 
   const rejected: { identifier: string; errors: string[] }[] = [];
   const droppedRates: string[] = [];
+  /**
+   * Records whose country code this app does not use, corrected on the way in.
+   *
+   * Reported rather than silent: a researcher writing "UK" is working from the
+   * wrong list, and every later batch from that researcher carries the same
+   * fault. The records land either way — the correction is unambiguous — but
+   * the fact is worth knowing before the next thousand arrive.
+   */
+  const correctedCountries: string[] = [];
   const writtenKeys = new Set<string>();
   const universesInFile = new Set<string>();
   let written = 0;
@@ -107,6 +116,11 @@ async function main() {
     const record = outcome.record;
     if (outcome.droppedAcceptanceRate) {
       droppedRates.push(`${record.university} — ${record.course}`);
+    }
+    if (outcome.correctedCountryFrom) {
+      correctedCountries.push(
+        `${record.university} — ${record.course}: ${outcome.correctedCountryFrom} → ${record.country}`,
+      );
     }
     const key = matchKey(record);
     if (!isUsableKey(key)) {
@@ -191,6 +205,18 @@ async function main() {
       `  acceptance rate dropped (record kept): ${droppedRates.length}` +
         ` — malformed internal-only field, not shown to students either way.`,
     );
+  }
+  if (correctedCountries.length > 0) {
+    console.log(
+      `\n  country corrected: ${correctedCountries.length} record(s) used a code this app does not.` +
+        `\n  These were saved, not rejected — but the researcher is working from the wrong list,` +
+        `\n  and an uncorrectable code (anything not in the brief) IS rejected. Tell them before` +
+        `\n  the next batch:\n`,
+    );
+    for (const c of correctedCountries.slice(0, 20)) console.log(`    ${c}`);
+    if (correctedCountries.length > 20) {
+      console.log(`    … and ${correctedCountries.length - 20} more`);
+    }
   }
 
   await pruneSupersededRows(writtenKeys, universesInFile);

@@ -415,9 +415,19 @@ HU ID IE IL IN IS IT JO JP KE KR KW LB LK LT LU LV MX MY NG NL NO NZ OT PH
 PK PL PT QA RO RS RU SA SE SG SI SK TH TR TW UA US VN ZA
 ```
 
-**`UK` is not on it**, and that is the single most damaging mistake available to
-you, because it is not rejected: it is stored, and then matches no student ever,
-because the app records the United Kingdom as `GB`. Same for `EN`, `USA`, `UAE`.
+**`UK` is not on it.** The app records the United Kingdom as `GB`.
+
+This used to be the single most damaging mistake available to you, because it
+was not rejected — it was stored, and then matched no student ever. That hole is
+now closed at the validator, and the two possible outcomes are both visible:
+
+- `UK` and `EN` are **corrected to `GB`**, and the correction is REPORTED. Your
+  records survive, but the report says you used the wrong list.
+- Anything else outside this list is **rejected outright**, because there is no
+  unambiguous correction for it. `USA` and `UAE` are also rejected — they are
+  three characters, and this field takes two.
+
+Neither outcome is one to aim for. Take the code from the list.
 
 Use the code on the input line. If a line has none, take it from this list and
 say which you chose in your report.

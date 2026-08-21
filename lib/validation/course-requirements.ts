@@ -15,6 +15,10 @@
 // Being rejected is a safe outcome and being wrong is not, so every rule below
 // resolves ambiguity toward rejection.
 import { z } from "zod";
+import { COUNTRIES } from "@/lib/data/countries";
+
+/** The permitted codes, as a set — this list is the app's, not ISO's. */
+const COUNTRY_CODES = new Set(COUNTRIES.map((c) => c.code));
 
 /**
  * A URL that could plausibly be an official source.
@@ -147,14 +151,52 @@ export const acceptanceRateSchema = z.object({
 
 const currentYear = new Date().getUTCFullYear();
 
+/**
+ * Codes a researcher plausibly writes that this app does not use.
+ *
+ * Corrected rather than rejected, because each is UNAMBIGUOUS — there is
+ * exactly one thing "UK" can mean — and rejecting a batch of otherwise sound
+ * UK records over a two-letter convention would throw away real research to
+ * make a point. Everything genuinely ambiguous still falls through to the
+ * rejection below.
+ *
+ * The correction is reported by the ingest, never silent. A record whose
+ * country was changed is a record whose researcher is working from the wrong
+ * list, and that is worth knowing before the next batch.
+ */
+const COUNTRY_ALIASES: Record<string, string> = {
+  UK: "GB",
+  EN: "GB",
+  // Not ISO either, and the same mistake in the other direction.
+  EL: "GR",
+};
+
 export const courseRequirementRecordSchema = z.object({
   university: z.string().trim().min(2).max(200),
-  /** ISO 3166-1 alpha-2, uppercase. */
+  /**
+   * One of the app's permitted country codes — NOT merely two characters.
+   *
+   * This was `.length(2)` and nothing more, which accepted "UK", "EN", "XX"
+   * and "ZZ" alike and stored them. That is the worst shape a data bug can
+   * take here: the record lands, the ingest reports it as accepted, and it then
+   * matches no student ever, because a target's country is one of these codes
+   * and "UK" is not among them. Silent, and invisible until someone wonders why
+   * a researched course never appears.
+   *
+   * The research brief warns about exactly this and calls it "the single most
+   * damaging mistake available to you". A warning in a prompt is not
+   * enforcement; this is.
+   */
   country: z
     .string()
     .trim()
     .length(2)
-    .transform((c) => c.toUpperCase()),
+    .transform((c) => c.toUpperCase())
+    .transform((c) => COUNTRY_ALIASES[c] ?? c)
+    .refine((c) => COUNTRY_CODES.has(c), {
+      message:
+        "Country is not one of the app's permitted codes, so a record carrying it could never match a student's target. Use the code from the brief's list — the United Kingdom is GB, not UK.",
+    }),
   course: z.string().trim().min(2).max(200),
   /**
    * The admissions cycle the page describes. Bounded rather than free: a year
@@ -215,6 +257,15 @@ export type IngestOutcome =
        * acceptanceRate above. Surfaced so the drop is reported, not silent.
        */
       droppedAcceptanceRate: boolean;
+      /**
+       * The code as written, when it was not the one this app uses.
+       *
+       * Null when the record already carried a permitted code. Set — to e.g.
+       * "UK" — when it was corrected, so the ingest can say so. A researcher
+       * working from the wrong country list is a fact about the NEXT batch as
+       * much as this one, and it is invisible unless reported.
+       */
+      correctedCountryFrom: string | null;
     }
   | { ok: false; identifier: string; errors: string[] };
 
@@ -228,10 +279,21 @@ export type IngestOutcome =
 export function validateRecord(input: unknown): IngestOutcome {
   const parsed = validatedCourseRequirementSchema.safeParse(input);
   if (parsed.success) {
-    const raw = (input ?? {}) as { acceptanceRate?: unknown };
+    const raw = (input ?? {}) as { acceptanceRate?: unknown; country?: unknown };
     const droppedAcceptanceRate =
       raw.acceptanceRate != null && parsed.data.acceptanceRate == null;
-    return { ok: true, record: parsed.data, droppedAcceptanceRate };
+
+    const written =
+      typeof raw.country === "string" ? raw.country.trim().toUpperCase() : null;
+    const correctedCountryFrom =
+      written && written !== parsed.data.country ? written : null;
+
+    return {
+      ok: true,
+      record: parsed.data,
+      droppedAcceptanceRate,
+      correctedCountryFrom,
+    };
   }
 
   // Identify the record even when it failed, so the report names something a

@@ -244,3 +244,73 @@ describe("reporting a rejection", () => {
     }
   });
 });
+
+// The country code decides whether a record can ever be found.
+//
+// A target's country is one of the app's permitted codes, so a record stored
+// under anything else matches no student, ever. That makes a wrong code the
+// worst-shaped data bug available here: the record lands, the ingest reports it
+// as accepted, and the failure is invisible until someone wonders why a course
+// they researched never appears.
+//
+// This validator accepted ANY two characters until it was measured — "UK",
+// "EN", "XX" and "ZZ" all stored happily. The research brief warns about
+// exactly this and calls it "the single most damaging mistake available to
+// you"; a warning in a prompt is not enforcement.
+describe("country codes are the app's, not merely two letters", () => {
+  it("accepts a permitted code unchanged", () => {
+    const out = validateRecord(record({ country: "GB" }));
+    expect(out.ok && out.record.country).toBe("GB");
+    expect(out.ok && out.correctedCountryFrom).toBeNull();
+  });
+
+  it("uppercases a lowercase code rather than refusing it", () => {
+    const out = validateRecord(record({ country: "us" }));
+    expect(out.ok && out.record.country).toBe("US");
+  });
+
+  it("corrects UK to GB, because there is only one thing UK can mean", () => {
+    // Corrected rather than rejected: throwing away a batch of otherwise sound
+    // UK research over a two-letter convention would destroy real work to make
+    // a point.
+    const out = validateRecord(record({ country: "UK" }));
+    expect(out.ok && out.record.country).toBe("GB");
+  });
+
+  it("reports the correction, so it is never silent", () => {
+    // A researcher writing UK is working from the wrong list, and every later
+    // batch carries the same fault. The records land; the fact still matters.
+    const out = validateRecord(record({ country: "UK" }));
+    expect(out.ok && out.correctedCountryFrom).toBe("UK");
+  });
+
+  it("corrects EN as well, which is the same mistake", () => {
+    const out = validateRecord(record({ country: "EN" }));
+    expect(out.ok && out.record.country).toBe("GB");
+    expect(out.ok && out.correctedCountryFrom).toBe("EN");
+  });
+
+  it("REJECTS a code it cannot correct", () => {
+    // The line between correcting and guessing. "UK" has one meaning; "XX" has
+    // none, and inventing one would put a record somewhere no student looks.
+    for (const country of ["XX", "ZZ", "QQ"]) {
+      const out = validateRecord(record({ country }));
+      expect(out.ok, `${country} was accepted`).toBe(false);
+    }
+  });
+
+  it("names the right code in the rejection, so it is actionable", () => {
+    const out = validateRecord(record({ country: "XX" }));
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      expect(out.errors.join(" ")).toMatch(/GB, not UK/);
+    }
+  });
+
+  it("still rejects something that is not two characters", () => {
+    // "USA" and "UAE" are the three-letter version of the same error.
+    for (const country of ["USA", "UAE", "U", ""]) {
+      expect(validateRecord(record({ country })).ok).toBe(false);
+    }
+  });
+});
