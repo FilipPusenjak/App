@@ -188,10 +188,21 @@ export function SignupForm() {
             Country of origin{" "}
             <span className="font-normal text-zinc-400">(optional)</span>
           </label>
+          {/* React only reads a <select>'s defaultValue AT MOUNT, then
+              reapplies that same captured value on every later re-render —
+              even the option the user just clicked gets silently wiped, not
+              just a stale prop (see the profile page's country field for the
+              full mechanism). Here that meant: pick a country, then trip an
+              UNRELATED error (password too short), and the pick vanished back
+              to blank the moment the error appeared. Fixed the same way — key
+              it off a value that only changes when the server actually echoes
+              a new one back, so a real re-render remounts with the right
+              default instead of clinging to the first. */}
           <select
+            key={state?.values?.countryOfOrigin ?? ""}
             id="countryOfOrigin"
             name="countryOfOrigin"
-            defaultValue=""
+            defaultValue={state?.values?.countryOfOrigin ?? ""}
             className={fieldClass}
           >
             <option value="">Prefer not to say</option>

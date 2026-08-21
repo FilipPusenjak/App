@@ -26,7 +26,17 @@ export async function StudentSwitcher() {
       <label htmlFor="profileId" className="sr-only">
         Student
       </label>
+      {/* React only reads a <select>'s defaultValue AT MOUNT, then reapplies
+          that same captured value on every later re-render regardless of what
+          the prop becomes or what the user clicks — the same defect fixed on
+          the profile page's country field (see the comment there). Here it
+          means switchStudentAction's write always lands (the rest of the page
+          reflects the new student), but the switcher itself keeps showing
+          whoever was active when it first mounted, so it visibly does not
+          "hear" its own switch. Keyed by the field's own value so a real
+          switch forces the remount that picks the new value back up. */}
       <select
+        key={active.id}
         id="profileId"
         name="profileId"
         defaultValue={active.id}

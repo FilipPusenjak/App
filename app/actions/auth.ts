@@ -24,6 +24,7 @@ export type AuthFormState =
         email?: string;
         accountKind?: string;
         orgName?: string;
+        countryOfOrigin?: string;
       };
     }
   | undefined;
@@ -101,7 +102,12 @@ export async function signupAction(
   if (!parsed.success) {
     return {
       fieldErrors: fieldErrorsFrom(parsed.error.issues),
-      values: { name, email, accountKind, orgName },
+      // countryOfOrigin echoed back too, even though it has no fieldError of
+      // its own: an unrelated failure (password too short) must not silently
+      // wipe a country the user already picked. See the comment on the
+      // <select> in signup-form.tsx for why simply keeping the same prop
+      // value isn't enough on its own.
+      values: { name, email, accountKind, orgName, countryOfOrigin },
     };
   }
 
