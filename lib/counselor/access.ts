@@ -23,6 +23,7 @@
 // accepts. Nothing in this module can mutate a Profile, a ResumeItem, a
 // TestScore or a TargetSchool, and lib/counselor has no other door.
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import type { LinkScope } from "@/lib/validation/counselor";
@@ -39,6 +40,25 @@ export async function requireCounselorAccount() {
   if (!account) {
     throw new Error("This account is not a counselor account.");
   }
+  return account;
+}
+
+/**
+ * The counselor account, or a redirect. For PAGES rather than routes.
+ *
+ * A layout guard is not enough on its own, and the difference is easy to miss:
+ * Next renders a layout and its page CONCURRENTLY, so a non-counselor opening
+ * /caseload has the page's queries run before the layout's redirect lands. The
+ * throwing version above then turns a wrong-door visit into a logged 500 —
+ * which is noise in production and a real error page the moment anybody edits
+ * the layout.
+ *
+ * So every counselor page resolves through this instead, and the layout guard
+ * stays as the thing that also hides the navigation.
+ */
+export async function requireCounselorPage() {
+  const account = await getCounselorAccount();
+  if (!account) redirect("/dashboard");
   return account;
 }
 

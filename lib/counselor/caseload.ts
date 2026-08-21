@@ -24,7 +24,7 @@ import {
   type LinkScope,
   type TriageKind,
 } from "@/lib/validation/counselor";
-import { requireCounselorAccount, readableLinkWhere } from "./access";
+import { requireCounselorPage, readableLinkWhere } from "./access";
 
 export type AttentionRow = {
   linkId: string;
@@ -77,7 +77,7 @@ export type CaseloadAttention = {
  * missed once.
  */
 export async function loadCaseloadAttention(): Promise<CaseloadAttention> {
-  const account = await requireCounselorAccount();
+  const account = await requireCounselorPage();
 
   const links = await prisma.caseloadLink.findMany({
     where: readableLinkWhere(account.id),
@@ -163,7 +163,7 @@ export type DirectoryRow = {
  * are the ones this product refuses to compute.
  */
 export async function loadCaseloadDirectory(): Promise<DirectoryRow[]> {
-  const account = await requireCounselorAccount();
+  const account = await requireCounselorPage();
 
   const links = await prisma.caseloadLink.findMany({
     where: readableLinkWhere(account.id),

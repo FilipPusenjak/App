@@ -29,7 +29,11 @@ import {
   RECOMMENDATION_TRANSITIONS,
   type RecommendationStatus,
 } from "@/lib/validation/counselor";
-import { requireCounselorAccount, readableLinkWhere } from "./access";
+import {
+  requireCounselorAccount,
+  requireCounselorPage,
+  readableLinkWhere,
+} from "./access";
 
 /**
  * Change a recommendation's status, if the transition is one a counselor may make.
@@ -103,7 +107,7 @@ const MIN_SAMPLE = 8;
 export async function loadFollowThroughPatterns(): Promise<
   FollowThroughPattern[]
 > {
-  const account = await requireCounselorAccount();
+  const account = await requireCounselorPage();
 
   const rows = await prisma.counselorRecommendation.findMany({
     where: { caseloadLink: readableLinkWhere(account.id) },
@@ -187,7 +191,7 @@ export async function loadFollowThroughPatterns(): Promise<
  * Scoped through the readable-link check like everything else here.
  */
 export async function loadRecommendationsForPrep(prepId: string) {
-  const account = await requireCounselorAccount();
+  const account = await requireCounselorPage();
   return prisma.counselorRecommendation.findMany({
     where: {
       sessionPrepId: prepId,

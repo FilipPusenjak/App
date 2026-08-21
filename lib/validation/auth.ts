@@ -20,21 +20,47 @@ export const loginSchema = z.object({
   password: z.string().min(1, { error: "Password is required." }),
 });
 
-export const signupSchema = z.object({
-  name: z.string().trim().min(1, { error: "Name is required." }).max(100),
-  email: normalizedEmail,
-  password: z
-    .string()
-    .min(8, { error: "Password must be at least 8 characters." })
-    .max(200),
-  countryOfOrigin: z
-    .string()
-    .trim()
-    .refine((c) => c === "" || isValidCountryCode(c), {
-      error: "Choose a country from the list.",
-    })
-    .optional(),
-});
+/**
+ * Which of the two products this account is for.
+ *
+ * Asked once, at signup, and it decides what gets created — a student profile
+ * or a caseload — rather than merely which screen appears first. A "mode
+ * toggle" on one account would be the wrong shape: the counselor surface holds
+ * other families' children under revocable grants, and that is not something an
+ * account should be able to switch itself into.
+ */
+export const ACCOUNT_KINDS = ["STUDENT", "COUNSELOR"] as const;
+export const accountKindSchema = z.enum(ACCOUNT_KINDS);
+export type AccountKind = (typeof ACCOUNT_KINDS)[number];
+
+export const signupSchema = z
+  .object({
+    name: z.string().trim().min(1, { error: "Name is required." }).max(100),
+    email: normalizedEmail,
+    password: z
+      .string()
+      .min(8, { error: "Password must be at least 8 characters." })
+      .max(200),
+    // Defaulted rather than required, so a form posted without the field — an
+    // older cached page, a script — creates the LESS privileged account rather
+    // than failing open into a caseload.
+    accountKind: accountKindSchema.default("STUDENT"),
+    countryOfOrigin: z
+      .string()
+      .trim()
+      .refine((c) => c === "" || isValidCountryCode(c), {
+        error: "Choose a country from the list.",
+      })
+      .optional(),
+    orgName: z.string().trim().max(120).optional(),
+  })
+  .refine(
+    (v) => v.accountKind !== "COUNSELOR" || (v.orgName ?? "").length > 0,
+    {
+      error: "Tell us what your practice is called — students will see it.",
+      path: ["orgName"],
+    },
+  );
 
 /**
  * Setting a new password from a reset link.

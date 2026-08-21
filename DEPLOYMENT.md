@@ -198,6 +198,14 @@ SIGNUP_ALLOWED_EMAILS=you@example.com
 Add more addresses separated by commas to let specific people in. Leaving it
 empty means open registration — fine locally, risky in production.
 
+This gate covers **both** kinds of account. Signup asks whether the account is
+for a student or for a counselor running a caseload, and the counselor choice
+is the one that matters here: it is the only way a `CounselorAccount` is ever
+created, and there is deliberately no path for an existing account to grant
+itself one later. A counselor account still sees nothing about any student
+until that student issues an invite code and both they and a guardian agree —
+but it is the more privileged of the two, so keep the allowlist set.
+
 Three further safety nets are in place:
 
 - **A per-account spending cap**, `ACCOUNT_SPEND_LIMIT_USD`, default **$3**.

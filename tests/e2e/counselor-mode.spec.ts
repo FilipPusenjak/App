@@ -32,7 +32,16 @@ async function toggleCounselorMode(page: import("@playwright/test").Page) {
   await page.goto("/settings");
   await page.getByText("I manage more than one student").click();
   await Promise.all([
-    page.waitForLoadState("networkidle"),
+    // Waits for the server action's OWN response, not for the network to fall
+    // quiet. networkidle was the original wait and it is racy in the direction
+    // that hides bugs: it resolves after 500ms of silence, so on a page that is
+    // ALREADY idle when the click lands it can resolve before the request is
+    // even issued. The test then navigates away mid-write and fails on a
+    // setting that was never saved — which looks exactly like the feature being
+    // broken, and only sometimes.
+    page.waitForResponse(
+      (r) => r.request().method() === "POST" && r.url().includes("/settings"),
+    ),
     page.getByRole("button", { name: "Save" }).click(),
   ]);
 }

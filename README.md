@@ -69,6 +69,13 @@ tutor running a caseload. It is not the student app with a different header: the
 question it answers is *who needs me this week, and what do I say to them*,
 which is an attention-allocation problem rather than an advice problem.
 
+**One front door, two products.** Signup asks which kind of account this is,
+and that choice decides what gets created — a student profile or a caseload —
+not merely which screen appears first. There is deliberately no way for an
+existing account to grant itself a caseload later: that would be a self-service
+escalation into other families' records. Signing in routes by account kind
+through `/start`, the single place that decides.
+
 **Triage ranks by need, never by quality.** Eight deterministic detectors —
 stale profile, a prerequisite that just became binding, an overdue commitment, a
 stalled activity, a deadline, and so on — write signals with a severity that is

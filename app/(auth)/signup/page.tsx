@@ -3,13 +3,13 @@ import { getCurrentUser } from "@/lib/session";
 import { SignupForm } from "./signup-form";
 
 export default async function SignupPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/start");
 
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">Create your account</h1>
       <p className="mb-6 text-sm text-zinc-500">
-        Your profile is private to you.
+        Nothing here is public or shared by default.
       </p>
       <SignupForm />
     </div>

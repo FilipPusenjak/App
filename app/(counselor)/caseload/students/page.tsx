@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { loadCaseloadDirectory } from "@/lib/counselor/caseload";
-import { requireCounselorAccount } from "@/lib/counselor/access";
+import { requireCounselorPage } from "@/lib/counselor/access";
 import { SCOPE_MEANINGS, type LinkScope } from "@/lib/validation/counselor";
 import { RedeemInvite } from "./redeem-invite";
 
@@ -15,7 +15,7 @@ import { RedeemInvite } from "./redeem-invite";
  * counselor deciding where to spend the day gets the attention list instead.
  */
 export default async function CaseloadDirectoryPage() {
-  const account = await requireCounselorAccount();
+  const account = await requireCounselorPage();
   const [rows, pendingCount] = await Promise.all([
     loadCaseloadDirectory(),
     // A COUNT, and nothing else. Reading anything about a pending student would
