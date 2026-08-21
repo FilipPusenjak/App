@@ -1,12 +1,9 @@
+import { redirect } from "next/navigation";
 import { getStudentsOverview } from "@/app/actions/students";
 import { switchStudentAction } from "@/app/actions/students";
 import { studentLabel } from "@/lib/students";
 import { prisma } from "@/lib/db";
-import {
-  AddStudentForm,
-  DeleteStudentForm,
-  RenameStudentForm,
-} from "./students-forms";
+import { DeleteStudentForm, RenameStudentForm } from "./students-forms";
 
 export const metadata = { title: "Students" };
 
@@ -31,6 +28,13 @@ function Card({
 export default async function StudentsPage() {
   const { profiles, activeId } = await getStudentsOverview();
 
+  // Closed to new signups: this page has nothing to offer an account that
+  // never had more than one profile, and nothing links here for one any more
+  // (the layout hides the nav tab the same way — see isMultiStudent). Gating
+  // the route too means a solo account can't land here even by URL and find a
+  // students page with no way to add a second one.
+  if (profiles.length <= 1) redirect("/dashboard");
+
   // Counts per student, so the list says what is actually in each record
   // rather than just naming them. Scoped to profiles already proven to belong
   // to this account.
@@ -54,14 +58,10 @@ export default async function StudentsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Students</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          One account, many students — for counselors and tutoring agencies.
-          Everything else in the app shows the student you have selected here.
+          Profiles from before this closed to new signups. Everything else in
+          the app shows the student you have selected here.
         </p>
       </div>
-
-      <Card title="Add a student">
-        <AddStudentForm />
-      </Card>
 
       <Card
         title="Your students"

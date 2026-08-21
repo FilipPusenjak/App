@@ -1,12 +1,17 @@
 "use server";
 
-// Managing the students an account holds.
+// Managing the students an account already holds.
 //
-// This is the counselor/agency feature: one login, several students. The
-// privacy rule is unchanged and load-bearing — every action here resolves the
-// target through requireOwnedProfile, which filters by the SESSION's user id.
-// A profile id arriving from a form is treated as a claim to be checked, never
-// as an instruction to be followed.
+// Closed to new signups. This used to be an opt-in "I manage more than one
+// student" checkbox, open to any account; it is now legacy-data management
+// only, for the accounts that already had several profiles before the real
+// Counselor Edition (lib/counselor) replaced it with dual consent and a
+// revocable grant. There is deliberately no addStudentAction any more — an
+// account cannot become multi-student going forward, only stay that way if it
+// already was. The privacy rule is unchanged and load-bearing regardless:
+// every action here resolves the target through requireOwnedProfile, which
+// filters by the SESSION's user id. A profile id arriving from a form is
+// treated as a claim to be checked, never as an instruction to be followed.
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -30,43 +35,6 @@ const nameSchema = z
   .max(120, { error: "That name is too long." });
 
 const idSchema = z.string().trim().min(1);
-
-/** Add a student to this account and switch to them. */
-export async function addStudentAction(
-  _prev: StudentResult,
-  fd: FormData,
-): Promise<StudentResult> {
-  const parsed = nameSchema.safeParse(String(fd.get("studentName") ?? ""));
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid name." };
-  }
-
-  const userId = await requireUserId();
-  // A new student inherits the account's default home country, which is the
-  // right guess for an agency working in one country and is editable per
-  // student afterwards.
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: userId },
-    select: { countryOfOrigin: true },
-  });
-
-  const created = await prisma.profile.create({
-    data: {
-      userId,
-      studentName: parsed.data,
-      countryOfOrigin: user.countryOfOrigin,
-    },
-  });
-
-  // Switching immediately is what someone adding a student wants next.
-  await prisma.user.update({
-    where: { id: userId },
-    data: { activeProfileId: created.id },
-  });
-
-  revalidatePath("/", "layout");
-  return { ok: true, message: `Added ${parsed.data}.` };
-}
 
 /** Switch which student the account is working on. */
 export async function switchStudentAction(fd: FormData): Promise<void> {
@@ -130,7 +98,7 @@ export async function deleteStudentAction(
   if (profiles.length <= 1) {
     return {
       error:
-        "This is the only student on the account. Add another first, or delete the whole account from Settings.",
+        "This is the only student on the account. Delete the whole account instead, from Settings.",
     };
   }
 

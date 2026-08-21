@@ -1,7 +1,8 @@
 // One account, many students — and the two questions that answers.
 //
-// This is the counselor/agency feature: a tutoring agency runs several students
-// from one login. Widening Profile.userId from unique to indexed changed WHO
+// Closed to new signups (see app/actions/students.ts), but the accounts that
+// already ran several students this way from before still do, and Profile.userId
+// is still widened from unique to indexed to allow it. That widening changed WHO
 // CAN HOLD a profile. It must not have changed WHO CAN READ one, and there are
 // two separate things to prove:
 //
@@ -286,5 +287,44 @@ describe.skipIf(!hasTestDb)("deleting a student", () => {
     expect(
       await prisma.profile.count({ where: { id: { in: [profile.id, second.id] } } }),
     ).toBe(0);
+  });
+});
+
+describe.skipIf(!hasTestDb)("the export route", () => {
+  afterAll(async () => {
+    await cleanupRun(runTag);
+  });
+
+  /**
+   * The one thing this codebase can no longer prove end to end: this used to
+   * be a browser test that ADDED a second student through the Students page
+   * and then checked /api/export bucketed both correctly. That UI path is
+   * gone (see app/actions/students.ts), so the second student here is seeded
+   * directly — the only way left to reach the state an account carrying
+   * students from before this closed is actually in.
+   */
+  it("carries every student on the account, each with only their own contents", async () => {
+    const { user, profile } = await createUserWithProfile(runTag, "export");
+    await addStudent(user.id, "Second Student");
+    await prisma.evaluation.create({
+      data: { profileId: profile.id, status: "completed", overallScore: 70 },
+    });
+    sessionUserId.current = user.id;
+
+    const { GET } = await import("@/app/api/export/route");
+    const res = await GET();
+    const body = (await res.json()) as {
+      students: { studentName: string | null; evaluations: unknown[] }[];
+    };
+
+    expect(body.students).toHaveLength(2);
+    expect(body.students.map((s) => s.studentName)).toEqual([
+      null,
+      "Second Student",
+    ]);
+    // Oldest first, matching getOwnedProfiles — the first student's
+    // evaluation must not leak into the second's bucket, or the reverse.
+    expect(body.students[0]!.evaluations).toHaveLength(1);
+    expect(body.students[1]!.evaluations).toHaveLength(0);
   });
 });

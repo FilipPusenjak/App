@@ -21,8 +21,10 @@ the way it is.
 - **Plans and projections** — what you're considering doing, and what it would
   be worth if you did it. Recommended actions can be added to a plan in one
   click.
-- **Students** — for counselors, tutors and parents running several students,
-  each with their own targets and history. Off by default.
+- **Students** — a legacy view for accounts that already ran several students,
+  each with their own targets and history, from before this closed to new
+  signups. Nothing offers it any more; see the Counselor Edition below for how
+  a professional manages several students today.
 
 ## The rules it is built around
 

@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import {
-  addStudentAction,
   deleteStudentAction,
   renameStudentAction,
   type StudentResult,
@@ -25,35 +24,6 @@ function Message({ state }: { state: StudentResult }) {
     );
   }
   return null;
-}
-
-export function AddStudentForm() {
-  const [state, action] = useActionState(addStudentAction, EMPTY);
-  return (
-    <form action={action}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label htmlFor="studentName" className="text-sm font-medium">
-            Student name
-          </label>
-          <input
-            id="studentName"
-            name="studentName"
-            required
-            maxLength={120}
-            placeholder="e.g. Priya Raman"
-            className="mt-1 w-full rounded-md border border-black/15 bg-surface px-3 py-2 text-sm dark:border-white/20"
-          />
-        </div>
-        <SubmitButton>Add student</SubmitButton>
-      </div>
-      <p className="mt-2 text-xs text-zinc-500">
-        Adds an empty profile and switches to it. Each student keeps their own
-        profile, targets, plans and evaluation history.
-      </p>
-      <Message state={state} />
-    </form>
-  );
 }
 
 export function RenameStudentForm({

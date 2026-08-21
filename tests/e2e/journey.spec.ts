@@ -153,31 +153,16 @@ test("a student's full journey", async ({ page }) => {
     "Start a programming club",
   );
 
-  // ── 5b. A second student, and the isolation between them ────────────────
-  await page.goto("/students");
-  await page.fill('input[name="studentName"]', "Second Student");
-  await page.getByRole("button", { name: "Add student" }).click();
-  await expect(page.getByText("Added Second Student.")).toBeVisible();
-
-  // Adding switches to them, and their profile must be EMPTY — not a copy of
-  // the first student's.
-  await page.goto("/profile");
-  await expect(page.locator('input[name="gradeLevel"]')).toHaveValue("");
-  await page.goto("/evaluations");
-  await expect(page.getByText("No evaluations yet.")).toBeVisible();
-
-  // And the export now carries both, each with their own contents.
-  const bothRaw = await (await page.request.get("/api/export")).text();
-  const both = JSON.parse(bothRaw) as {
-    students: { studentName: string | null; evaluations: unknown[] }[];
-  };
-  expect(both.students).toHaveLength(2);
-  expect(both.students.map((s) => s.studentName)).toEqual([
-    null,
-    "Second Student",
-  ]);
-  expect(both.students[0]!.evaluations).toHaveLength(1);
-  expect(both.students[1]!.evaluations).toHaveLength(0);
+  // There used to be a 5b here: add a second student through the Students
+  // page, and check the export and a fresh profile stayed isolated between
+  // them. That UI path is gone — a regular account can no longer become
+  // multi-student, only an account that already was one before this closed
+  // still can (see app/actions/students.ts) — so it no longer belongs in a
+  // regular account's journey. The isolation guarantee itself is still
+  // covered, seeded the only way left to reach that state: directly, in
+  // tests/integration/multi-student.test.ts ("the export route" describe
+  // block), which calls the same /api/export handler this page's request
+  // below hits.
 
   // ── 6. Delete the account (retype-the-email confirmation) ───────────────
   await page.goto("/settings");

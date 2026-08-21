@@ -9,10 +9,40 @@
 // change — the rest of the page reflects it — but the switcher itself kept
 // showing whoever was active when it first mounted, so it looked like the
 // switch silently failed.
+//
+// The switcher itself only renders for an account holding more than one
+// profile from before that closed to new signups — there is no
+// addStudentAction any more — so the second profile here is seeded directly
+// against the test database, the same way tests/e2e/students-tab-visibility.spec.ts
+// does it.
 import { expect, test } from "@playwright/test";
+import { Client } from "pg";
+import { randomUUID } from "node:crypto";
 
 const email = `e2e-switcher-${Date.now()}@example.test`;
 const password = "e2e-password-123";
+
+async function seedSecondProfile(studentEmail: string, studentName: string) {
+  const client = new Client({ connectionString: process.env.TEST_DATABASE_URL });
+  await client.connect();
+  try {
+    const found = await client.query<{ id: string }>(
+      'SELECT id FROM "User" WHERE email = $1',
+      [studentEmail.toLowerCase()],
+    );
+    const userId = found.rows[0]?.id;
+    if (!userId) throw new Error(`No user with email ${studentEmail}`);
+
+    const profileId = randomUUID();
+    await client.query(
+      'INSERT INTO "Profile" (id, "userId", "studentName", "updatedAt") VALUES ($1, $2, $3, now())',
+      [profileId, userId, studentName],
+    );
+    return profileId;
+  } finally {
+    await client.end();
+  }
+}
 
 test("the student switcher reflects a switch immediately, not just after a reload", async ({
   page,
@@ -24,20 +54,7 @@ test("the student switcher reflects a switch immediately, not just after a reloa
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");
 
-  // Turn on multi-student mode — the switcher renders for nobody else.
-  await page.goto("/settings");
-  await page.getByText("I manage more than one student").click();
-  await Promise.all([
-    page.waitForResponse(
-      (r) => r.request().method() === "POST" && r.url().includes("/settings"),
-    ),
-    page.getByRole("button", { name: "Save" }).click(),
-  ]);
-
-  await page.goto("/students");
-  await page.fill('input[name="studentName"]', "Second Student");
-  await page.getByRole("button", { name: /add student/i }).click();
-  await expect(page.getByText("Added Second Student.")).toBeVisible();
+  await seedSecondProfile(email, "Second Student");
 
   // Two instances render (a mobile one collapsed behind a disclosure, and a
   // desktop one) — the desktop one is last in document order and is what's

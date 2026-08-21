@@ -66,16 +66,6 @@ model User {
   // CounselorAccount rather than at a User.
   caseloadGrants CaseloadLink[] @relation("CaseloadStudentUser")
 
-  /// Does this account run several students — a counselor, tutor or parent?
-  ///
-  /// Presentation only, and deliberately so. It decides whether the Students
-  /// tab is offered; it grants nothing, and every query is scoped by userId
-  /// either way. A student running one profile should not be navigating a
-  /// roster of one.
-  ///
-  /// Turning it OFF never hides students that exist: see shouldShowStudents.
-  managesStudents Boolean @default(false)
-
   passwordResetTokens PasswordResetToken[]
 }
 

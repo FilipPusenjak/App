@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { getOwnedProfiles } from "@/lib/ownership";
 import { logoutAction } from "@/app/actions/auth";
-import { shouldShowStudents } from "@/lib/students";
+import { isMultiStudent } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
 
 const NAV = [
@@ -26,14 +26,13 @@ export default async function AppLayout({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // Most accounts are one student reading their own profile, and a roster of
-  // one is a concept they should never have to hold. The page itself stays
-  // reachable — this hides the tab, it does not gate the route, and nothing
-  // here is an access control (every query is scoped by userId regardless).
-  const showStudents = shouldShowStudents({
-    managesStudents: user.managesStudents,
-    profileCount: (await getOwnedProfiles()).length,
-  });
+  // There is no opt-in any more — a new account can never become
+  // multi-student. This only stays true for an account that already holds
+  // more than one profile from before that was the case; hiding the tab from
+  // them would strand every profile but the active one behind a page nothing
+  // links to, and a display setting must never be able to do that. The route
+  // itself is gated the same way — see app/(app)/students/page.tsx.
+  const showStudents = isMultiStudent(await getOwnedProfiles());
   const nav = NAV.filter((item) => !item.studentsOnly || showStudents);
 
   return (

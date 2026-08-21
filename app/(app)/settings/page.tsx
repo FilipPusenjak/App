@@ -12,7 +12,6 @@ import { getAiStatus } from "@/lib/ai-status";
 import { getDeploymentInfo } from "@/lib/deployment-info";
 import { getSpendStatus } from "@/lib/spending-account";
 import { getOwnedProfiles } from "@/lib/ownership";
-import { setManagesStudentsAction } from "@/app/actions/account";
 import { formatUsd } from "@/lib/cost";
 import { DeleteAccountForm } from "./delete-account-form";
 
@@ -216,48 +215,29 @@ export default async function SettingsPage() {
         </p>
       )}
 
-      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
-        <h2 className="text-lg font-semibold">How you use this account</h2>
-        <p className="mt-0.5 text-sm text-zinc-500">
-          Most accounts are one student looking at their own profile.
-        </p>
-        {/* An uncontrolled checkbox that submits itself. No client component,
-            no hydration boundary — a setting this small should not ship
-            JavaScript to every page that renders the shell. */}
-        <form action={setManagesStudentsAction} className="mt-3">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              name="managesStudents"
-              defaultChecked={user?.managesStudents ?? false}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-black/25 dark:border-white/30"
-            />
-            <span className="text-sm">
-              <span className="font-medium">
-                I manage more than one student
-              </span>
-              <span className="mt-0.5 block text-zinc-500">
-                For counselors, tutors and parents. Adds a Students tab for
-                keeping separate profiles, each with their own targets and
-                evaluations.
-              </span>
-            </span>
-          </label>
-          <button
-            type="submit"
-            className="mt-3 rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-          >
-            Save
-          </button>
-        </form>
-        {multiStudentAlready && (
-          <p className="mt-3 text-xs text-zinc-400">
-            You already have {profileCount} students, so the tab stays available
-            either way — turning this off would otherwise leave those profiles
-            with nowhere to reach them.
+      {/* Only shown at all to an account that already holds more than one
+          profile from before this closed to new signups — there is nothing
+          left to configure, so nothing renders for a solo account. A
+          counselor managing several students today uses the Counselor
+          Edition, under dual consent and a revocable grant, not this. */}
+      {multiStudentAlready && (
+        <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+          <h2 className="text-lg font-semibold">Students</h2>
+          <p className="mt-0.5 text-sm text-zinc-500">
+            You have {profileCount} students on this account from before this
+            was closed to new signups. The tab stays available so those
+            profiles are never stranded.
           </p>
-        )}
-      </section>
+          <div className="mt-3">
+            <Link
+              href="/students"
+              className="inline-flex items-center rounded-md border border-black/15 px-3 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+            >
+              Manage students
+            </Link>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
         <h2 className="text-lg font-semibold">Your data</h2>

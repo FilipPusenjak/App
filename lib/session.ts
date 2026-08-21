@@ -36,7 +36,6 @@ export const getCurrentDbUser = cache(async () => {
       email: true,
       name: true,
       countryOfOrigin: true,
-      managesStudents: true,
     },
   });
 });
