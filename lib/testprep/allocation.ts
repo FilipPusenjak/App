@@ -108,23 +108,65 @@ export function allocateSections(input: {
   return allocations;
 }
 
+export type RetakeGuidance = {
+  /**
+   * Whether "sit again and aim at ONE section" is honest advice here.
+   *
+   * False whenever the school setting the target does not superscore. See the
+   * function below — this is the flag every caller must consult before naming a
+   * section as a retake goal.
+   */
+  singleSection: boolean;
+  /** The section to aim a retake at, or null when no such advice is honest. */
+  focusSection: string | null;
+  message: string;
+};
+
 /**
- * The single sentence a tutor reads. Plain, and never a prediction.
+ * What to say about sitting the test again.
  *
- * Says where the room is. Says nothing about how long it would take to use it,
- * because nothing in the data supports that and a parent would read a timeline
- * as a commitment.
+ * A SUPERSCORE-FALSE SCHOOL NEVER GETS SINGLE-SECTION RETAKE ADVICE, and that
+ * is the entire reason this function exists separately from allocateSections.
+ *
+ * The arithmetic: a superscoring school composes the best Math with the best
+ * English from different sittings, so lifting one section is a real, retained
+ * gain and "spend the next month on Math" is sound. A school that does not
+ * superscore reads ONE sitting whole. A student who lifts Math by 60 and drops
+ * English by 70 in the same sitting has gone backwards at that school — and a
+ * student told to spend a month on Math alone is being set up to do exactly
+ * that, because the sections they stopped practising are the ones that slip.
+ *
+ * So headroom is still reported (it is a fact about the scale, true either
+ * way), but the recommendation changes shape: at a non-superscoring school the
+ * only honest goal is a better sitting, all sections held.
  */
-export function describeFocus(allocations: Allocation[]): string {
-  const focus = allocations.find((a) => a.recommendedFocus);
+export function retakeGuidance(input: {
+  allocations: Allocation[];
+  bindingSuperscores: boolean;
+  bindingSchoolName: string | null;
+}): RetakeGuidance {
+  const focus = input.allocations.find((a) => a.recommendedFocus);
+
   if (!focus) {
-    return "No section has room left to move — the composite cannot go higher.";
+    return {
+      singleSection: false,
+      focusSection: null,
+      message: "No section has room left to move — the composite cannot go higher.",
+    };
   }
-  const others = allocations.filter((a) => a !== focus && a.headroom > 0);
-  if (others.length === 0) {
-    return `${focus.sectionName} is the only section with room left.`;
+
+  if (!input.bindingSuperscores) {
+    const school = input.bindingSchoolName ?? "The school setting this target";
+    return {
+      singleSection: false,
+      focusSection: null,
+      message: `${school} does not superscore, so it reads one sitting whole. A retake only helps if every section holds — a gain in one section and a slip in another nets out to nothing there. ${focus.sectionName} has the most room, but it is not a goal a retake can be aimed at on its own.`,
+    };
   }
-  return `${focus.sectionName} is where the composite moves — it has the most room of any section${
-    focus.currentScore !== null ? `, sitting at ${focus.currentScore}` : ""
-  }.`;
+
+  return {
+    singleSection: true,
+    focusSection: focus.sectionName,
+    message: `${input.bindingSchoolName ?? "This school"} superscores, so a better ${focus.sectionName} is kept even if the rest of the sitting is no better than before. That makes ${focus.sectionName} the one thing a retake needs to move.`,
+  };
 }

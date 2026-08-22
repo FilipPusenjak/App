@@ -44,6 +44,20 @@ export const RUN_BUDGET_USD = {
    * variable cost.
    */
   SESSION_PREP: envBudget("SESSION_PREP_BUDGET_USD", 0.12),
+  /**
+   * One parent-facing progress artifact.
+   *
+   * The cheapest generated surface in the product, and it should be: the model
+   * computes nothing here. Every number arrives already decided by
+   * lib/testprep's pure engines, and the whole task is saying them in English to
+   * a parent. A ≤5k-token brief and a short structured output.
+   *
+   * It is also the ONLY per-student model cost in the tutor edition — target
+   * derivation, section allocation and the stopping engine call nothing — so
+   * this number times one per student per month is that product's entire
+   * variable cost.
+   */
+  PROGRESS_ARTIFACT: envBudget("PROGRESS_ARTIFACT_BUDGET_USD", 0.08),
 } as const;
 
 function envBudget(name: string, fallback: number): number {
@@ -184,4 +198,9 @@ export const MIN_USEFUL_OUTPUT_TOKENS = {
    * more room than a check-in and far less than a full review.
    */
   SESSION_PREP: 1200,
+  /**
+   * Five short prose fields. Smaller than a prep because the artifact carries no
+   * options, no discussion points and no reasoning — just a report.
+   */
+  PROGRESS_ARTIFACT: 800,
 } as const;

@@ -198,6 +198,27 @@ export const progressNarrativeSchema = z.object({
 });
 export type ProgressNarrative = z.infer<typeof progressNarrativeSchema>;
 
+/**
+ * Whether this artifact may be stored, given what the engine decided.
+ *
+ * PURE, and separate from the route, because it is the single most important
+ * rule in the product and a rule that lives inside a request handler is a rule
+ * nobody can test without an API key. The route calls this; so do the tests.
+ *
+ * The rule: when a stopping signal has fired, an artifact whose stoppingNotice
+ * is empty is REFUSED. Not patched, not defaulted, not warned about — refused,
+ * with the tokens written off. A parent-facing document that silently omits the
+ * reason to stop is worse than no document, because it is a document the family
+ * will reasonably read as "keep going".
+ */
+export function artifactOmitsRequiredStoppingNotice(input: {
+  firedKinds: readonly StoppingKind[];
+  narrative: { stoppingNotice?: string | null };
+}): boolean {
+  if (input.firedKinds.length === 0) return false;
+  return !input.narrative.stoppingNotice?.trim();
+}
+
 /* ── The phrasing gate ───────────────────────────────────────────────────── */
 
 /**
