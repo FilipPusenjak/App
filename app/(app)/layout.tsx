@@ -5,6 +5,7 @@ import { getOwnedProfiles } from "@/lib/ownership";
 import { logoutAction } from "@/app/actions/auth";
 import { isMultiStudent } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
+import { MobileNav } from "./mobile-nav";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -44,65 +45,9 @@ export default async function AppLayout({
           {/* ── Phone ────────────────────────────────────────────────────────
               Seven links, a student switcher and a log-out button wrapped onto
               four lines and ate a fifth of the screen before any content.
-              They collapse behind a disclosure instead.
-
-              <details> rather than a client component: this is the app's
-              outermost shell, and making it interactive would ship JavaScript
-              and a hydration boundary to every page for a menu the browser can
-              open by itself. It also then works before hydration, and closes on
-              navigation because the page re-renders. */}
-          <details className="group sm:hidden">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-              <Link
-                href="/dashboard"
-                className="min-w-0 truncate text-sm font-semibold"
-              >
-                Application Profile Evaluator
-              </Link>
-              <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-black/15 px-2.5 py-1.5 text-sm font-medium dark:border-white/20">
-                Menu
-                <svg
-                  viewBox="0 0 20 20"
-                  aria-hidden="true"
-                  className="h-4 w-4 transition-transform group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 8l5 5 5-5" />
-                </svg>
-              </span>
-            </summary>
-
-            <nav className="mt-3 flex flex-col border-t border-black/10 pt-2 dark:border-white/15">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  // Generous hit targets: these are the primary navigation on a
-                  // touch screen, where a 14px text link is not a target.
-                  className="rounded-md px-2 py-2.5 text-sm text-zinc-600 hover:bg-black/5 dark:text-zinc-300 dark:hover:bg-white/10"
-                >
-                  {item.label}
-                </Link>
-              ))}
-              <div className="mt-2 flex items-center justify-between gap-3 border-t border-black/10 pt-3 dark:border-white/15">
-                <span className="min-w-0 truncate text-sm text-zinc-500">
-                  {user.email}
-                </span>
-                <form action={logoutAction}>
-                  <button
-                    type="submit"
-                    className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
-                  >
-                    Log out
-                  </button>
-                </form>
-              </div>
-            </nav>
-          </details>
+              They collapse behind a disclosure instead — see mobile-nav.tsx for
+              why that disclosure is its own small client component. */}
+          <MobileNav nav={nav} userEmail={user.email} />
 
           {/* The student switcher stays OUT of the menu on phones: which
               student you are editing is context, not navigation, and hiding it
