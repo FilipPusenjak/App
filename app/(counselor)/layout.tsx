@@ -13,8 +13,11 @@ import { getCounselorAccount } from "@/lib/counselor/access";
  * do next", and a counselor who can slide between the two is a counselor
  * looking at one child's data while working on another's.
  */
+// "This week" stays FIRST and stays the index route. The overview is context
+// for the job; the attention list is the job.
 const NAV = [
   { href: "/caseload", label: "This week" },
+  { href: "/caseload/overview", label: "Overview" },
   { href: "/caseload/students", label: "Students" },
 ];
 

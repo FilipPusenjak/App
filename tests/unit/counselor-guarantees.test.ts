@@ -176,6 +176,11 @@ describe("nothing ranks students by how they are doing", () => {
       join(ROOT, "lib", "counselor", "caseload.ts"),
       join(ROOT, "app", "(counselor)", "caseload", "page.tsx"),
       join(ROOT, "app", "(counselor)", "caseload", "students", "page.tsx"),
+      // The overview is a DASHBOARD, which is precisely the screen a readiness
+      // average would arrive on — "just one summary number for the caseload" is
+      // a reasonable-sounding request that this rule exists to refuse.
+      join(ROOT, "lib", "counselor", "overview.ts"),
+      join(ROOT, "app", "(counselor)", "caseload", "overview", "page.tsx"),
     ];
     for (const file of surfaces) {
       expect({ file, hit: RANKING_TERMS.test(code(file)) }).toEqual({
@@ -195,6 +200,24 @@ describe("nothing ranks students by how they are doing", () => {
       // severity / computedAt order the signals; studentName orders the
       // directory. Anything else here would be a ranking by another name.
       expect(o).toMatch(/severity|computedAt|studentName|generatedAt|createdAt/);
+    }
+  });
+
+  it("counts work on the overview, and never loads a student's name to rank", () => {
+    // The dashboard's whole defence is that its unit of count is a signal, a
+    // session, a year group or a consent scope — never a student. Selecting a
+    // student name here would be the first thing anyone needed in order to
+    // build the ordered list of children this product refuses to produce.
+    const src = code(join(ROOT, "lib", "counselor", "overview.ts"));
+    expect(src).not.toMatch(/studentName/);
+
+    // Every sort on this surface, checked. Counts and severities order the
+    // WORK; a label orders a composition row alphabetically. Anything reaching
+    // for a measure of a student would have to appear here first.
+    const sorts = [...src.matchAll(/\.sort\(([\s\S]{0,220}?)\)\s*;/g)].map((m) => m[1]!);
+    expect(sorts.length).toBeGreaterThan(0);
+    for (const s of sorts) {
+      expect(s).toMatch(/count|topSeverity|label/);
     }
   });
 
