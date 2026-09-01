@@ -12,6 +12,7 @@
 // whose central honesty claim is gated behind a payment tier does not have the
 // claim. An over-band, unpaid, expired account still gets told when to stop.
 import { prisma } from "@/lib/db";
+import { effectivePlanFor } from "@/lib/billing/subscription";
 
 /**
  * The bands, web-only and billed through Stripe.
@@ -58,7 +59,7 @@ export async function caseloadStanding(
   const [account, active] = await Promise.all([
     prisma.counselorAccount.findUniqueOrThrow({
       where: { id: counselorAccountId },
-      select: { caseloadLimit: true },
+      select: { caseloadLimit: true, userId: true },
     }),
     prisma.caseloadLink.count({
       where: {
@@ -70,20 +71,40 @@ export async function caseloadStanding(
     }),
   ]);
 
-  const overBand = active > account.caseloadLimit;
+  // A purchased band DERIVES the limit rather than being copied onto the
+  // account. One source of truth, so there is no sync step to go wrong, and a
+  // band that lapses reverts on its own instead of leaving a paid-for ceiling
+  // behind. The stored caseloadLimit remains the floor for accounts set up by
+  // hand, which is how every existing account works today.
+  const purchased = await purchasedCaseloadLimit(account.userId);
+  const limit = Math.max(account.caseloadLimit, purchased ?? 0);
+
+  const overBand = active > limit;
   const suggested = overBand ? nextBandAbove(active) : null;
 
   return {
     active,
-    limit: account.caseloadLimit,
+    limit,
     overBand,
     message: overBand
       ? suggested
-        ? `You have ${active} active students and your plan covers ${account.caseloadLimit}. The ${suggested.students}-student plan is $${suggested.monthlyUsd} a month. Nothing is interrupted in the meantime — move when it suits you.`
+        ? `You have ${active} active students and your plan covers ${limit}. The ${suggested.students}-student plan is $${suggested.monthlyUsd} a month. Nothing is interrupted in the meantime — move when it suits you.`
         : `You have ${active} active students, above the largest standard plan. Get in touch and we will sort out something that fits.`
       : null,
     suggested,
   };
+}
+
+/**
+ * The caseload ceiling a paid band grants, or null when none is in force.
+ *
+ * Isolated in its own function so the read stays a read: nothing here writes,
+ * disables, or auto-selects a band. Going over is still only ever a sentence on
+ * a screen — see this file's header.
+ */
+async function purchasedCaseloadLimit(userId: string): Promise<number | null> {
+  const plan = await effectivePlanFor(userId, "TUTOR");
+  return plan?.caseloadLimit ?? null;
 }
 
 /**

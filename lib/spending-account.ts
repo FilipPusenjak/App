@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { requireUserId } from "@/lib/session";
 import { estimateCost } from "@/lib/cost";
 import { evaluateSpend, getSpendLimitUsd, type SpendStatus } from "./spending";
+import { spendLimitForPlan } from "@/lib/billing/entitlement";
+import { effectivePlanFor } from "@/lib/billing/subscription";
 
 /**
  * What this account has spent, across every student it holds.
@@ -41,7 +43,20 @@ export async function getAccountSpendUsd(): Promise<number> {
   return total;
 }
 
-/** The account's spend measured against its cap. */
+/**
+ * The account's spend measured against its cap.
+ *
+ * The cap is the PLAN's where a plan is in force, and the environment default
+ * otherwise. Making the paid tier raise this ceiling — rather than introducing a
+ * second gate beside it — means there is still exactly one thing in the app that
+ * can stop an expensive run, and a deployment that has never configured billing
+ * behaves precisely as it did before billing existed.
+ */
 export async function getSpendStatus(): Promise<SpendStatus> {
-  return evaluateSpend(await getAccountSpendUsd(), getSpendLimitUsd());
+  const userId = await requireUserId();
+  const [spent, plan] = await Promise.all([
+    getAccountSpendUsd(),
+    effectivePlanFor(userId, "STUDENT"),
+  ]);
+  return evaluateSpend(spent, spendLimitForPlan(plan) ?? getSpendLimitUsd());
 }

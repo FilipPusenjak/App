@@ -6,6 +6,12 @@ import {
   bandForLimit,
   caseloadStanding,
 } from "@/lib/testprep/entitlement";
+import { loadBillingSummary } from "@/lib/billing/subscription";
+import { isStripeConfigured } from "@/lib/billing/stripe";
+import {
+  CheckoutButton,
+  PortalButton,
+} from "@/app/(app)/settings/billing/buttons";
 
 /**
  * Plans, and what happens when a tutor is over their band.
@@ -27,8 +33,12 @@ export default async function TutorPlanPage() {
   // redirect takes effect.
   if (!account || account.type !== "TEST_PREP_TUTOR") redirect("/start");
 
-  const standing = await caseloadStanding(account.id);
+  const [standing, billing] = await Promise.all([
+    caseloadStanding(account.id),
+    loadBillingSummary(account.userId, "TUTOR"),
+  ]);
   const currentBand = bandForLimit(standing.limit);
+  const stripeReady = isStripeConfigured();
 
   return (
     <div className="space-y-6">
@@ -88,27 +98,48 @@ export default async function TutorPlanPage() {
                     </span>
                   )}
                 </span>
-                <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
-                  ${band.monthlyUsd}/mo
-                  {!isCurrent && !covers && (
-                    <span className="ml-2 text-xs text-zinc-500">
-                      below your current caseload
-                    </span>
+                <span className="flex flex-wrap items-center gap-3">
+                  <span className="tabular-nums text-zinc-600 dark:text-zinc-400">
+                    ${band.monthlyUsd}/mo
+                    {!isCurrent && !covers && (
+                      <span className="ml-2 text-xs text-zinc-500">
+                        below your current caseload
+                      </span>
+                    )}
+                  </span>
+                  {stripeReady && !isCurrent && (
+                    <CheckoutButton
+                      planCode={band.code}
+                      label={covers ? "Choose" : "Choose anyway"}
+                    />
                   )}
                 </span>
               </li>
             );
           })}
         </ul>
-        {/* Changing a plan happens on the web, through Stripe, and is not wired
-            up in this build. Said plainly rather than rendered as a button that
-            does nothing — a dead checkout button is worse than none, because a
-            tutor over their band would think they had already moved. */}
-        <p className="mt-4 border-t border-black/10 pt-3 text-xs text-zinc-500 dark:border-white/10">
-          Plan changes are handled on the web and billed through Stripe. Checkout
-          is not connected in this build — to move bands, get in touch and we
-          will do it by hand.
-        </p>
+        {/* A dead checkout button is worse than none, because a tutor over
+            their band would press it and conclude they had moved. So the button
+            only exists where Stripe is actually configured, and the fallback
+            says plainly what to do instead. */}
+        {stripeReady ? (
+          <div className="mt-4 border-t border-black/10 pt-4 dark:border-white/10">
+            {billing.hasCustomer ? (
+              <PortalButton />
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Choose a band above to subscribe. Changing or cancelling later
+                is a couple of clicks in the same place.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-4 border-t border-black/10 pt-3 text-xs text-zinc-500 dark:border-white/10">
+            Plan changes are handled on the web and billed through Stripe.
+            Checkout is not connected on this deployment — to move bands, get in
+            touch and we will do it by hand.
+          </p>
+        )}
       </section>
 
       <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">

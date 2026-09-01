@@ -75,6 +75,86 @@ model User {
   progressArtifacts ProgressArtifact[] @relation("TestPrepStudent")
 
   passwordResetTokens PasswordResetToken[]
+
+  /// The Stripe Customer this account maps to, created on first checkout.
+  ///
+  /// Null for everybody who has never opened checkout, which is most accounts
+  /// and is not an error state. Stored so a returning customer reuses their
+  /// customer record rather than accumulating a new one per checkout, which is
+  /// what makes the billing portal and invoice history coherent.
+  stripeCustomerId String? @unique
+
+  subscriptions Subscription[]
+}
+
+/// A paid plan an account holds, mirrored from Stripe.
+///
+/// STRIPE IS THE SOURCE OF TRUTH, and this table is a local cache of it. That
+/// direction matters: the money moved in Stripe whatever this row says, so a
+/// disagreement is always resolved by believing Stripe and correcting this —
+/// never the other way round. Nothing in this app charges a card; Stripe does,
+/// and the webhook copies the result here so a page render does not need a
+/// network call to know what someone is on.
+///
+/// One row per Stripe subscription rather than one per account, so a lapsed
+/// subscription stays readable next to its replacement instead of being
+/// overwritten. Which one is in force is decided by status, not by recency.
+model Subscription {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A plan code from lib/billing/plans.ts. Stored as text on purpose: a plan
+  /// that is retired from the catalogue must not orphan the row recording that
+  /// somebody paid for it.
+  planCode String
+
+  stripeSubscriptionId String  @unique
+  stripeCustomerId     String
+  /// The Stripe Price this subscription bills against, kept for support: it is
+  /// the field that answers "what were they actually charged" a year later.
+  stripePriceId        String?
+
+  /// Stripe's own status string — active, trialing, past_due, canceled, unpaid,
+  /// incomplete, incomplete_expired, paused. NOT narrowed to a boolean here,
+  /// because past_due and canceled call for different words to the customer and
+  /// collapsing them would lose the distinction at the point it matters most.
+  status String
+
+  /// When the paid-for period ends. An access decision reads this rather than
+  /// assuming a canceled subscription ends immediately — somebody who cancels
+  /// on the 2nd keeps what they paid for until the 30th.
+  currentPeriodEnd DateTime?
+  /// Set when the customer has cancelled but the period has not run out yet.
+  cancelAtPeriodEnd Boolean @default(false)
+
+  /// The `created` timestamp of the most recent Stripe event applied to this
+  /// row. Webhook deliveries are not ordered, so an older event arriving late
+  /// must not overwrite newer state — this is what that check compares against.
+  lastEventAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+}
+
+/// Every Stripe event this app has already applied, so it applies it once.
+///
+/// Stripe retries deliveries and explicitly does not promise exactly-once, so
+/// a handler without this table will eventually double-apply something. The
+/// row is written in the SAME transaction as the effect, which is what makes
+/// the pair atomic: a crash between the two would otherwise either lose the
+/// effect or record it as done without doing it.
+model StripeEvent {
+  /// Stripe's own event id (evt_...), which is the deduplication key.
+  id          String   @id
+  type        String
+  /// Stripe's created time, used to reject events older than applied state.
+  stripeCreatedAt DateTime
+  receivedAt  DateTime @default(now())
+
+  @@index([type])
 }
 
 /// A single-use, expiring permission to set a new password.

@@ -240,6 +240,22 @@ export default async function SettingsPage() {
       )}
 
       <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold">Plan</h2>
+        <p className="mt-0.5 text-sm text-zinc-500">
+          What this account can spend on model work. A plan never affects what
+          you can see or export.
+        </p>
+        <div className="mt-3">
+          <Link
+            href="/settings/billing"
+            className="inline-flex items-center rounded-md border border-black/15 px-3 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+          >
+            View plan
+          </Link>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
         <h2 className="text-lg font-semibold">Your data</h2>
         <p className="mt-0.5 text-sm text-zinc-500">
           Everything stored under this account, private to you.

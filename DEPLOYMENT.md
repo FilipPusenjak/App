@@ -288,6 +288,89 @@ blocker.
 
 ---
 
+## Step 5 — Payments (optional)
+
+**The app runs fine without any of this.** With no Stripe keys set, everybody is
+on the free plan, checkout buttons are not rendered at all, and the webhook
+endpoint returns 503. Nothing else changes. Skip this section until you actually
+want to charge somebody.
+
+### 5a — Create the products in Stripe
+
+In the Stripe dashboard, in **test mode** first, create one product per plan and
+give each a **recurring monthly** price:
+
+| Product | Monthly | What it grants |
+|---|---|---|
+| Plus (students) | $9 | Raises the account's model budget to $25/mo |
+| Up to 20 students (tutors) | $29 | Caseload band of 20 |
+| Up to 50 students (tutors) | $49 | Caseload band of 50 |
+
+Copy each price's id — it looks like `price_1QxYz...`, **not** the product id
+(`prod_...`). Getting these two confused is the most common setup mistake, and
+the symptom is a checkout that 400s.
+
+> The amounts above are what `lib/billing/plans.ts` *displays*. **Stripe holds
+> the amount actually charged.** If you price something differently in Stripe,
+> change it here too (or set `STUDENT_PLUS_PRICE_USD`, `TUTOR_20_PRICE_USD`,
+> `TUTOR_50_PRICE_USD`) or the app will quote a price it does not charge.
+
+### 5b — Add the webhook endpoint
+
+In Stripe → **Developers → Webhooks → Add endpoint**:
+
+- **URL**: `https://your-app.vercel.app/api/billing/webhook`
+- **Events**: `customer.subscription.created`, `customer.subscription.updated`,
+  `customer.subscription.deleted`
+
+Copy the **signing secret** (`whsec_...`).
+
+This endpoint is the only thing that grants anybody a plan. The success page
+after checkout grants nothing — it is just a redirect, and anyone can type it.
+
+### 5c — Set the environment variables
+
+| Variable | Value |
+|---|---|
+| `STRIPE_SECRET_KEY` | `sk_test_...` while testing, `sk_live_...` in production |
+| `STRIPE_WEBHOOK_SECRET` | The `whsec_...` from 5b |
+| `STRIPE_PRICE_STUDENT_PLUS` | The `price_...` for Plus |
+| `STRIPE_PRICE_TUTOR_20` | The `price_...` for the 20-student band |
+| `STRIPE_PRICE_TUTOR_50` | The `price_...` for the 50-student band |
+| `APP_URL` | Already needed for password resets. Stripe returns customers here, so a wrong value sends a paying customer to the wrong host. |
+
+Live and test mode have **separate** prices and webhook secrets. Copying a test
+`price_` id into a live deployment fails at checkout.
+
+### 5d — Test it before charging anyone
+
+Use Stripe's test card `4242 4242 4242 4242`, any future expiry, any CVC.
+
+```bash
+# Replay events at your local server without a card, using Stripe's CLI:
+stripe listen --forward-to localhost:3000/api/billing/webhook
+stripe trigger customer.subscription.created
+```
+
+Worth confirming, in this order:
+
+1. Subscribing moves the plan on `/settings/billing` (students) or
+   `/students-testprep/plan` (tutors).
+2. **Cancelling in the portal leaves access intact until the period ends.** This
+   is the one most likely to be wrong, and the one customers notice.
+3. Replaying the same event twice changes nothing the second time.
+
+### 5e — Before going live
+
+- Switch the keys to live mode and re-copy the price ids and webhook secret.
+- Fill in Stripe's **customer portal** settings (business name, cancellation
+  policy) — the portal is where your customers cancel, and it shows your details.
+- Decide what happens to a lapsed tutor over their old band. Today: nothing is
+  disabled, they are simply notified. That is deliberate — see
+  `lib/testprep/entitlement.ts`.
+
+---
+
 ## After the first deploy
 
 - **Create your account immediately** so you are the first user, then confirm the
@@ -340,3 +423,8 @@ Two things worth knowing:
 | The deploy succeeded but is missing recent work | Vercel builds the **production branch**, which is `main`. Work pushed only to a feature branch builds as a preview, not production. Merge into `main` to release it. |
 | Signup says "not on the invite list" | Working as intended — add the address to `SIGNUP_ALLOWED_EMAILS` and redeploy. |
 | Evaluations return sample output | `ANTHROPIC_API_KEY` not set in Vercel. |
+| Checkout button does nothing / no button at all | `STRIPE_SECRET_KEY` not set. With no key the buttons are deliberately not rendered — a dead checkout button is worse than none, because someone presses it and concludes they have paid. |
+| Checkout returns 400 | A `STRIPE_PRICE_*` variable holds a product id (`prod_...`) instead of a price id (`price_...`), or a test-mode price id is set on a live deployment. |
+| Paid, but the plan did not change | The webhook is not reaching the app. Check Stripe → Developers → Webhooks for failed deliveries. A 400 there means `STRIPE_WEBHOOK_SECRET` is wrong; a 503 means `STRIPE_SECRET_KEY` is unset on the deployment Stripe is calling. |
+| Stripe shows the same event delivered repeatedly | Only a problem if the responses are non-2xx. Duplicates answering 200 are expected and are applied once — see `lib/billing/webhook.ts`. |
+| A customer says they cancelled but still has access | Working as intended. A cancelled plan runs until the period they paid for ends. |
