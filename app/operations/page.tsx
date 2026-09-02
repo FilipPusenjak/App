@@ -9,6 +9,7 @@ import {
   monthWindow,
   worstCasePerLinkUsd,
 } from "@/lib/counselor/economics";
+import { MintCodeForm } from "./mint-code-form";
 
 /**
  * Does the per-link price cover what a caseload actually costs to run?
@@ -152,6 +153,18 @@ export default async function OperationsPage() {
         reading it as a signal about anything else — and never as a comparison
         between accounts, which this table is not built to support.
       </p>
+
+      <section className="mt-10 rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold tracking-tight">Access codes</h2>
+        <p className="mt-1 max-w-2xl text-sm text-zinc-500">
+          Hand a code to a tester to give their account one Deep Review or
+          projection without a card. A code grants a run, never a plan or a
+          discount — see lib/billing/codes.ts.
+        </p>
+        <div className="mt-4">
+          <MintCodeForm />
+        </div>
+      </section>
     </main>
   );
 }

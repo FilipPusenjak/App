@@ -186,7 +186,7 @@ read or write across accounts.
 | `scripts/ingest-requirements.ts` | Load a research wave. `--dry-run` first; `--prune` after a matcher change. |
 | `scripts/requirements-coverage.ts` | Which targeted courses have data, and which need research. |
 | `scripts/requirements-to-sql.ts` | The same ingest as SQL, for when the machine with the data can't reach the database. |
-| `scripts/make-access-code.ts` | Mint access codes granting one Deep Review or plans projection, for testing. |
+| `scripts/make-access-code.ts` | Mint access codes granting one Deep Review or plans projection, for testing. Same thing is available from `/operations` in the browser (operator-gated). |
 | `scripts/reset-link.ts` | Mint a password reset link for an account. |
 | `scripts/target-pairs.ts` | The (university, course) pairs students actually target. |
 | `scripts/set-password.ts` | Set an account's password directly. |

@@ -127,7 +127,7 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `RETENTION_RESULT_DAYS` | No | Days before the evaluation write-up is deleted. Default 365. `0` keeps it forever. **Scores are never deleted** — the progress chart still covers every year. |
 | `CRON_SECRET` | For triage and retention | Bearer token the scheduled jobs authenticate with — nightly counselor triage, and the weekly retention sweep. `vercel.json` schedules both, and Vercel sets this header for you once the variable exists. **Fails closed: unset means no request is ever treated as the scheduler**, so triage only runs when a signed-in counselor asks for their own caseload, and the retention sweep never runs at all — nothing is deleted. |
 | `COUNSELOR_PRICE_PER_LINK_USD` | No | List price per active student per month, used only by the internal cost view's margin arithmetic. Default 12. Nothing in this app charges anybody. |
-| `OPERATOR_EMAILS` | No | Comma-separated addresses that may read `/operations`, the internal cost-per-caseload view. **Fails closed** — unset means nobody, and the page 404s for everyone else. |
+| `OPERATOR_EMAILS` | No | Comma-separated addresses that may read `/operations` — the internal cost-per-caseload view, and the access-code minting form. **Fails closed** — unset means nobody, and the page 404s for everyone else. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
 | `EVAL_MAX_PER_HOUR` | No | Default 10 billable evaluations per user per hour. |
 | `PROJECTION_COOLDOWN_SECONDS` | No | Default 10. Projections have their own budget so plan-tinkering can't lock you out of a real evaluation. |
@@ -196,8 +196,9 @@ What makes that safe is that **a new free account cannot spend your Anthropic
 credits**. The free plan does not include Deep Reviews or plans projections, the
 two runs that cost real money; see `FREE_QUOTA` in `lib/billing/quota.ts`. A
 stranger who signs up can build a profile, set targets and run a check-in. To
-run anything expensive they must subscribe, or redeem a code you handed them
-(`npx tsx scripts/make-access-code.ts`).
+run anything expensive they must subscribe, or redeem a code you handed them —
+minted at `/operations` (set `OPERATOR_EMAILS` first) or with
+`npx tsx scripts/make-access-code.ts` if you'd rather not touch a browser.
 
 Signup asks whether the account is for a student or for a counselor running a
 caseload, and the counselor choice is the more privileged of the two: it is the
@@ -424,7 +425,7 @@ Two things worth knowing:
 | Login works locally but not deployed | `AUTH_SECRET` not set in Vercel. The build now stops on this rather than deploying a site that loads fine and cannot log anyone in — if an older deploy is live and broken this way, the symptom is `MissingSecret` in the function logs and a failing login form on a page that otherwise renders normally. |
 | Build stops with "required configuration is missing" | Working as intended — the named variable is not set where the app is hosted. Add it and redeploy. |
 | The deploy succeeded but is missing recent work | Vercel builds the **production branch**, which is `main`. Work pushed only to a feature branch builds as a preview, not production. Merge into `main` to release it. |
-| A free account cannot start a Deep Review | Working as intended — Deep Reviews and projections are on the Plus plan. Subscribe, or issue a code with `npx tsx scripts/make-access-code.ts`. |
+| A free account cannot start a Deep Review | Working as intended — Deep Reviews and projections are on the Plus plan. Subscribe, or issue a code at `/operations` (or `npx tsx scripts/make-access-code.ts`). |
 | Evaluations return sample output | `ANTHROPIC_API_KEY` not set in Vercel. |
 | Checkout button does nothing / no button at all | `STRIPE_SECRET_KEY` not set. With no key the buttons are deliberately not rendered — a dead checkout button is worse than none, because someone presses it and concludes they have paid. |
 | Checkout returns 400 | A `STRIPE_PRICE_*` variable holds a product id (`prod_...`) instead of a price id (`price_...`), or a test-mode price id is set on a live deployment. |
