@@ -38,6 +38,7 @@ import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
+import { authorizeRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
   getModel,
@@ -329,6 +330,24 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: message },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+
+  // The PLAN's quota — how often this account may run a Deep Review, which is
+  // what the product is actually sold as. Distinct from the rate limits above
+  // (which stop hammering) and from the spend cap below (which stops a runaway
+  // bill): this one is the promise made to the customer.
+  //
+  // Spends a redeemed code's credit when the interval would otherwise refuse,
+  // and only then — see authorizeRun.
+  const quota = await authorizeRun({ userId: user.id, kind: "DEEP_REVIEW" });
+  if (!quota.allowed) {
+    return NextResponse.json(
+      {
+        error: quota.message,
+        nextAvailableAt: quota.nextAvailableAt.toISOString(),
+      },
+      { status: 402 },
     );
   }
 

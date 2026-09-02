@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * The two buttons that hand off to Stripe.
@@ -66,6 +67,89 @@ export function CheckoutButton({
         <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>
       )}
     </div>
+  );
+}
+
+/**
+ * The code box.
+ *
+ * Sits under the plans because that is where somebody looks when they have hit
+ * a limit — the two ways past it, upgrading and a code, belong next to each
+ * other rather than on separate screens.
+ *
+ * Refreshes the route on success so the quota panel above updates, rather than
+ * telling somebody it worked and leaving a stale "0 credits" on screen.
+ */
+export function RedeemCodeForm() {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy || !code.trim()) return;
+        setBusy(true);
+        setError(null);
+        setSuccess(null);
+        try {
+          const response = await fetch("/api/billing/redeem", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+          const data = (await response.json().catch(() => null)) as {
+            message?: string;
+            error?: string;
+          } | null;
+          if (!response.ok) {
+            setError(data?.error ?? "That code could not be used.");
+          } else {
+            setSuccess(data?.message ?? "Code accepted.");
+            setCode("");
+            router.refresh();
+          }
+        } catch {
+          setError("Could not reach the server. Try again.");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <div className="flex flex-wrap gap-2">
+        <label htmlFor="access-code" className="sr-only">
+          Access code
+        </label>
+        <input
+          id="access-code"
+          name="code"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="CHART-XXXX-XXXX"
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 flex-1 rounded-md border border-black/15 bg-white px-3 py-2 font-mono text-sm uppercase tracking-wide placeholder:tracking-normal placeholder:text-zinc-400 dark:border-white/20 dark:bg-white/5"
+        />
+        <button
+          type="submit"
+          disabled={busy || !code.trim()}
+          className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          {busy ? "Checking…" : "Redeem"}
+        </button>
+      </div>
+      {error && (
+        <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>
+      )}
+      {success && (
+        <p className="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
+          {success}
+        </p>
+      )}
+    </form>
   );
 }
 

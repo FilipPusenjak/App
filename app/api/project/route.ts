@@ -16,6 +16,7 @@ import { getProfileWithRelations, getOwnedPlannedItems } from "@/lib/ownership";
 import { projectionRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
+import { authorizeRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
   getProjectionModel,
@@ -180,6 +181,17 @@ export async function POST() {
         status: 429,
         headers: { "Retry-After": String(limit.retryAfterSeconds) },
       },
+    );
+  }
+
+  // The plan's quota — "weekly plans projections" is what the product sells, so
+  // the interval is the promise. A redeemed code's credit covers a run the
+  // interval would otherwise refuse, and is spent only then.
+  const quota = await authorizeRun({ userId: user.id, kind: "PROJECTION" });
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: quota.message, nextAvailableAt: quota.nextAvailableAt.toISOString() },
+      { status: 402 },
     );
   }
 

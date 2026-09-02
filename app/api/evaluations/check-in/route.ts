@@ -16,6 +16,7 @@ import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { spendLimitMessage } from "@/lib/spending";
 import { getSpendStatus } from "@/lib/spending-account";
+import { authorizeRun } from "@/lib/billing/quota-account";
 import { estimateCost } from "@/lib/cost";
 import {
   describeShapeFailure,
@@ -122,6 +123,16 @@ export async function POST() {
     return NextResponse.json(
       { error: "Too many evaluations for now. Try again shortly." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+    );
+  }
+
+  // The plan's quota. A check-in is the cheap tier but it is still sold as
+  // "every two days", and the interval is the promise — see lib/billing/quota.ts.
+  const quota = await authorizeRun({ userId: user.id, kind: "CHECK_IN" });
+  if (!quota.allowed) {
+    return NextResponse.json(
+      { error: quota.message, nextAvailableAt: quota.nextAvailableAt.toISOString() },
+      { status: 402 },
     );
   }
 

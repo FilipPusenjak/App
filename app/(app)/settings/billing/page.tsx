@@ -6,7 +6,8 @@ import { plansFor, stripePriceIdFor, type Plan } from "@/lib/billing/plans";
 import { isStripeConfigured } from "@/lib/billing/stripe";
 import { getSpendStatus } from "@/lib/spending-account";
 import { formatUsd } from "@/lib/cost";
-import { CheckoutButton, PortalButton } from "./buttons";
+import { CheckoutButton, PortalButton, RedeemCodeForm } from "./buttons";
+import { quotaStandings } from "@/lib/billing/quota-account";
 
 /**
  * What this account is on, and how to change it.
@@ -20,9 +21,10 @@ export default async function BillingPage() {
   const userId = await requireUserId().catch(() => null);
   if (!userId) redirect("/login");
 
-  const [summary, spend] = await Promise.all([
+  const [summary, spend, standings] = await Promise.all([
     loadBillingSummary(userId, "STUDENT"),
     getSpendStatus(),
+    quotaStandings(userId),
   ]);
   const configured = isStripeConfigured();
   const plans = plansFor("STUDENT");
@@ -110,6 +112,67 @@ export default async function BillingPage() {
           />
         ))}
       </div>
+
+      {/* What the plan actually gets you, as dates rather than allowances.
+          Sits directly under the plans because "when can I run this again" is
+          the question somebody arrives on this page holding. */}
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-sm font-medium text-zinc-500">
+          What you can run, and when
+        </h2>
+        <ul className="mt-3 space-y-3">
+          {standings.map((s) => (
+            <li
+              key={s.kind}
+              className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-black/5 pb-3 last:border-b-0 last:pb-0 dark:border-white/10"
+            >
+              <div className="min-w-0">
+                <span className="text-sm font-medium">{s.label}</span>
+                <span className="ml-2 text-xs text-zinc-500">
+                  {s.intervalDays > 0 ? s.intervalLabel : "no limit"}
+                </span>
+              </div>
+              <div className="text-sm">
+                {s.availableNow ? (
+                  <span className="text-emerald-700 dark:text-emerald-400">
+                    Available now
+                  </span>
+                ) : (
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    Next on{" "}
+                    <strong className="font-medium text-zinc-900 dark:text-zinc-100">
+                      {s.nextAvailableAt?.toLocaleDateString("en-US", {
+                        day: "numeric",
+                        month: "long",
+                      })}
+                    </strong>
+                  </span>
+                )}
+                {s.credits > 0 && (
+                  <span className="ml-2 rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">
+                    +{s.credits} from {s.credits === 1 ? "a code" : "codes"}
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-xs text-zinc-500">
+          A code is only spent when the schedule would otherwise say no, so
+          redeeming one early never wastes it.
+        </p>
+      </section>
+
+      {/* The code box, directly under the plans — the two ways past a limit
+          belong next to each other. */}
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-sm font-medium text-zinc-500">Have a code?</h2>
+        <p className="mt-0.5 mb-3 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+          Codes add a single Deep Review or plans projection to this account.
+          They are not a plan and do not change what you are charged.
+        </p>
+        <RedeemCodeForm />
+      </section>
 
       {/* Said plainly rather than rendered as a dead button. A checkout button
           that does nothing is worse than none: somebody presses it, nothing

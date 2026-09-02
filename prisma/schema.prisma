@@ -85,6 +85,10 @@ model User {
   stripeCustomerId String? @unique
 
   subscriptions Subscription[]
+
+  /// Test-access codes this account has redeemed, and the runs they bought.
+  codeRedemptions AccessCodeRedemption[]
+  runCredits      RunCredit[]
 }
 
 /// A paid plan an account holds, mirrored from Stripe.
@@ -137,6 +141,79 @@ model Subscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId, status])
+}
+
+/// A code that grants one run of something, for handing out during testing.
+///
+/// Deliberately NOT a discount code and not a Stripe coupon: it grants a single
+/// RUN, not a price change, so it never touches billing and cannot be worth
+/// money. The worst case if one leaks is that a stranger gets one free Deep
+/// Review, which is bounded by maxRedemptions and by the account spend cap
+/// underneath it.
+model AccessCode {
+  id String @id @default(cuid())
+
+  /// Uppercase, unambiguous characters only — these get read down a phone and
+  /// typed by hand. See lib/billing/codes.ts for the alphabet and why.
+  code String @unique
+
+  /// A RunKind: DEEP_REVIEW | PROJECTION | CHECK_IN.
+  grantsKind String
+  /// How many runs one redemption is worth. Almost always 1.
+  grantsCount Int @default(1)
+
+  /// How many DIFFERENT accounts may redeem this. A code handed to one tester
+  /// is 1; a code read out to a room is however many people are in it.
+  maxRedemptions Int @default(1)
+  redemptionCount Int @default(0)
+
+  expiresAt DateTime?
+  /// Why this code exists, for whoever finds it in the table in six months.
+  note      String?
+
+  createdAt   DateTime            @default(now())
+  redemptions AccessCodeRedemption[]
+
+  @@index([code])
+}
+
+/// One account's use of one code.
+///
+/// The unique constraint is the enforcement: it makes redeeming twice a
+/// database error rather than something the application has to remember to
+/// check, so one person cannot drain a code meant for a group.
+model AccessCodeRedemption {
+  id           String     @id @default(cuid())
+  accessCodeId String
+  accessCode   AccessCode @relation(fields: [accessCodeId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  redeemedAt DateTime @default(now())
+
+  @@unique([accessCodeId, userId])
+  @@index([userId])
+}
+
+/// Runs an account may make regardless of its plan's quota.
+///
+/// One row per account per kind, holding a remaining count. Spent ONLY when the
+/// quota would otherwise refuse — see checkQuota — so a credit is never burned
+/// on a run somebody was entitled to anyway.
+model RunCredit {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A RunKind, matching AccessCode.grantsKind.
+  kind      String
+  remaining Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, kind])
 }
 
 /// Every Stripe event this app has already applied, so it applies it once.
