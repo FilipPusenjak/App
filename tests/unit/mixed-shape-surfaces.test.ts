@@ -12,67 +12,9 @@ import { describe, expect, it } from "vitest";
 import { readStanding, BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
 import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
 import { buildProgress } from "@/lib/evaluation/progress";
+import { legacyResult } from "./fixtures/legacy-result";
 import { summariseHistoryRow } from "@/lib/evaluation/history";
 
-const legacyResult = {
-  overallScore: 58,
-  gradeRelativeScore: 81,
-  gradeContext: "Two different questions.",
-  changeSinceLast: "First run.",
-  headline: "A legacy evaluation headline.",
-  summary: "A summary.",
-  stageOutlook: {
-    stageLabel: "Grade 11",
-    whatMattersNow: "Depth",
-    onTrack: "on_track",
-    assessment: "Fine",
-    reachableNow: [],
-    notYetExpected: [],
-  },
-  systemScores: [
-    {
-      rubricId: "us_holistic",
-      systemLabel: "US",
-      readinessScore: 55,
-      gradeRelativeScore: 78,
-      assessment: "ok",
-    },
-    {
-      rubricId: "uk_course",
-      systemLabel: "UK",
-      readinessScore: 71,
-      gradeRelativeScore: 84,
-      assessment: "ok",
-    },
-  ],
-  strengths: [],
-  weaknesses: [],
-  narrativeCoherence: { score: 70, assessment: "ok" },
-  schoolFits: [
-    {
-      schoolName: "Imperial",
-      course: "Computing",
-      rubricUsed: "uk_course",
-      selectivity: "extremely_selective",
-      classification: "reach",
-      classificationReason: "Grades are short of the standard offer.",
-      fitScore: 64,
-      assessment: "A stretch on current predictions.",
-    },
-  ],
-  itemAssessments: [],
-  actions: [
-    {
-      title: "Enter the olympiad",
-      detail: "Registration closes in March.",
-      effort: "medium",
-      impact: "high",
-      timeframe: "This term",
-    },
-  ],
-  gaps: [],
-  verifyThese: [],
-};
 
 const deepReviewResult = {
   headline: "A deep review headline.",

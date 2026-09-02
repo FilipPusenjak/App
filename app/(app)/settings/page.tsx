@@ -14,6 +14,7 @@ import { getSpendStatus } from "@/lib/spending-account";
 import { getOwnedProfiles } from "@/lib/ownership";
 import { formatUsd } from "@/lib/cost";
 import { DeleteAccountForm } from "./delete-account-form";
+import { getRetentionPolicy } from "@/lib/evaluation/retention";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -31,6 +32,7 @@ export default async function SettingsPage() {
   ]);
 
   const ai = getAiStatus();
+  const retention = getRetentionPolicy();
   const deployment = getDeploymentInfo();
   const spend = await getSpendStatus();
 
@@ -282,8 +284,39 @@ export default async function SettingsPage() {
           </a>
           <p className="mt-2 text-xs text-zinc-400">
             Includes your profile, every resume item, test score, target school,
-            and the full text of every evaluation. Your password is not included
-            — it is stored only as a hash and is never exported.
+            and the full text of every evaluation still held. Your password is
+            not included — it is stored only as a hash and is never exported.
+          </p>
+        </div>
+
+        {/* Retention, stated before it bites rather than discovered afterwards
+            by a student wondering where last year's write-up went. The scores
+            are called out explicitly because they are the part people would
+            most fear losing, and the part that never goes. */}
+        <div className="mt-4 border-t border-black/10 pt-3 dark:border-white/15">
+          <h3 className="text-sm font-medium">What we stop keeping</h3>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            We delete the written parts of old evaluations on a schedule, so
+            this account holds less about you over time. The{" "}
+            <strong className="font-medium text-zinc-900 dark:text-zinc-100">
+              scores are kept for as long as your account exists
+            </strong>{" "}
+            — your progress chart still covers every year you have been here.
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+            <li>
+              The snapshot of your profile taken at each evaluation is removed
+              after {retention.inputSnapshotDays} days.
+            </li>
+            <li>
+              The evaluation write-up itself is removed after{" "}
+              {retention.resultDays} days.
+            </li>
+          </ul>
+          <p className="mt-2 text-xs text-zinc-400">
+            Download your data above if you want to keep the full text. An
+            evaluation that has passed these dates still shows its scores, just
+            not its write-up.
           </p>
         </div>
       </section>
@@ -312,9 +345,26 @@ export default async function SettingsPage() {
         <h2 className="text-lg font-semibold text-red-800 dark:text-red-300">
           Danger zone
         </h2>
-        <p className="mb-4 mt-0.5 text-sm text-red-800/80 dark:text-red-300/80">
-          Deleting your account removes everything above, permanently.
+        <p className="mt-0.5 text-sm text-red-800/80 dark:text-red-300/80">
+          Deleting your account removes everything above, permanently. Profiles,
+          evaluations, plans, targets, scores and any counselor or tutor access
+          go with it, immediately and without a recovery window.
         </p>
+        {/* Said plainly rather than buried. Two things people reasonably assume
+            and are wrong about: an active subscription, and what a payment
+            processor is legally required to keep. */}
+        <ul className="mb-4 mt-2 list-disc space-y-1 pl-5 text-sm text-red-800/80 dark:text-red-300/80">
+          <li>
+            Any active plan is cancelled first. If that fails, nothing is
+            deleted and you can try again — you will not be left paying for an
+            account that no longer exists.
+          </li>
+          <li>
+            Your card details and contact details are removed from our payment
+            processor. Past invoices survive there, because tax law requires
+            keeping records of payments taken.
+          </li>
+        </ul>
         <DeleteAccountForm email={user.email} />
       </section>
     </div>

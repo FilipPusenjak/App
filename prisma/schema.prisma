@@ -594,6 +594,22 @@ model Evaluation {
   resultJson        String?
 
   overallScore Int? // 0-100 headline, denormalized for the progress chart
+
+  /// Everything the progress chart plots, denormalized out of the narrative.
+  ///
+  /// EXISTS SO THE CHART CAN OUTLIVE THE PROSE. The narrative is deleted on a
+  /// retention schedule (see lib/evaluation/retention.ts), and buildProgress
+  /// used to read the per-school fits and the narrative-coherence score
+  /// straight out of resultJson — so expiring a narrative would have silently
+  /// dropped that evaluation off a student's four-year chart. The point of the
+  /// chart is watching a score move across the whole of secondary school, so
+  /// losing the early points is losing the feature.
+  ///
+  /// Deliberately small and non-prose: scores, and the school names they belong
+  /// to. It carries no assessment of anybody, which is what makes it safe to
+  /// keep after the assessment itself is gone.
+  chartPointJson String?
+
   error        String? // populated when status = failed
   createdAt    DateTime  @default(now())
   completedAt  DateTime?

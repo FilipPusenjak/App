@@ -13,6 +13,7 @@
 // drawn from a percentile to it, which reads as the student moving when only
 // the instrument changed. See comparableShapes in stored-shape.ts.
 import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
+import { parseChartPoint } from "@/lib/evaluation/chart-point";
 
 export type ProgressPoint = {
   id: string;
@@ -37,6 +38,9 @@ type EvaluationRow = {
   isSample: boolean;
   overallScore: number | null;
   resultJson: string | null;
+  /** The denormalized point. Present on anything written or backfilled since
+      retention landed; null on older rows, which still have their narrative. */
+  chartPointJson?: string | null;
   promptVersion: string | null;
   createdAt: Date;
 };
@@ -53,6 +57,26 @@ export function buildProgress(evaluations: EvaluationRow[]): ProgressData {
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 
   for (const e of usable) {
+    // The denormalized point FIRST, so an evaluation whose narrative has since
+    // been deleted still plots. This is what lets the chart cover four years
+    // while the prose it came from lives for one — see chart-point.ts.
+    const stored = parseChartPoint(e.chartPointJson);
+    if (stored) {
+      const overall = e.overallScore ?? stored.overall;
+      if (overall == null) continue;
+      points.push({
+        id: e.id,
+        at: e.createdAt,
+        label: shortDate(e.createdAt),
+        overall,
+        narrative: stored.narrative,
+        schools: stored.schools,
+      });
+      continue;
+    }
+
+    // No stored point: a row written before this existed and not yet
+    // backfilled. Read it out of the narrative exactly as before.
     const shape = readStoredEvaluation(e);
     if (shape.kind !== "legacy") continue;
     // The column and the parsed narrative are two records of the same number.

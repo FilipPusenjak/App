@@ -29,6 +29,10 @@
 import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
+import {
+  serializeChartPoint,
+  toChartPoint,
+} from "@/lib/evaluation/chart-point";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
@@ -622,6 +626,12 @@ export async function POST(request: Request) {
         status: "completed",
         resultJson: JSON.stringify(result),
         overallScore: Math.round(result.overallScore),
+        // Written NOW, beside the narrative it comes from, rather than derived
+        // later — the narrative is deleted on a retention schedule and this has
+        // to survive it, or the evaluation drops off the four-year chart.
+        chartPointJson: serializeChartPoint(
+          toChartPoint(result, Math.round(result.overallScore)),
+        ),
         completedAt: new Date(),
         ...usage,
       },

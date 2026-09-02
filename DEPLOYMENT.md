@@ -124,7 +124,9 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `DEEP_REVIEW_BUDGET_USD` | No | Ceiling for ONE Deep Review. Default 0.60. Not a tripwire — the output allowance is sized so the run cannot exceed it. |
 | `CHECK_IN_BUDGET_USD` | No | Ceiling for ONE Check-In. Default 0.05, same construction. |
 | `SESSION_PREP_BUDGET_USD` | No | Ceiling for ONE counselor session prep. Default 0.12, same construction. |
-| `CRON_SECRET` | For the counselor edition | Bearer token the nightly triage job authenticates with (`vercel.json` schedules it; Vercel sets this header for you when the variable is set). **Unset means no request is ever treated as the scheduler**, so triage only ever runs when a signed-in counselor asks for their own caseload. |
+| `RETENTION_INPUT_SNAPSHOT_DAYS` | No | Days before the profile snapshot taken at each evaluation is deleted. Default 60. `0` keeps it forever. |
+| `RETENTION_RESULT_DAYS` | No | Days before the evaluation write-up is deleted. Default 365. `0` keeps it forever. **Scores are never deleted** — the progress chart still covers every year. |
+| `CRON_SECRET` | For triage and retention | Bearer token the scheduled jobs authenticate with — nightly counselor triage, and the weekly retention sweep. `vercel.json` schedules both, and Vercel sets this header for you once the variable exists. **Fails closed: unset means no request is ever treated as the scheduler**, so triage only runs when a signed-in counselor asks for their own caseload, and the retention sweep never runs at all — nothing is deleted. |
 | `COUNSELOR_PRICE_PER_LINK_USD` | No | List price per active student per month, used only by the internal cost view's margin arithmetic. Default 12. Nothing in this app charges anybody. |
 | `OPERATOR_EMAILS` | No | Comma-separated addresses that may read `/operations`, the internal cost-per-caseload view. **Fails closed** — unset means nobody, and the page 404s for everyone else. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
