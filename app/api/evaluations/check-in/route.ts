@@ -128,10 +128,19 @@ export async function POST() {
 
   // The plan's quota. A check-in is the cheap tier but it is still sold as
   // "every two days", and the interval is the promise — see lib/billing/quota.ts.
-  const quota = await authorizeRun({ userId: user.id, kind: "CHECK_IN" });
-  if (!quota.allowed) {
+  // Skipped with no API key: a keyless run is sample output and calls no model,
+  // so the quota has no cost to protect. Same reasoning as /api/evaluate.
+  const quota =
+    getAnthropicClient() === null
+      ? null
+      : await authorizeRun({ userId: user.id, kind: "CHECK_IN" });
+  if (quota && !quota.allowed) {
     return NextResponse.json(
-      { error: quota.message, nextAvailableAt: quota.nextAvailableAt.toISOString() },
+      {
+        error: quota.message,
+        reason: quota.reason,
+        nextAvailableAt: quota.nextAvailableAt?.toISOString() ?? null,
+      },
       { status: 402 },
     );
   }

@@ -111,7 +111,6 @@ you use it). There are no `.env` files in production — these *are* the config.
 |---|---|---|
 | `DATABASE_URL` | **Yes** | Your **production** Postgres string. Set automatically if you use Vercel Postgres. |
 | `AUTH_SECRET` | **Yes** | Generate a **new** one for production: `openssl rand -base64 32`. Do not reuse your local value. |
-| `SIGNUP_ALLOWED_EMAILS` | **Strongly recommended** | Comma-separated addresses allowed to register. See the warning below. |
 | `ANTHROPIC_API_KEY` | For real Deep Reviews | Without it the app produces clearly-labelled sample output instead. |
 | `ANTHROPIC_MODEL` | No | Defaults to `claude-opus-5`. |
 | `ANTHROPIC_EFFORT` | No | `low` \| `medium` \| `high` \| `xhigh` \| `max`. Defaults to `medium`. |
@@ -188,25 +187,28 @@ phrasing the app refuses to show a student — the attempt is still recorded in
 history as failed, **with what it cost**. A run that spent money always leaves a
 trace, so the spend total and your bill cannot disagree.
 
-### ⚠️ Set `SIGNUP_ALLOWED_EMAILS`
+### Registration is open, and what stops it costing you
 
-Once deployed, the signup page is reachable by anyone with the URL, and **every
-account can spend your Anthropic credits**. Restrict registration to yourself:
+Anyone with the URL can create an account. There is no invite list — it was
+removed deliberately, because the app is meant to be signed up for.
 
-```
-SIGNUP_ALLOWED_EMAILS=you@example.com
-```
+What makes that safe is that **a new free account cannot spend your Anthropic
+credits**. The free plan does not include Deep Reviews or plans projections, the
+two runs that cost real money; see `FREE_QUOTA` in `lib/billing/quota.ts`. A
+stranger who signs up can build a profile, set targets and run a check-in. To
+run anything expensive they must subscribe, or redeem a code you handed them
+(`npx tsx scripts/make-access-code.ts`).
 
-Add more addresses separated by commas to let specific people in. Leaving it
-empty means open registration — fine locally, risky in production.
+Signup asks whether the account is for a student or for a counselor running a
+caseload, and the counselor choice is the more privileged of the two: it is the
+only way a `CounselorAccount` is ever created, and there is deliberately no path
+for an existing account to grant itself one later. A counselor account still
+sees nothing about any student until that student issues an invite code and both
+they and a guardian agree.
 
-This gate covers **both** kinds of account. Signup asks whether the account is
-for a student or for a counselor running a caseload, and the counselor choice
-is the one that matters here: it is the only way a `CounselorAccount` is ever
-created, and there is deliberately no path for an existing account to grant
-itself one later. A counselor account still sees nothing about any student
-until that student issues an invite code and both they and a guardian agree —
-but it is the more privileged of the two, so keep the allowlist set.
+If you do want registration closed on your deployment, that is now a Vercel
+concern rather than an app one — put the deployment behind Vercel's password or
+SSO protection.
 
 Three further safety nets are in place:
 
@@ -375,8 +377,7 @@ Worth confirming, in this order:
 
 ## After the first deploy
 
-- **Create your account immediately** so you are the first user, then confirm the
-  allowlist blocks anything else.
+- **Create your account immediately** so you are the first user.
 - **One account can hold several students.** If you are running this for more
   than one person, add them under **Students**; each keeps a separate profile,
   target list, plans and evaluation history, and everything else in the app acts
@@ -423,7 +424,7 @@ Two things worth knowing:
 | Login works locally but not deployed | `AUTH_SECRET` not set in Vercel. The build now stops on this rather than deploying a site that loads fine and cannot log anyone in — if an older deploy is live and broken this way, the symptom is `MissingSecret` in the function logs and a failing login form on a page that otherwise renders normally. |
 | Build stops with "required configuration is missing" | Working as intended — the named variable is not set where the app is hosted. Add it and redeploy. |
 | The deploy succeeded but is missing recent work | Vercel builds the **production branch**, which is `main`. Work pushed only to a feature branch builds as a preview, not production. Merge into `main` to release it. |
-| Signup says "not on the invite list" | Working as intended — add the address to `SIGNUP_ALLOWED_EMAILS` and redeploy. |
+| A free account cannot start a Deep Review | Working as intended — Deep Reviews and projections are on the Plus plan. Subscribe, or issue a code with `npx tsx scripts/make-access-code.ts`. |
 | Evaluations return sample output | `ANTHROPIC_API_KEY` not set in Vercel. |
 | Checkout button does nothing / no button at all | `STRIPE_SECRET_KEY` not set. With no key the buttons are deliberately not rendered — a dead checkout button is worse than none, because someone presses it and concludes they have paid. |
 | Checkout returns 400 | A `STRIPE_PRICE_*` variable holds a product id (`prod_...`) instead of a price id (`price_...`), or a test-mode price id is set on a live deployment. |

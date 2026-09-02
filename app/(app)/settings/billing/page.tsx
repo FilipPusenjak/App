@@ -129,13 +129,24 @@ export default async function BillingPage() {
               <div className="min-w-0">
                 <span className="text-sm font-medium">{s.label}</span>
                 <span className="ml-2 text-xs text-zinc-500">
-                  {s.intervalDays > 0 ? s.intervalLabel : "no limit"}
+                  {s.intervalLabel}
                 </span>
               </div>
               <div className="text-sm">
                 {s.availableNow ? (
                   <span className="text-emerald-700 dark:text-emerald-400">
                     Available now
+                  </span>
+                ) : /* Three states, not two. "Next on 12 March" is only honest
+                      when waiting actually helps; when the plan does not include
+                      the run at all, the way through is Plus or a code. */
+                !s.includedInPlan ? (
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    On{" "}
+                    <strong className="font-medium text-zinc-900 dark:text-zinc-100">
+                      Plus
+                    </strong>
+                    , or with a code
                   </span>
                 ) : (
                   <span className="text-zinc-600 dark:text-zinc-400">

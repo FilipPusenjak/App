@@ -62,7 +62,6 @@ export default defineConfig({
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "",
       AUTH_SECRET: "e2e-only-secret-do-not-use-anywhere-real",
       ANTHROPIC_API_KEY: "",
-      SIGNUP_ALLOWED_EMAILS: "",
       EVAL_COOLDOWN_SECONDS: "0",
     },
   },

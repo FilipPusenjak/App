@@ -63,7 +63,7 @@ export const STUDENT_FREE: Plan = {
   monthlyUsd: 0,
   stripePriceIdEnv: "",
   summary:
-    "Build a profile, set targets, and run a few Deep Reviews to see what the app says.",
+    "Build a profile, set targets, and run check-ins. Deep Reviews and plans projections are on Plus.",
   spendLimitUsd: 3,
 };
 

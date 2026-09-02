@@ -1,6 +1,6 @@
 // Per-account spending cap — SERVER ONLY.
 //
-// Every account on the allowlist spends the OWNER's Anthropic credits. The
+// Every account that runs anything spends the OWNER's Anthropic credits. The
 // rate limits bound how FAST that happens (a cooldown, a per-hour count); they
 // say nothing about the total. This is the total.
 //

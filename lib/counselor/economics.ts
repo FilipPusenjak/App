@@ -186,8 +186,8 @@ export function isOperator(email: string | null | undefined): boolean {
   if (!email) return false;
   const raw = process.env.OPERATOR_EMAILS;
   // Fails CLOSED. An unset allowlist means nobody is an operator, rather than
-  // everybody — the opposite of how SIGNUP_ALLOWED_EMAILS behaves, because that
-  // one gates who may join and this one gates who may read across accounts.
+  // everybody — this gates who may read costs across accounts, so the safe
+  // default when it is unconfigured is nobody.
   if (!raw || !raw.trim()) return false;
   const allowed = raw
     .split(",")

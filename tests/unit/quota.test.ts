@@ -37,21 +37,36 @@ describe("the quota matches what the product says it sells", () => {
   });
 
   it("describes them in the same words the product uses", () => {
-    expect(describeInterval(PLUS_QUOTA.DEEP_REVIEW)).toBe("monthly");
-    expect(describeInterval(PLUS_QUOTA.PROJECTION)).toBe("weekly");
-    expect(describeInterval(PLUS_QUOTA.CHECK_IN)).toBe("every two days");
+    const days = (kind: keyof typeof PLUS_QUOTA) => {
+      const d = PLUS_QUOTA[kind];
+      if (d === null) throw new Error(`Plus must include ${kind}`);
+      return d;
+    };
+    expect(describeInterval(days("DEEP_REVIEW"))).toBe("monthly");
+    expect(describeInterval(days("PROJECTION"))).toBe("weekly");
+    expect(describeInterval(days("CHECK_IN"))).toBe("every two days");
   });
 
   it("gives the free tier strictly less of everything", () => {
     // Otherwise paying for Plus buys nothing, which is worse than not selling it.
+    // "Less" now includes "none at all": free carries null for the two runs that
+    // cost real money, and null is not a long wait — it is not on the plan.
     for (const kind of RUN_KINDS) {
-      expect({ kind, free: FREE_QUOTA[kind], plus: PLUS_QUOTA[kind] }).toEqual({
-        kind,
-        free: expect.any(Number),
-        plus: expect.any(Number),
-      });
-      expect(FREE_QUOTA[kind]).toBeGreaterThan(PLUS_QUOTA[kind]);
+      const plus = PLUS_QUOTA[kind];
+      const free = FREE_QUOTA[kind];
+      expect(plus).toEqual(expect.any(Number));
+      if (free !== null) expect(free).toBeGreaterThan(plus as number);
     }
+  });
+
+  it("keeps the expensive runs off the free plan entirely", () => {
+    // Anyone can sign up — there is no invite list — so a free tier that
+    // included these would let a stranger spend the deployment's model budget.
+    expect(FREE_QUOTA).toEqual({
+      DEEP_REVIEW: null,
+      PROJECTION: null,
+      CHECK_IN: 14,
+    });
   });
 
   it("puts an unsubscribed account on the free quota", () => {
@@ -102,8 +117,9 @@ describe("when a run is allowed", () => {
     });
     expect(decision.allowed).toBe(false);
     if (!decision.allowed) {
+      expect(decision.reason).toBe("interval");
       // A date somebody can plan around, not a countdown they have to convert.
-      expect(decision.nextAvailableAt.toISOString()).toBe(
+      expect(decision.nextAvailableAt?.toISOString()).toBe(
         "2026-07-05T12:00:00.000Z",
       );
       expect(decision.message).toContain("July 5");
@@ -134,6 +150,93 @@ describe("when a run is allowed", () => {
         now: NOW,
       }),
     ).toEqual({ allowed: true, usingCredit: false });
+  });
+});
+
+describe("a run the plan does not include", () => {
+  it("refuses the very first one, not just a repeat", () => {
+    // The bug this exists to stop: reusing the interval code's "no last run
+    // means go ahead" exemption for null, which would ship every free account
+    // one free Deep Review — precisely the run being removed.
+    const decision = checkQuota({
+      kind: "DEEP_REVIEW",
+      lastRunAt: null,
+      policy: FREE_QUOTA,
+      creditsAvailable: 0,
+      now: NOW,
+    });
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("does not name a date, because waiting will not help", () => {
+    const decision = checkQuota({
+      kind: "PROJECTION",
+      lastRunAt: null,
+      policy: FREE_QUOTA,
+      creditsAvailable: 0,
+      now: NOW,
+    });
+    if (decision.allowed) throw new Error("expected a refusal");
+    expect(decision.reason).toBe("not-on-plan");
+    expect(decision.nextAvailableAt).toBeNull();
+    expect(decision.message).toMatch(/Plus/);
+    expect(decision.message).toMatch(/code/i);
+    // No invented far-future date dressed up as a schedule.
+    expect(decision.message).not.toMatch(/\b20\d\d\b/);
+  });
+
+  it("still lets a code through — that is the whole point of codes", () => {
+    // Handing out codes is how somebody tries the app without a card. If the
+    // plan gate ran ahead of credits, every code issued would be inert.
+    expect(
+      checkQuota({
+        kind: "DEEP_REVIEW",
+        lastRunAt: null,
+        policy: FREE_QUOTA,
+        creditsAvailable: 1,
+        now: NOW,
+      }),
+    ).toEqual({ allowed: true, usingCredit: true });
+  });
+
+  it("leaves the check-in working on free", () => {
+    // Free is not meant to be a dead account; the cheap run stays.
+    expect(
+      checkQuota({
+        kind: "CHECK_IN",
+        lastRunAt: null,
+        policy: FREE_QUOTA,
+        creditsAvailable: 0,
+        now: NOW,
+      }),
+    ).toEqual({ allowed: true, usingCredit: false });
+  });
+
+  it("shows it on the plan page as a plan difference, not a wait", () => {
+    const standing = standingFor({
+      kind: "DEEP_REVIEW",
+      lastRunAt: null,
+      policy: FREE_QUOTA,
+      credits: 0,
+      now: NOW,
+    });
+    expect(standing.includedInPlan).toBe(false);
+    expect(standing.availableNow).toBe(false);
+    expect(standing.nextAvailableAt).toBeNull();
+    expect(standing.intervalLabel).toBe("not on your plan");
+  });
+
+  it("says available now when a code covers it", () => {
+    // Otherwise the page reads "not on your plan" directly beside a badge
+    // saying this account holds a code for exactly that run.
+    const standing = standingFor({
+      kind: "DEEP_REVIEW",
+      lastRunAt: null,
+      policy: FREE_QUOTA,
+      credits: 1,
+      now: NOW,
+    });
+    expect(standing.availableNow).toBe(true);
   });
 });
 
@@ -213,7 +316,7 @@ describe("what the plan page shows", () => {
     const standing = standingFor({
       kind: "DEEP_REVIEW",
       lastRunAt: null,
-      policy: FREE_QUOTA,
+      policy: PLUS_QUOTA,
       credits: 0,
       now: NOW,
     });

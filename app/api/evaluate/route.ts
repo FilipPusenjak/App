@@ -340,12 +340,24 @@ export async function POST(request: Request) {
   //
   // Spends a redeemed code's credit when the interval would otherwise refuse,
   // and only then — see authorizeRun.
-  const quota = await authorizeRun({ userId: user.id, kind: "DEEP_REVIEW" });
-  if (!quota.allowed) {
+  //
+  // SKIPPED WITH NO API KEY. A keyless run returns clearly-labelled sample
+  // output and calls no model, so there is no cost for the quota to protect,
+  // and refusing one would leave a new visitor on a deployment with no key
+  // unable to see the app do anything at all. lastRunAtByKind already takes the
+  // same position from the other side: a sample never starts a quota window.
+  const quota =
+    getAnthropicClient() === null
+      ? null
+      : await authorizeRun({ userId: user.id, kind: "DEEP_REVIEW" });
+  if (quota && !quota.allowed) {
     return NextResponse.json(
       {
         error: quota.message,
-        nextAvailableAt: quota.nextAvailableAt.toISOString(),
+        reason: quota.reason,
+        // Null when the plan does not include this at all — there is no date
+        // that would become true, and inventing one would be a lie.
+        nextAvailableAt: quota.nextAvailableAt?.toISOString() ?? null,
       },
       { status: 402 },
     );

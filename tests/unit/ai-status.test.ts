@@ -138,28 +138,28 @@ describe("comparing which configuration the runtime can see", () => {
     // The whole point. These two look identical from outside and need opposite
     // responses: fix the variable, or rebuild.
     vi.stubEnv("ANTHROPIC_API_KEY", "");
-    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "someone@example.com");
+    vi.stubEnv("AUTH_SECRET", "someone@example.com");
     vi.stubEnv("DATABASE_URL", "postgresql://localhost/db");
     const byName = Object.fromEntries(
       getAiStatus().configPresence.map((c) => [c.name, c.present]),
     );
-    expect(byName.SIGNUP_ALLOWED_EMAILS).toBe(true);
+    expect(byName.AUTH_SECRET).toBe(true);
     expect(byName.DATABASE_URL).toBe(true);
     expect(byName.ANTHROPIC_API_KEY).toBe(false);
   });
 
   it("treats a whitespace-only value as missing", () => {
-    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "   ");
+    vi.stubEnv("AUTH_SECRET", "   ");
     const byName = Object.fromEntries(
       getAiStatus().configPresence.map((c) => [c.name, c.present]),
     );
-    expect(byName.SIGNUP_ALLOWED_EMAILS).toBe(false);
+    expect(byName.AUTH_SECRET).toBe(false);
   });
 
   it("reports presence without ever reporting a value", () => {
     vi.stubEnv("DATABASE_URL", "postgresql://user:HUNTER2@host/db");
     vi.stubEnv("AUTH_SECRET", "SUPERSECRETSESSIONKEY");
-    vi.stubEnv("SIGNUP_ALLOWED_EMAILS", "private.person@example.com");
+    vi.stubEnv("AUTH_SECRET", "private.person@example.com");
     const serialized = JSON.stringify(getAiStatus());
     expect(serialized).not.toContain("HUNTER2");
     expect(serialized).not.toContain("SUPERSECRETSESSIONKEY");
