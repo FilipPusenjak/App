@@ -1,8 +1,7 @@
 // How often a plan lets you run the expensive things.
 //
-// PURE — no database, no session, no Stripe. Same split as lib/spending.ts:
-// the rule is testable on its own, and the queries that apply it live in
-// quota-account.ts.
+// PURE — no database, no session, no Stripe. The rule is testable on its own,
+// and the queries that apply it live in quota-account.ts.
 //
 // WHY INTERVALS RATHER THAN MONTHLY COUNTERS. The product is sold as "one deep
 // review every month, weekly plans projections, check in every two days". That
@@ -12,11 +11,15 @@
 // "every month" promised anybody. An interval also gives a much better refusal
 // — "your next deep review is available on the 14th" instead of "0 remaining".
 //
-// THIS SITS ON TOP OF THE SPEND CAP, IT DOES NOT REPLACE IT. The quota is the
-// promise made to the customer; lib/spending.ts is the backstop that stops a
-// bug or an unusual account running up a bill. Removing either would be a
-// mistake: a quota alone bounds frequency but not cost, and a cap alone is
-// meaningless to a parent reading a pricing page.
+// THIS IS THE WHOLE SPEND CONTROL NOW, not one layer under a separate
+// account-level dollar cap — that cap (lib/spending.ts, formerly) was removed
+// deliberately: showing anybody a running total taught them what a run costs
+// to produce, which this app does not want visible. What still bounds a single
+// run's cost is the per-run budget (lib/cost-budget.ts) sizing the model's
+// output allowance; what bounds an account's total is this interval, which is
+// a promise stated in the product rather than a number nobody but the operator
+// ever saw. A bug in this file is no longer caught by a second gate underneath
+// it — get the interval right.
 import { STUDENT_FREE, STUDENT_PLUS, type Plan } from "./plans";
 
 /** The three things that cost money to run. */

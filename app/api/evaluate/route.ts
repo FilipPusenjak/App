@@ -36,8 +36,6 @@ import {
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { spendLimitMessage } from "@/lib/spending";
-import { getSpendStatus } from "@/lib/spending-account";
 import { authorizeRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
@@ -359,17 +357,6 @@ export async function POST(request: Request) {
         // that would become true, and inventing one would be a lie.
         nextAvailableAt: quota.nextAvailableAt?.toISOString() ?? null,
       },
-      { status: 402 },
-    );
-  }
-
-  // Spending cap for the whole account. The rate limits bound how FAST credits
-  // burn; this bounds the total. Checked before the call, so a refusal costs
-  // nothing — see lib/spending.ts for why it can overshoot by one run.
-  const spend = await getSpendStatus();
-  if (!spend.allowed) {
-    return NextResponse.json(
-      { error: spendLimitMessage(spend) },
       { status: 402 },
     );
   }

@@ -1,11 +1,11 @@
 // What a subscription entitles an account to — the rules, on their own.
 //
 // PURE. No database, no Stripe SDK, no session. Every function here takes plain
-// values and returns plain values, for the same reason lib/spending.ts is
-// separate from lib/spending-account.ts: a billing rule that can only be
-// exercised by standing up Postgres and a Stripe account is a billing rule
-// nobody will test, and this is the layer where being wrong costs money or
-// wrongly denies somebody something they paid for.
+// values and returns plain values, for the same reason lib/billing/quota.ts is
+// separate from quota-account.ts: a billing rule that can only be exercised by
+// standing up Postgres and a Stripe account is a billing rule nobody will test,
+// and this is the layer where being wrong costs money or wrongly denies
+// somebody something they paid for.
 //
 // THREE RULES THAT ARE NOT NEGOTIABLE, each written here once so every caller
 // inherits them:
@@ -113,17 +113,6 @@ export function effectivePlan(
   }
 
   return live.reduce((best, p) => (p.monthlyUsd > best.monthlyUsd ? p : best));
-}
-
-/**
- * The spend ceiling an account gets, in USD.
- *
- * Returns null to mean "no plan opinion, use the environment default", which
- * keeps a deployment that has never configured billing behaving exactly as it
- * did before this file existed — see getSpendLimitUsd in lib/spending.ts.
- */
-export function spendLimitForPlan(plan: Plan | null): number | null {
-  return plan?.spendLimitUsd ?? null;
 }
 
 export type BandStanding = {

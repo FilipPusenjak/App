@@ -4,8 +4,6 @@ import { requireUserId } from "@/lib/session";
 import { loadBillingSummary } from "@/lib/billing/subscription";
 import { plansFor, stripePriceIdFor, type Plan } from "@/lib/billing/plans";
 import { isStripeConfigured } from "@/lib/billing/stripe";
-import { getSpendStatus } from "@/lib/spending-account";
-import { formatUsd } from "@/lib/cost";
 import { CheckoutButton, PortalButton, RedeemCodeForm } from "./buttons";
 import { quotaStandings } from "@/lib/billing/quota-account";
 
@@ -21,9 +19,8 @@ export default async function BillingPage() {
   const userId = await requireUserId().catch(() => null);
   if (!userId) redirect("/login");
 
-  const [summary, spend, standings] = await Promise.all([
+  const [summary, standings] = await Promise.all([
     loadBillingSummary(userId, "STUDENT"),
-    getSpendStatus(),
     quotaStandings(userId),
   ]);
   const configured = isStripeConfigured();
@@ -77,17 +74,6 @@ export default async function BillingPage() {
               year: "numeric",
             })}
             . You keep everything you paid for until then.
-          </p>
-        )}
-
-        {!spend.unlimited && (
-          <p className="mt-3 border-t border-black/10 pt-3 text-sm text-zinc-600 dark:border-white/15 dark:text-zinc-400">
-            Model budget used:{" "}
-            <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-              {formatUsd(spend.spentUsd) ?? "$0.00"} of{" "}
-              {formatUsd(spend.limitUsd)}
-            </span>
-            {spend.allowed ? "" : " — new runs are paused"}.
           </p>
         )}
 
@@ -261,12 +247,6 @@ function PlanCard({
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         {plan.summary}
       </p>
-      {plan.spendLimitUsd !== undefined && (
-        <p className="mt-2 text-xs text-zinc-500">
-          Up to ${plan.spendLimitUsd} of model work per month across every
-          student on the account.
-        </p>
-      )}
       {purchasable && (
         <div className="mt-4">
           <CheckoutButton planCode={plan.code} label={`Move to ${plan.name}`} />

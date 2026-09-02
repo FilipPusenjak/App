@@ -7,9 +7,10 @@
 //
 // The hole is invisible from the outside, which is why it is worth a test
 // rather than a comment. The student sees an error and finds no trace of the
-// attempt in their history; the account's spend counter reads zero while real
-// money has gone; and a run of failures can burn a budget without moving a
-// single number anyone is watching.
+// attempt in their history, and the cost of a run that burned tokens and
+// produced nothing goes unrecorded — which is exactly the number a cost-per-
+// caseload report (lib/counselor/economics.ts) or a bill reconciliation
+// would need and not have.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import {
@@ -28,7 +29,6 @@ vi.mock("@/lib/session", () => ({
 }));
 
 const { recordTierFailure } = await import("@/lib/evaluation/record-failure");
-const { getAccountSpendUsd } = await import("@/lib/spending-account");
 const { loadDashboard } = await import("@/lib/dashboard/load");
 const { summariseHistoryRow } = await import("@/lib/evaluation/history");
 const { buildProgress } = await import("@/lib/evaluation/progress");
@@ -78,24 +78,6 @@ describe.skipIf(!hasTestDb)("a tier run that failed after spending", () => {
     // chasing a bill actually reads.
     expect(row.costCents).toBeGreaterThan(0);
     expect(row.error).toContain("could not read");
-  });
-
-  it("counts toward the account's spend", async () => {
-    const before = await getAccountSpendUsd();
-    await recordTierFailure({
-      profileId,
-      type: "DEEP_REVIEW",
-      model: "claude-opus-5",
-      promptVersion: "deep-review/v1",
-      usage,
-      error: "Discarded.",
-    });
-    const after = await getAccountSpendUsd();
-
-    // The whole point. Without the recorded row this difference is zero while
-    // the money is gone, and the spend cap never trips no matter how many
-    // times it happens.
-    expect(after).toBeGreaterThan(before);
   });
 
   it("names the disallowed phrasing it was discarded for", async () => {

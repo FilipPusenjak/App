@@ -1,7 +1,7 @@
 // How long the prose lives, and what outlives it.
 //
-// PURE POLICY — no database, no session, for the same reason lib/spending.ts is
-// separate from lib/spending-account.ts. The sweep that applies this lives in
+// PURE POLICY — no database, no session, for the same reason lib/billing/quota.ts
+// is separate from quota-account.ts. The sweep that applies this lives in
 // retention-sweep.ts.
 //
 // WHAT THIS IS FOR. Every assessment ever written about a student sits in this

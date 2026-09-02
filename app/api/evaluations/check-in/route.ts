@@ -14,8 +14,6 @@ import {
 } from "@/lib/anthropic";
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { spendLimitMessage } from "@/lib/spending";
-import { getSpendStatus } from "@/lib/spending-account";
 import { authorizeRun } from "@/lib/billing/quota-account";
 import { estimateCost } from "@/lib/cost";
 import {
@@ -143,11 +141,6 @@ export async function POST() {
       },
       { status: 402 },
     );
-  }
-
-  const spend = await getSpendStatus();
-  if (!spend.allowed) {
-    return NextResponse.json({ error: spendLimitMessage(spend) }, { status: 402 });
   }
 
   const client = getAnthropicClient();

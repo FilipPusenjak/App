@@ -17,7 +17,6 @@ import {
   bandStanding,
   effectivePlan,
   planMayGate,
-  spendLimitForPlan,
   subscriptionGrantsAccess,
   type SubscriptionState,
 } from "@/lib/billing/entitlement";
@@ -141,10 +140,9 @@ describe("a lapse never takes away what somebody already has", () => {
       "STUDENT",
       LATER,
     );
+    // A real plan, not null — the account keeps a plan to fall back to rather
+    // than being left in an unrepresented state.
     expect(plan).toEqual(STUDENT_FREE);
-    // And the free plan still carries a real budget, so the account keeps
-    // working rather than becoming read-only.
-    expect(spendLimitForPlan(plan)).toBeGreaterThan(0);
   });
 
   it("says so on the billing page, where a customer can read it", () => {
@@ -266,14 +264,12 @@ describe("the plan catalogue and the bands cannot drift apart", () => {
 
   it("has a free student plan, so 'what am I on' always has an answer", () => {
     expect(STUDENT_FREE.monthlyUsd).toBe(0);
-    expect(STUDENT_FREE.spendLimitUsd).toBeGreaterThan(0);
   });
 
-  it("prices the paid student plan above the free one's ceiling", () => {
-    // Otherwise paying buys nothing, which is worse than not offering it.
-    expect(STUDENT_PLUS.spendLimitUsd!).toBeGreaterThan(
-      STUDENT_FREE.spendLimitUsd!,
-    );
+  it("prices the paid student plan above the free one", () => {
+    // What paying actually buys is now the quota gap — see quota.test.ts,
+    // "gives the free tier strictly less of everything" — not a spend ceiling.
+    expect(STUDENT_PLUS.monthlyUsd).toBeGreaterThan(STUDENT_FREE.monthlyUsd);
     expect(TUTOR_50.caseloadLimit!).toBeGreaterThan(TUTOR_20.caseloadLimit!);
   });
 });
@@ -357,11 +353,5 @@ describe("the app works with no Stripe account at all", () => {
     const src = code(join(ROOT, "app", "api", "billing", "checkout", "route.ts"));
     expect(src).toMatch(/isStripeConfigured/);
     expect(src).toMatch(/status:\s*503/);
-  });
-
-  it("leaves the spend cap on its environment default when no plan is in force", () => {
-    // The whole point of raising the EXISTING ceiling rather than adding a
-    // second gate: an unconfigured deployment behaves as it always did.
-    expect(spendLimitForPlan(null)).toBeNull();
   });
 });

@@ -119,7 +119,6 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `ANTHROPIC_CACHE_TTL` | No | `1h` \| `5m` \| `off`. Defaults to `1h`. Cache **writes** cost more than plain input, so this is a bet on how often you re-run — see `.env.example`. |
 | `ANTHROPIC_PROJECTION_MODEL` | No | Projections run on a cheaper model. Defaults to `claude-sonnet-5`. |
 | `ANTHROPIC_PROJECTION_EFFORT` | No | Defaults to `low`. |
-| `ACCOUNT_SPEND_LIMIT_USD` | No | Total USD one account may spend before its runs pause. Default 3; `0` disables. An estimate, not your bill — see below. |
 | `DEEP_REVIEW_BUDGET_USD` | No | Ceiling for ONE Deep Review. Default 0.60. Not a tripwire — the output allowance is sized so the run cannot exceed it. |
 | `CHECK_IN_BUDGET_USD` | No | Ceiling for ONE Check-In. Default 0.05, same construction. |
 | `SESSION_PREP_BUDGET_USD` | No | Ceiling for ONE counselor session prep. Default 0.12, same construction. |
@@ -150,16 +149,17 @@ readable in history, labelled "Deep Review (earlier format)".
 
 One thing to expect:
 
-- **The spending cap applies first.** With `ACCOUNT_SPEND_LIMIT_USD` at its
-  **$3** default, an account that has already run several reviews may be refused
-  with "spending limit reached" before the next one starts. Raise the cap
-  deliberately rather than by accident.
+- **The plan's quota applies first.** A free account has no Deep Review at all
+  (`FREE_QUOTA` in `lib/billing/quota.ts`); a Plus account gets one every 30
+  days. An account inside its interval is refused with a message naming when
+  it's next available, or that upgrading or a code is the way through.
 
 ### What a single run can cost
 
-Two ceilings, and they work differently from `ACCOUNT_SPEND_LIMIT_USD`. That one
-is a tripwire checked before a run starts: it stops the NEXT run once the total
-is reached. These bound the run itself.
+These bound the run itself, arithmetically rather than by checking a running
+total against a cap: nothing tracks what an account has spent overall — the
+plan's quota interval is what stands between an account and repeated runs, and
+per-run budgets are what stand between one run and an outsized bill.
 
 The mechanism is arithmetic rather than supervision. Output is capped exactly by
 `max_tokens`, and input is whatever we chose to send — so each route measures
@@ -184,8 +184,9 @@ material moved.
 
 If a review is discarded — the model's output fails its schema, or contains
 phrasing the app refuses to show a student — the attempt is still recorded in
-history as failed, **with what it cost**. A run that spent money always leaves a
-trace, so the spend total and your bill cannot disagree.
+history as failed, **with what it cost**. A run that spent money always leaves
+a trace on its own row (`costCents`), even though nothing in the app sums
+those traces into an account total any more.
 
 ### Registration is open, and what stops it costing you
 
@@ -211,18 +212,19 @@ If you do want registration closed on your deployment, that is now a Vercel
 concern rather than an app one — put the deployment behind Vercel's password or
 SSO protection.
 
-Three further safety nets are in place:
+Two further safety nets are in place:
 
-- **A per-account spending cap**, `ACCOUNT_SPEND_LIMIT_USD`, default **$3**.
-  Once an account has spent that, its evaluations and projections are refused
-  with an explanation. It covers every student on the account and counts failed
-  runs, which still burn tokens. Two honest caveats: the figure is an estimate
-  from recorded token counts against a price table in this repo — not your bill,
-  and it will drift — and it can overshoot by one run, because a run's cost is
-  not knowable until it finishes. The overshoot is bounded by a single run.
 - **Rate limits** per user (20s cooldown, 10 billable evaluations per hour).
 - **The Anthropic console's own limit**, under **Settings → Limits**. Set this
-  as well. It is the only one that genuinely cannot be exceeded.
+  regardless of anything above — it is the only one that genuinely cannot be
+  exceeded, and it is the backstop against a bug in the app's own logic rather
+  than against ordinary usage. Nothing about it is visible to an account; it
+  just refuses calls once your own ceiling is hit.
+
+There used to also be a per-account total-spend cap here. It's gone — the
+plan's quota interval is what now stands between an account and repeated
+expensive runs, and it's a promise stated in the product itself ("one Deep
+Review a month") rather than a dollar figure nobody but you ever saw.
 
 ---
 

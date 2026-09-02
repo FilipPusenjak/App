@@ -21,8 +21,6 @@ import {
 } from "@/lib/anthropic";
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { spendLimitMessage } from "@/lib/spending";
-import { getSpendStatus } from "@/lib/spending-account";
 import { estimateCost } from "@/lib/cost";
 import {
   MIN_USEFUL_OUTPUT_TOKENS,
@@ -109,11 +107,6 @@ export async function POST(request: Request) {
       { error: "Too many runs for now. Try again shortly." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
     );
-  }
-
-  const spend = await getSpendStatus();
-  if (!spend.allowed) {
-    return NextResponse.json({ error: spendLimitMessage(spend) }, { status: 402 });
   }
 
   const client = getAnthropicClient();

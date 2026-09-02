@@ -29,14 +29,6 @@ export type Plan = {
   stripePriceIdEnv: string;
   /** One line, in the customer's terms rather than ours. */
   summary: string;
-  /**
-   * The account spend ceiling this plan grants, in USD per account.
-   *
-   * Students only. This is deliberately the SAME lever the app already uses to
-   * bound cost (lib/spending.ts) rather than a second, parallel gate — a paid
-   * plan raises the ceiling and changes nothing else about how the app behaves.
-   */
-  spendLimitUsd?: number;
   /** Tutors only. How many active students the band covers. */
   caseloadLimit?: number;
 };
@@ -64,7 +56,6 @@ export const STUDENT_FREE: Plan = {
   stripePriceIdEnv: "",
   summary:
     "Build a profile, set targets, and run check-ins. Deep Reviews and plans projections are on Plus.",
-  spendLimitUsd: 3,
 };
 
 export const STUDENT_PLUS: Plan = {
@@ -75,7 +66,6 @@ export const STUDENT_PLUS: Plan = {
   stripePriceIdEnv: "STRIPE_PRICE_STUDENT_PLUS",
   summary:
     "Room to re-run a review after every real change, across the whole application year.",
-  spendLimitUsd: 25,
 };
 
 /**

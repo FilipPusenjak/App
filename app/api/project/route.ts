@@ -14,8 +14,6 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations, getOwnedPlannedItems } from "@/lib/ownership";
 import { projectionRateLimiter } from "@/lib/rate-limit";
-import { spendLimitMessage } from "@/lib/spending";
-import { getSpendStatus } from "@/lib/spending-account";
 import { authorizeRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
@@ -200,17 +198,6 @@ export async function POST() {
         reason: quota.reason,
         nextAvailableAt: quota.nextAvailableAt?.toISOString() ?? null,
       },
-      { status: 402 },
-    );
-  }
-
-  // Spending cap for the whole account. The rate limits bound how FAST credits
-  // burn; this bounds the total. A projection is a real API call on the same
-  // credits, so it is gated by the same budget.
-  const spend = await getSpendStatus();
-  if (!spend.allowed) {
-    return NextResponse.json(
-      { error: spendLimitMessage(spend) },
       { status: 402 },
     );
   }
