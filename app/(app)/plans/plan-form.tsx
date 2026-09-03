@@ -33,6 +33,7 @@ export function PlanForm({
   values = empty,
   submitLabel,
   timeframeHint,
+  returnToEvaluationId,
 }: {
   action: (prev: FormResult, fd: FormData) => Promise<FormResult>;
   values?: PlanFormValues;
@@ -46,6 +47,14 @@ export function PlanForm({
    * the app just makes sure they can see what was suggested while they do.
    */
   timeframeHint?: string;
+  /**
+   * The evaluation this was drafted from, so saving can return there.
+   *
+   * Travels as a hidden field rather than being read from the URL in the
+   * action, because a server action has no access to the page's query string —
+   * it only ever sees the form.
+   */
+  returnToEvaluationId?: string;
 }) {
   const [state, formAction] = useActionState<FormResult, FormData>(
     action,
@@ -55,6 +64,9 @@ export function PlanForm({
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
+      {returnToEvaluationId && (
+        <input type="hidden" name="from" value={returnToEvaluationId} />
+      )}
       <FormError message={state?.error} />
 
       <div className="grid gap-4 sm:grid-cols-2">

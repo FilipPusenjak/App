@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 /**
@@ -25,19 +26,32 @@ export function RunEvaluationButton({
   const router = useRouter();
   const [running, setRunning] = useState<"review" | "checkin" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // Whether the refusal was about the PLAN, which is the one a link can fix.
+  // A 429 or a 502 has nothing useful on the billing page, and sending somebody
+  // there to solve a rate limit would waste the one action we offered them.
+  const [offerUpgrade, setOfferUpgrade] = useState(false);
 
   async function post(url: string, body: unknown, kind: "review" | "checkin") {
     setRunning(kind);
     setFailure(null);
+    setOfferUpgrade(false);
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
+      const data = (await res.json()) as {
+        id?: string;
+        error?: string;
+        reason?: string;
+      };
       if (!res.ok) {
         setFailure(data.error ?? "The review could not be run.");
+        // 402 is the quota refusal — either the plan does not include this run
+        // at all, or the interval has not elapsed. Upgrading or entering a code
+        // resolves both, and both live on the billing page.
+        setOfferUpgrade(res.status === 402);
         // A failed run is still recorded, so refresh the list to show it.
         router.refresh();
         return;
@@ -97,9 +111,20 @@ export function RunEvaluationButton({
       )}
 
       {failure && (
-        <p className="text-xs text-red-600 sm:max-w-md sm:text-right dark:text-red-400">
-          {failure}
-        </p>
+        <div className="sm:max-w-md sm:text-right">
+          <p className="text-xs text-red-600 dark:text-red-400">{failure}</p>
+          {/* The message names Settings → Plan; this makes it one tap instead
+              of a navigation instruction. Shown only for the refusal it can
+              actually resolve. */}
+          {offerUpgrade && (
+            <Link
+              href="/settings/billing"
+              className="mt-2 inline-flex items-center justify-center rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              Upgrade or enter a code
+            </Link>
+          )}
+        </div>
       )}
     </div>
   );

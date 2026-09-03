@@ -725,7 +725,7 @@ export default async function EvaluationPage({
                             </Link>
                           ) : (
                             <Link
-                              href={planDraftHref(a)}
+                              href={planDraftHref(a, id)}
                               className="inline-flex items-center rounded-md border border-black/15 px-2.5 py-1 text-xs font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
                             >
                               Add to my plan

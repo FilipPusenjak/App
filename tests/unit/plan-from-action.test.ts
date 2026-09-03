@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   comparableTitle,
+  isEvaluationId,
   planDraftHref,
   planDraftParams,
   plannedActionTitles,
@@ -59,6 +60,54 @@ describe("what carries into the plan", () => {
     const params = planDraftParams(bare);
     expect(params.get("description")).toBeNull();
     expect(params.get("timeframe")).toBeNull();
+  });
+});
+
+describe("getting back to the evaluation afterwards", () => {
+  const EVAL_ID = "cmtkoz0be000eyf2byrh31hn5";
+
+  it("carries the evaluation it was drafted from", () => {
+    const href = planDraftHref(action, EVAL_ID);
+    const parsed = new URL(href, "https://example.com").searchParams;
+    expect(parsed.get("from")).toBe(EVAL_ID);
+  });
+
+  it("carries nothing when it was not drafted from one", () => {
+    const parsed = new URL(planDraftHref(action), "https://example.com")
+      .searchParams;
+    expect(parsed.get("from")).toBeNull();
+  });
+
+  // The one that matters. This value reaches a redirect after a round trip
+  // through a URL and a form field, so it is attacker-supplied by definition:
+  // anyone can hand a student a /plans/new link with any `from` they like. It
+  // is accepted as an ID and the path is built from it server-side, so none of
+  // these can express a destination at all.
+  it.each([
+    ["an absolute URL", "https://evil.example.com/phish"],
+    ["a protocol-relative URL", "//evil.example.com"],
+    ["a path", "/settings/billing"],
+    ["a path traversal", "../../etc/passwd"],
+    ["a javascript URL", "javascript:alert(1)"],
+    ["something with a slash in it", "abcdefghij0123456789/x"],
+    ["an empty string", ""],
+    ["too short to be an id", "abc123"],
+    ["too long to be an id", "a".repeat(64)],
+  ])("refuses %s", (_label, hostile) => {
+    expect(isEvaluationId(hostile)).toBe(false);
+
+    // And it never reaches the href either.
+    const parsed = new URL(planDraftHref(action, hostile), "https://example.com")
+      .searchParams;
+    expect(parsed.get("from")).toBeNull();
+  });
+
+  it("accepts a real id", () => {
+    expect(isEvaluationId(EVAL_ID)).toBe(true);
+  });
+
+  it("refuses undefined, which is what an absent parameter is", () => {
+    expect(isEvaluationId(undefined)).toBe(false);
   });
 });
 

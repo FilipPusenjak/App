@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getOrCreateProfile, requireOwnedPlannedItem } from "@/lib/ownership";
 import { plannedItemSchema } from "@/lib/validation/plan";
+import { isEvaluationId } from "@/lib/plans/from-action";
 import type { FormResult } from "@/app/actions/profile";
 
 function text(fd: FormData, key: string): string {
@@ -55,6 +56,20 @@ export async function createPlanAction(
   });
 
   revalidatePath("/plans");
+
+  // Back to the evaluation this was drafted from, when it was drafted from one.
+  // The student was working down a ranked list of actions; landing them on
+  // /plans loses their place, and the second action never gets added.
+  //
+  // The PATH is built here from an id that was validated first. The value came
+  // in through a URL and a form field, so it is attacker-supplied — treating it
+  // as a destination rather than an identifier is how this becomes an open
+  // redirect. Anything that is not a plausible id falls through to /plans.
+  const from = text(fd, "from");
+  if (isEvaluationId(from)) {
+    revalidatePath(`/evaluations/${from}`);
+    redirect(`/evaluations/${from}`);
+  }
   redirect("/plans");
 }
 

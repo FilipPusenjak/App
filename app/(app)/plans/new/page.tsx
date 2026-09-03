@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createPlanAction } from "@/app/actions/plan";
+import { isEvaluationId } from "@/lib/plans/from-action";
 import { PlanForm } from "../plan-form";
 
 /**
@@ -26,6 +27,7 @@ export default async function NewPlanPage({
     title?: string;
     description?: string;
     timeframe?: string;
+    from?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -34,13 +36,18 @@ export default async function NewPlanPage({
   const timeframe = clamp(params.timeframe, 120);
   const fromAction = title.length > 0;
 
+  // Validated here as well as in the action. Not redundant: this one decides
+  // where a LINK points, the action's decides where a redirect goes, and a
+  // back-link that disagreed with the save would be its own small bug.
+  const returnTo = isEvaluationId(params.from) ? params.from! : null;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <Link
-        href="/plans"
+        href={returnTo ? `/evaluations/${returnTo}` : "/plans"}
         className="text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
       >
-        ← Back to plans
+        {returnTo ? "← Back to your evaluation" : "← Back to plans"}
       </Link>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
@@ -56,6 +63,7 @@ export default async function NewPlanPage({
       <PlanForm
         action={createPlanAction}
         submitLabel="Add plan"
+        returnToEvaluationId={returnTo ?? undefined}
         values={
           fromAction
             ? {

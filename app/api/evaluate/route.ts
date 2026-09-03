@@ -332,9 +332,10 @@ export async function POST(request: Request) {
   }
 
   // The PLAN's quota — how often this account may run a Deep Review, which is
-  // what the product is actually sold as. Distinct from the rate limits above
-  // (which stop hammering) and from the spend cap below (which stops a runaway
-  // bill): this one is the promise made to the customer.
+  // what the product is actually sold as. Distinct from the rate limits above,
+  // which stop hammering: this one is the promise made to the customer. There
+  // is no spend cap underneath it any more (removed in d5924fd), so this and
+  // the rate limit are the whole of it.
   //
   // Spends a redeemed code's credit when the interval would otherwise refuse,
   // and only then — see authorizeRun.

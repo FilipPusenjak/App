@@ -199,7 +199,7 @@ export function refusalMessage(kind: RunKind, nextAvailableAt: Date): string {
   });
   return (
     `Your next ${RUN_LABELS[kind]} is available on ${when}. ` +
-    `You can also upgrade your plan, or enter a code if you have one — both are on the plan page.`
+    `You can also upgrade in Settings → Plan, or enter a code there if you have one.`
   );
 }
 
@@ -214,7 +214,7 @@ export function refusalMessage(kind: RunKind, nextAvailableAt: Date): string {
 export function notOnPlanMessage(kind: RunKind): string {
   return (
     `${RUN_LABELS[kind]}s are part of the Plus plan. ` +
-    `You can upgrade, or enter a code if you have one — both are on the plan page.`
+    `You can upgrade in Settings → Plan, or enter a code there if you have one.`
   );
 }
 

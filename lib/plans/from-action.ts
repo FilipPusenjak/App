@@ -39,9 +39,35 @@ export function planDraftParams(action: ActionLike): URLSearchParams {
   return params;
 }
 
+/**
+ * Where to send somebody after they save a plan drafted from an evaluation.
+ *
+ * An ID, never a path. This value makes a round trip through a URL and a form
+ * field before something redirects to it, which is the exact shape of an open
+ * redirect — so what travels is the id alone, the path is built server-side in
+ * createPlanAction, and anything that is not a plausible id is ignored rather
+ * than followed. A caller cannot express an off-site destination here.
+ */
+const ID = /^[a-z0-9]{20,32}$/i;
+
+export function isEvaluationId(value: string | undefined): boolean {
+  return typeof value === "string" && ID.test(value);
+}
+
 /** The href for "add this action to my plan". */
-export function planDraftHref(action: ActionLike): string {
-  return `/plans/new?${planDraftParams(action).toString()}`;
+export function planDraftHref(
+  action: ActionLike,
+  /**
+   * The evaluation being read. Carried so saving returns here rather than
+   * dropping the student on /plans — they were mid-way through a list of
+   * recommended actions, and losing their place means the second action never
+   * gets added.
+   */
+  fromEvaluationId?: string,
+): string {
+  const params = planDraftParams(action);
+  if (isEvaluationId(fromEvaluationId)) params.set("from", fromEvaluationId!);
+  return `/plans/new?${params.toString()}`;
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   RUN_KINDS,
   checkQuota,
   describeInterval,
+  notOnPlanMessage,
   quotaFor,
   standingFor,
 } from "@/lib/billing/quota";
@@ -183,6 +184,24 @@ describe("a run the plan does not include", () => {
     expect(decision.message).toMatch(/code/i);
     // No invented far-future date dressed up as a schedule.
     expect(decision.message).not.toMatch(/\b20\d\d\b/);
+  });
+
+  it("says WHERE to upgrade, not just that upgrading exists", () => {
+    // "You can upgrade" with no destination leaves somebody hunting through
+    // the nav for a page they have never visited. Both refusals name Settings,
+    // because both are resolved in the same place.
+    for (const kind of ["DEEP_REVIEW", "PROJECTION"] as const) {
+      expect(notOnPlanMessage(kind)).toMatch(/Settings/);
+    }
+    const waiting = checkQuota({
+      kind: "CHECK_IN",
+      lastRunAt: new Date(NOW.getTime() - 1000),
+      policy: FREE_QUOTA,
+      creditsAvailable: 0,
+      now: NOW,
+    });
+    if (waiting.allowed) throw new Error("expected a refusal");
+    expect(waiting.message).toMatch(/Settings/);
   });
 
   it("still lets a code through — that is the whole point of codes", () => {
