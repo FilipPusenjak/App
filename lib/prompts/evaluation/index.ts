@@ -14,5 +14,6 @@ export {
   SYSTEM_PROMPT,
   buildUserPrompt,
   buildUserPromptParts,
+  budgetNote,
   PROMPT_VERSION,
 } from "./v11";

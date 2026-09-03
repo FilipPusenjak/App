@@ -64,6 +64,7 @@ import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
 import {
   SYSTEM_PROMPT,
   buildUserPromptParts,
+  budgetNote,
   PROMPT_VERSION,
 } from "@/lib/prompts/evaluation";
 import type { EvaluationResult } from "@/lib/validation/evaluation";
@@ -498,10 +499,17 @@ export async function POST(request: Request) {
     // Measured against the prompt we actually assembled, not a constant, so a
     // profile that grows buys itself a smaller allowance rather than a bigger
     // bill.
+    //
+    // Includes a reservation for budgetNote itself — the model is about to be
+    // told its own allowance, and that sentence has to count against the
+    // ceiling like everything else, or the ceiling is merely usually true
+    // rather than true by construction. A 6-digit placeholder safely covers
+    // the real allowance's length regardless of what it turns out to be.
     const promptTokens = estimateInputTokens(
       SYSTEM_PROMPT,
       prompt.stable,
       prompt.variable,
+      budgetNote(999_999),
     );
     const firstAllowance = maxOutputTokensFor({
       budgetUsd: RUN_BUDGET_USD.DEEP_REVIEW,
@@ -519,17 +527,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // A correction is appended AFTER the variable part, so the cached prefix
-    // is identical on the retry and the second attempt reads the cache rather
-    // than writing a new entry.
+    // A correction and the budget note are both appended AFTER the variable
+    // part, so the cached prefix is identical on the retry and the second
+    // attempt reads the cache rather than writing a new entry. The note is
+    // rebuilt from THIS call's own `allowance` rather than reused from the
+    // first attempt — a retry runs on whatever is left of the ceiling after
+    // the first attempt's actual spend, which is smaller, and a stale, too-
+    // generous number would defeat the whole point of telling it one.
     const attempt = async (extra = "", allowance = firstAllowance): Promise<ModelAttempt> => {
       const budgetMs = remainingModelBudgetMs(startedAt);
+      const variable =
+        prompt.variable + budgetNote(allowance) + (extra ? `\n\n${extra}` : "");
       const outcome = await requestEvaluation(
         client,
-        {
-          stable: prompt.stable,
-          variable: extra ? `${prompt.variable}\n\n${extra}` : prompt.variable,
-        },
+        { stable: prompt.stable, variable },
         { at: lastRunAt, model: previousModel },
         choice,
         Number.isFinite(budgetMs)
