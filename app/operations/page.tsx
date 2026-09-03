@@ -157,9 +157,11 @@ export default async function OperationsPage() {
       <section className="mt-10 rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
         <h2 className="text-lg font-semibold tracking-tight">Access codes</h2>
         <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-          Hand a code to a tester to give their account one Deep Review or
-          projection without a card. A code grants a run, never a plan or a
-          discount — see lib/billing/codes.ts.
+          Hand a code to a tester to give their account a run — one Deep
+          Review, projection or check-in — or, for the short allowlist in
+          GRANTABLE_PLAN_CODES, a real subscription that lapses on its own
+          after 30 days. Never a discount, never a recurring charge — see
+          lib/billing/codes.ts.
         </p>
         <div className="mt-4">
           <MintCodeForm />

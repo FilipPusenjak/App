@@ -12,12 +12,15 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/session";
 import { isOperator } from "@/lib/counselor/economics";
 import { createAccessCode } from "@/lib/billing/codes";
-import { RUN_KINDS, type RunKind } from "@/lib/billing/quota";
+import { RUN_KINDS } from "@/lib/billing/quota";
+import { GRANTABLE_PLAN_CODES } from "@/lib/billing/plans";
 
 export type MintCodeResult = {
   ok?: boolean;
   error?: string;
   codes?: string[];
+  /** Echoed back so the form knows whether to show run- or plan-shaped copy. */
+  isPlanKind?: boolean;
 };
 
 function positiveInt(raw: FormDataEntryValue | null, fallback: number): number | null {
@@ -44,13 +47,17 @@ export async function mintAccessCodeAction(
   }
 
   const kind = String(fd.get("kind") ?? "");
-  if (!(RUN_KINDS as readonly string[]).includes(kind)) {
+  const isPlanKind = (GRANTABLE_PLAN_CODES as readonly string[]).includes(kind);
+  if (!(RUN_KINDS as readonly string[]).includes(kind) && !isPlanKind) {
     return { error: "Choose what the code grants." };
   }
 
   const count = positiveInt(fd.get("count"), 1);
   const uses = positiveInt(fd.get("uses"), 1);
-  const grants = positiveInt(fd.get("grants"), 1);
+  // A plan-kind code always grants one subscription period per redemption —
+  // "how many runs" has no meaning for it, so the form's grants field is
+  // ignored rather than trusted for this kind.
+  const grants = isPlanKind ? 1 : positiveInt(fd.get("grants"), 1);
   if (count === null || uses === null || grants === null) {
     return { error: "Count, uses and grants must be positive numbers." };
   }
@@ -73,7 +80,7 @@ export async function mintAccessCodeAction(
   const codes: string[] = [];
   for (let i = 0; i < count; i += 1) {
     const { code } = await createAccessCode({
-      kind: kind as RunKind,
+      kind,
       grantsCount: grants,
       maxRedemptions: uses,
       expiresAt,
@@ -83,5 +90,5 @@ export async function mintAccessCodeAction(
   }
 
   revalidatePath("/operations");
-  return { ok: true, codes };
+  return { ok: true, codes, isPlanKind };
 }

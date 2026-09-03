@@ -12,15 +12,18 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  COMP_GRANT_DAYS,
   CURRENT_STATUSES,
   DEAD_STATUSES,
   bandStanding,
   effectivePlan,
+  nextCompExpiry,
   planMayGate,
   subscriptionGrantsAccess,
   type SubscriptionState,
 } from "@/lib/billing/entitlement";
 import {
+  GRANTABLE_PLAN_CODES,
   PLANS,
   STUDENT_FREE,
   STUDENT_PLUS,
@@ -316,6 +319,94 @@ describe("only the webhook grants a plan", () => {
     expect(src).toMatch(/stripeEvent\.create/);
     // And a late-arriving older event cannot resurrect a cancelled plan.
     expect(src).toMatch(/lastEventAt/);
+  });
+});
+
+describe("a free-subscription code grants a plan the same way canceling does", () => {
+  /**
+   * lib/billing/codes.ts's second exception to "only the webhook grants a
+   * plan": an operator-minted code for one of GRANTABLE_PLAN_CODES. It writes
+   * a Subscription row with status "canceled" and cancelAtPeriodEnd true —
+   * deliberately, so it lapses through the SAME rule paid-for time already
+   * uses, rather than inventing a third status nothing else understands.
+   */
+  it("keeps the allowlist short and real plan codes", () => {
+    for (const code of GRANTABLE_PLAN_CODES) {
+      expect(planByCode(code)).not.toBeNull();
+    }
+    // A leaked run-credit code is worth one run; a leaked plan code is worth a
+    // recurring-looking subscription. Every plan being comp-able by default
+    // would be one bad Slack paste away from free Tutor accounts.
+    expect(GRANTABLE_PLAN_CODES.length).toBeLessThan(PLANS.length);
+  });
+
+  it("a comp grant, shaped as a cancellation, still grants access until its end date", () => {
+    const expiresAt = nextCompExpiry(null, NOW);
+    expect(
+      subscriptionGrantsAccess(
+        {
+          planCode: "STUDENT_PLUS",
+          status: "canceled",
+          currentPeriodEnd: expiresAt,
+          cancelAtPeriodEnd: true,
+        },
+        NOW,
+      ),
+    ).toBe(true);
+  });
+
+  it("lapses on its own once the grant period passes, with no cron and no webhook", () => {
+    const expiresAt = nextCompExpiry(null, NOW);
+    const afterLapse = new Date(expiresAt.getTime() + 1000);
+    expect(
+      subscriptionGrantsAccess(
+        {
+          planCode: "STUDENT_PLUS",
+          status: "canceled",
+          currentPeriodEnd: expiresAt,
+          cancelAtPeriodEnd: true,
+        },
+        afterLapse,
+      ),
+    ).toBe(false);
+  });
+
+  it("grants exactly COMP_GRANT_DAYS from now, for a first redemption", () => {
+    const expiresAt = nextCompExpiry(null, NOW);
+    const expectedMs = NOW.getTime() + COMP_GRANT_DAYS * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBe(expectedMs);
+  });
+
+  it("stacks onto time still remaining, rather than resetting it", () => {
+    // A second code redeemed with 10 days still on the clock should extend
+    // from THAT end date, not from now — the same as buying a second month
+    // before the first one runs out.
+    const stillActiveUntil = new Date(NOW.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const expiresAt = nextCompExpiry(stillActiveUntil, NOW);
+    const expectedMs =
+      stillActiveUntil.getTime() + COMP_GRANT_DAYS * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBe(expectedMs);
+  });
+
+  it("does not stack onto a grant that already lapsed", () => {
+    // Redeeming a fresh code long after the last one expired starts a new
+    // COMP_GRANT_DAYS window from today, not from the old, already-dead date.
+    const longLapsed = new Date(NOW.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const expiresAt = nextCompExpiry(longLapsed, NOW);
+    const expectedMs = NOW.getTime() + COMP_GRANT_DAYS * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBe(expectedMs);
+  });
+
+  it("writes no subscription from the checkout route even for a plan-code path", () => {
+    // Restates the guarantee above for codes.ts specifically: a plan grant
+    // only ever happens through the operator-gated mint + redeem pair, never
+    // through anything a browser redirect could trigger on its own.
+    const src = code(join(ROOT, "lib", "billing", "codes.ts"));
+    expect(src).toMatch(/tx\.subscription\.upsert/);
+    const redeemRoute = code(
+      join(ROOT, "app", "api", "billing", "redeem", "route.ts"),
+    );
+    expect(redeemRoute).not.toMatch(/prisma\.subscription\./);
   });
 });
 

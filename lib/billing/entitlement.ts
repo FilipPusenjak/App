@@ -115,6 +115,21 @@ export function effectivePlan(
   return live.reduce((best, p) => (p.monthlyUsd > best.monthlyUsd ? p : best));
 }
 
+/** Comp/free-subscription grants (see lib/billing/codes.ts) last this many days per redemption. */
+export const COMP_GRANT_DAYS = 30;
+
+/**
+ * When a stacked comp-subscription grant should now expire.
+ *
+ * Redeeming a second free-subscription code before the first one lapses adds
+ * to the time remaining rather than resetting it — the same "stack, don't
+ * reset" rule an account would expect from paying for two months in a row.
+ */
+export function nextCompExpiry(currentEnd: Date | null, now: Date): Date {
+  const base = currentEnd && currentEnd > now ? currentEnd : now;
+  return new Date(base.getTime() + COMP_GRANT_DAYS * 24 * 60 * 60 * 1000);
+}
+
 export type BandStanding = {
   /** Active students the tutor is actually working with. */
   active: number;

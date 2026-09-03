@@ -2,22 +2,27 @@
 
 import { useActionState, useState } from "react";
 import { mintAccessCodeAction, type MintCodeResult } from "@/app/actions/access-codes";
-import { RUN_KINDS, RUN_LABELS, type RunKind } from "@/lib/billing/quota";
+import { RUN_KINDS, RUN_LABELS } from "@/lib/billing/quota";
+import { GRANTABLE_PLAN_CODES, planByCode } from "@/lib/billing/plans";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 /**
  * Mint a code without a terminal or the production database string.
  *
- * The one field worth a second look is "days until it expires" — blank means
- * the code never expires, which is fine for a handful of testers but worth
- * noticing before minting fifty.
+ * Two shapes come out of the same form: a run code (one Deep Review,
+ * Projection or Check-in) or a plan code (a real subscription for 30 days,
+ * stacking if redeemed again before it lapses — see COMP_GRANT_DAYS). The one
+ * field worth a second look either way is "days until it expires" — blank
+ * means the CODE never expires, which is fine for a handful of testers but
+ * worth noticing before minting fifty.
  */
 export function MintCodeForm() {
   const [state, formAction] = useActionState<MintCodeResult, FormData>(
     mintAccessCodeAction,
     {},
   );
-  const [kind, setKind] = useState<RunKind>("DEEP_REVIEW");
+  const [kind, setKind] = useState<string>("DEEP_REVIEW");
+  const isPlanKind = (GRANTABLE_PLAN_CODES as readonly string[]).includes(kind);
 
   return (
     <form action={formAction} className="space-y-3">
@@ -26,14 +31,23 @@ export function MintCodeForm() {
           <select
             name="kind"
             value={kind}
-            onChange={(e) => setKind(e.target.value as RunKind)}
+            onChange={(e) => setKind(e.target.value)}
             className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
           >
-            {RUN_KINDS.map((k) => (
-              <option key={k} value={k}>
-                {RUN_LABELS[k]}
-              </option>
-            ))}
+            <optgroup label="One run">
+              {RUN_KINDS.map((k) => (
+                <option key={k} value={k}>
+                  {RUN_LABELS[k]}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Subscription">
+              {GRANTABLE_PLAN_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {planByCode(code)?.name} (30 days)
+                </option>
+              ))}
+            </optgroup>
           </select>
         </Field>
         <Field label="How many codes">
@@ -55,15 +69,24 @@ export function MintCodeForm() {
             className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
           />
         </Field>
-        <Field label="Runs granted per redemption">
-          <input
-            name="grants"
-            type="number"
-            min={1}
-            defaultValue={1}
-            className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
-          />
-        </Field>
+        {isPlanKind ? (
+          <Field label="Runs granted per redemption">
+            <p className="rounded-md border border-black/10 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 dark:border-white/10 dark:bg-white/5">
+              Not applicable — 30 days per redemption, stacking if redeemed
+              again before it lapses.
+            </p>
+          </Field>
+        ) : (
+          <Field label="Runs granted per redemption">
+            <input
+              name="grants"
+              type="number"
+              min={1}
+              defaultValue={1}
+              className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
+            />
+          </Field>
+        )}
         <Field label="Expires in (days, blank = never)">
           <input
             name="days"
@@ -101,9 +124,9 @@ export function MintCodeForm() {
             ))}
           </ul>
           <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/70">
-            Redeemed at /settings/billing &rarr; &ldquo;Have a code?&rdquo; A
-            code is only spent when the plan&rsquo;s own schedule would
-            otherwise refuse a run, so handing one out early is safe.
+            {state.isPlanKind
+              ? "Redeemed at /settings/billing → “Have a code?” Grants the plan immediately for 30 days — it is not held back for later the way a run credit is."
+              : "Redeemed at /settings/billing → “Have a code?” A code is only spent when the plan’s own schedule would otherwise refuse a run, so handing one out early is safe."}
           </p>
         </div>
       )}
