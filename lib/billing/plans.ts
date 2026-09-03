@@ -62,7 +62,10 @@ export const STUDENT_PLUS: Plan = {
   code: "STUDENT_PLUS",
   audience: "STUDENT",
   name: "Plus",
-  monthlyUsd: usd("STUDENT_PLUS_PRICE_USD", 9),
+  // Must match the Stripe price actually charged, which is $8. Stripe holds the
+  // amount; this is only what the app QUOTES, so a mismatch here shows one
+  // number on the pricing page and takes another off the card.
+  monthlyUsd: usd("STUDENT_PLUS_PRICE_USD", 8),
   stripePriceIdEnv: "STRIPE_PRICE_STUDENT_PLUS",
   summary:
     "Room to re-run a review after every real change, across the whole application year.",

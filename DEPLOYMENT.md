@@ -309,7 +309,7 @@ give each a **recurring monthly** price:
 
 | Product | Monthly | What it grants |
 |---|---|---|
-| Plus (students) | $9 | Raises the account's model budget to $25/mo |
+| Plus (students) | $8 | Deep Reviews and plans projections, which the free plan does not include, and a shorter interval between check-ins |
 | Up to 20 students (tutors) | $29 | Caseload band of 20 |
 | Up to 50 students (tutors) | $49 | Caseload band of 50 |
 
