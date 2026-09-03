@@ -30,6 +30,12 @@ describe.skipIf(!hasTestDb)("minting an access code from the operations page", (
 
   beforeEach(async () => {
     await cleanupRun(runTag);
+    // cleanupRun deletes USERS by email prefix and nothing else, so the codes a
+    // previous test minted survive it. Every count assertion below is scoped to
+    // this run's note, which makes leftovers indistinguishable from what the
+    // call under test just wrote — "minted 3" read as 4 once an earlier test
+    // had left one behind. Cleared here rather than only in afterAll.
+    await prisma.accessCode.deleteMany({ where: { note: runTag } });
     process.env.OPERATOR_EMAILS = "ops@example.com";
     session.email = null;
   });
