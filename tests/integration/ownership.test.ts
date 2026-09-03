@@ -41,6 +41,9 @@ import {
   findOwnedResumeItem,
   findOwnedTargetSchool,
   findPrecedingEvaluationModel,
+  CounselorHasNoStudentProfile,
+  createOwnStudentProfile,
+  isCounselorWithoutOwnStudent,
   getOrCreateProfile,
   getOwnedEvaluations,
   getOwnedPlannedItems,
@@ -288,6 +291,113 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
     });
   });
 
+  // A caseload account opening /dashboard used to be handed a student profile,
+  // because resolving one creates one and the student layout resolves one to
+  // render its switcher. Nobody asked for it and nobody was told; the counselor
+  // simply acquired a student identity on their email. Verified against a real
+  // database because the whole bug lives in what the write does.
+  describe("a counselor reaching a student surface", () => {
+    async function makeCounselor(label: string) {
+      return prisma.user.create({
+        data: {
+          email: `${runTag}-${label}@example.test`,
+          name: "Counselor",
+          passwordHash: "not-a-real-hash",
+          counselorAccount: { create: { type: "INDEPENDENT" } },
+        },
+      });
+    }
+
+    it("is NOT given a student profile for showing up", async () => {
+      const counselor = await makeCounselor("cons");
+      sessionUser.id = counselor.id;
+      try {
+        await expect(getOrCreateProfile()).rejects.toThrow(
+          CounselorHasNoStudentProfile,
+        );
+        // The point of the test: nothing was written.
+        expect(
+          await prisma.profile.count({ where: { userId: counselor.id } }),
+        ).toBe(0);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+
+    it("is recognised as one, so the layout can send them back", async () => {
+      const counselor = await makeCounselor("cons2");
+      sessionUser.id = counselor.id;
+      try {
+        expect(await isCounselorWithoutOwnStudent()).toBe(true);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+
+    it("gets one when they actually ask, and only then", async () => {
+      const counselor = await makeCounselor("cons3");
+      sessionUser.id = counselor.id;
+      try {
+        const created = await createOwnStudentProfile();
+        expect(created.userId).toBe(counselor.id);
+        expect(
+          await prisma.profile.count({ where: { userId: counselor.id } }),
+        ).toBe(1);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+
+    it("does not get a second one from a double submit", async () => {
+      const counselor = await makeCounselor("cons4");
+      sessionUser.id = counselor.id;
+      try {
+        const first = await createOwnStudentProfile();
+        const second = await createOwnStudentProfile();
+        expect(second.id).toBe(first.id);
+        expect(
+          await prisma.profile.count({ where: { userId: counselor.id } }),
+        ).toBe(1);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+
+    it("keeps working normally once it holds one", async () => {
+      // A counselor who genuinely keeps their own profile is NOT locked out —
+      // bouncing them would strand that data behind a page nothing links to.
+      const counselor = await makeCounselor("cons5");
+      sessionUser.id = counselor.id;
+      try {
+        const own = await createOwnStudentProfile();
+        expect(await isCounselorWithoutOwnStudent()).toBe(false);
+        const resolved = await getOrCreateProfile();
+        expect(resolved.id).toBe(own.id);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+
+    it("leaves an ordinary account's auto-creation alone", async () => {
+      // The auto-create is correct for a student signing up — they need a
+      // profile and never asked for one either. Only the counselor case changed.
+      const student = await prisma.user.create({
+        data: {
+          email: `${runTag}-ordinary@example.test`,
+          name: "Ordinary",
+          passwordHash: "not-a-real-hash",
+        },
+      });
+      sessionUser.id = student.id;
+      try {
+        expect(await isCounselorWithoutOwnStudent()).toBe(false);
+        expect((await getOrCreateProfile()).userId).toBe(student.id);
+      } finally {
+        sessionUser.id = a.user.id;
+      }
+    });
+  });
+
   // The three profile-level helpers arrived with multi-student accounts, and
   // are exercised in depth in multi-student.test.ts — including that a foreign
   // profile id can neither be resolved as active nor looked up. Repeated here
@@ -313,6 +423,8 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
     it("covers every exported ownership helper — extend this file when adding one", () => {
       expect(Object.keys(ownership).sort()).toEqual(
         [
+          "CounselorHasNoStudentProfile",
+          "createOwnStudentProfile",
           "findOwnedEvaluation",
           "findOwnedPlannedItem",
           "findOwnedProfile",
@@ -321,6 +433,7 @@ describe.skipIf(!hasTestDb)("ownership helpers", () => {
           "findOwnedTargetSchool",
           "findPrecedingEvaluationModel",
           "getOrCreateProfile",
+          "isCounselorWithoutOwnStudent",
           "getOwnedEvaluations",
           "getOwnedPlannedItems",
           "getOwnedProfiles",

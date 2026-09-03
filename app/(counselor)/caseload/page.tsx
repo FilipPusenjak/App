@@ -5,6 +5,8 @@ import {
   type AttentionRow,
 } from "@/lib/counselor/caseload";
 import { loadFollowThroughPatterns } from "@/lib/counselor/recommendations";
+import { isCounselorWithoutOwnStudent } from "@/lib/ownership";
+import { createOwnStudentProfileAction } from "@/app/actions/own-student";
 
 /**
  * This week's attention list — the default screen.
@@ -104,7 +106,46 @@ export default async function CaseloadPage() {
           )}
         </>
       )}
+
+      <OwnStudentProfile />
     </div>
+  );
+}
+
+/**
+ * The opt-in for a counselor who is also an applicant, or a parent of one.
+ *
+ * Quiet and at the bottom, because it is a minority case and this screen is a
+ * professional tool. It exists at all because opening /dashboard used to create
+ * this profile silently — a caseload account acquiring a student identity on
+ * its email without being asked. That is gone, and this is what replaces it:
+ * the same profile, made only when somebody presses the button.
+ *
+ * Rendered only when there is none. Once the profile exists the student app is
+ * reachable normally and a second entry point here would just be a second thing
+ * to keep in sync.
+ */
+async function OwnStudentProfile() {
+  if (!(await isCounselorWithoutOwnStudent())) return null;
+
+  return (
+    <section className="rounded-lg border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-white/5">
+      <h2 className="text-sm font-medium">Applying yourself?</h2>
+      <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+        This account runs a caseload. If you also want a profile of your own —
+        you are applying, or a child of yours is — you can add one. It is
+        separate from your caseload, holds only your data, and none of your
+        students can see it.
+      </p>
+      <form action={createOwnStudentProfileAction} className="mt-3">
+        <button
+          type="submit"
+          className="inline-flex items-center rounded-md border border-black/15 px-3 py-2 text-sm font-medium transition-colors hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          Add my own profile
+        </button>
+      </form>
+    </section>
   );
 }
 

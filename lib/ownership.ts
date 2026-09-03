@@ -48,6 +48,7 @@ export const getOrCreateProfile = cache(async () => {
       activeProfileId: true,
       countryOfOrigin: true,
       profiles: { orderBy: { createdAt: "asc" } },
+      counselorAccount: { select: { id: true } },
     },
   });
 
@@ -55,11 +56,85 @@ export const getOrCreateProfile = cache(async () => {
     user.profiles.find((p) => p.id === user.activeProfileId) ?? user.profiles[0];
   if (active) return active;
 
+  // A COUNSELOR NEVER GETS ONE BY ACCIDENT.
+  //
+  // This function creates a student profile as a side effect of reading one,
+  // and the student layout renders a StudentSwitcher that calls it — so merely
+  // loading /dashboard was enough to materialize a student profile on a
+  // caseload account. The counselor had not asked for one and was not told, and
+  // from then on their email had a student identity attached to it.
+  //
+  // Counselors keeping their own student profiles is deliberate and stays
+  // supported (a tutor with a child of their own); what is not supported is
+  // acquiring one by navigation. So an account that already HAS profiles is
+  // untouched below, and one that does not has to ask — see
+  // createOwnStudentProfile. Throwing rather than returning null keeps every
+  // existing caller's type, and the student layout redirects before any page
+  // can reach this.
+  if (user.counselorAccount) throw new CounselorHasNoStudentProfile();
+
   // First ever visit: signup creates only a User.
   return prisma.profile.create({
     data: { userId, countryOfOrigin: user.countryOfOrigin },
   });
 });
+
+/**
+ * A caseload account reached a student surface with no student profile of its
+ * own. Distinguishable from a real failure so a route can answer 404/redirect
+ * rather than 500 — this is a wrong door, not a broken one.
+ */
+export class CounselorHasNoStudentProfile extends Error {
+  constructor() {
+    super("This is a caseload account and holds no student profile of its own.");
+    this.name = "CounselorHasNoStudentProfile";
+  }
+}
+
+/**
+ * Does this account hold a caseload but none of its own students?
+ *
+ * The condition the student layout redirects on. Cheap — two indexed lookups —
+ * and read on every student page load, which is why it counts rather than
+ * fetching the profiles themselves.
+ */
+export const isCounselorWithoutOwnStudent = cache(async () => {
+  const userId = await requireUserId();
+  const [counselor, profiles] = await Promise.all([
+    prisma.counselorAccount.findUnique({
+      where: { userId },
+      select: { id: true },
+    }),
+    prisma.profile.count({ where: { userId } }),
+  ]);
+  return Boolean(counselor) && profiles === 0;
+});
+
+/**
+ * Create a counselor's OWN student profile, because they asked.
+ *
+ * The explicit counterpart to the auto-creation above. Same row, same
+ * ownership; the only difference is that a person chose it, which is the whole
+ * point. Idempotent: if one already exists it is returned rather than a second
+ * being made, so a double submit cannot split somebody's data across two
+ * profiles.
+ */
+export async function createOwnStudentProfile() {
+  const userId = await requireUserId();
+  const existing = await prisma.profile.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+  });
+  if (existing) return existing;
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: { countryOfOrigin: true },
+  });
+  return prisma.profile.create({
+    data: { userId, countryOfOrigin: user.countryOfOrigin },
+  });
+}
 
 /** A student profile owned by the current user, or null. */
 export async function findOwnedProfile(profileId: string) {

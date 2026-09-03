@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
-import { getOwnedProfiles } from "@/lib/ownership";
+import { getOwnedProfiles, isCounselorWithoutOwnStudent } from "@/lib/ownership";
 import { logoutAction } from "@/app/actions/auth";
 import { isMultiStudent } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
@@ -26,6 +26,17 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // A caseload account with no student of its own does not belong here, and
+  // must not be given one for showing up. Everything below — starting with the
+  // StudentSwitcher — resolves a profile, and resolving one used to CREATE one,
+  // so a counselor who opened /dashboard once acquired a student identity on
+  // their email without asking for it or being told.
+  //
+  // Only the empty case redirects. A counselor who genuinely keeps their own
+  // student profile still uses this app for it, and bouncing them would strand
+  // that data behind a page nothing links to.
+  if (await isCounselorWithoutOwnStudent()) redirect("/caseload");
 
   // There is no opt-in any more — a new account can never become
   // multi-student. This only stays true for an account that already holds
