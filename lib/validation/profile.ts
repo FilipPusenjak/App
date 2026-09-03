@@ -6,6 +6,8 @@ import {
   curriculumSchema,
   resumeItemTypeSchema,
   testScoreKindSchema,
+  TEST_SCORE_KIND_LABELS,
+  TEST_SCORE_KINDS_REQUIRING_LABEL,
 } from "./enums";
 import { isValidCountryCode } from "@/lib/data/countries";
 
@@ -29,14 +31,30 @@ export const profileSchema = z.object({
     .optional(),
 });
 
-export const testScoreSchema = z.object({
-  kind: testScoreKindSchema,
-  label: z.string().trim().min(1, { error: "Label is required." }).max(200),
-  score: z.string().trim().min(1, { error: "Score is required." }).max(50),
-  maxScore: z.string().trim().max(50).optional(),
-  predicted: z.boolean().optional(),
-  takenOn: z.date().optional(),
-});
+export const testScoreSchema = z
+  .object({
+    kind: testScoreKindSchema,
+    label: z.string().trim().max(200).optional(),
+    score: z.string().trim().min(1, { error: "Score is required." }).max(50),
+    maxScore: z.string().trim().max(50).optional(),
+    predicted: z.boolean().optional(),
+    takenOn: z.date().optional(),
+  })
+  // A SAT or an IELTS is one score, no subject to name — the kind already
+  // says everything. An AP exam or a GCSE is one of many, so leaving the
+  // label blank there would silently collapse every subject into one row.
+  .transform((v, ctx) => {
+    const label = v.label && v.label.length > 0 ? v.label : undefined;
+    if (!label && TEST_SCORE_KINDS_REQUIRING_LABEL.has(v.kind)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Label is required for this test type.",
+        path: ["label"],
+      });
+      return z.NEVER;
+    }
+    return { ...v, label: label ?? TEST_SCORE_KIND_LABELS[v.kind] };
+  });
 
 export const resumeItemSchema = z
   .object({

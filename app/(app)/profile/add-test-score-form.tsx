@@ -36,7 +36,12 @@ export function AddTestScoreForm() {
         </Select>
       </Field>
 
-      <Field label="Label" htmlFor="label" error={fe.label}>
+      <Field
+        label="Label"
+        htmlFor="label"
+        error={fe.label}
+        hint="Blank defaults to the test name — only needed for subject tests like AP or GCSE."
+      >
         <Input id="label" name="label" placeholder="e.g. Math HL" />
       </Field>
 
