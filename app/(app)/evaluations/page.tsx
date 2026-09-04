@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
+import { requireUserId } from "@/lib/session";
+import { quotaStandings } from "@/lib/billing/quota-account";
+import { notOnPlanMessage } from "@/lib/billing/quota";
 import {
   buildProgress,
   schoolSeries,
@@ -64,10 +67,24 @@ export default async function EvaluationsPage() {
   // evaluation is shown as failed-with-a-reason rather than "pending" forever.
   await failStalePendingEvaluations();
 
-  const [profile, evaluations] = await Promise.all([
+  const [profile, evaluations, standings] = await Promise.all([
     getProfileWithRelations(),
     getOwnedEvaluations(),
+    quotaStandings(await requireUserId()),
   ]);
+
+  // Told BEFORE the click that costs one, not after. The button already
+  // surfaces this on refusal, but a fresh free account has no way to know a
+  // Deep Review needs Plus or a code until it spends the click finding out —
+  // this says so up front, in the one place somebody arrives already looking
+  // for the button. Only for the plan-does-not-include-it case: a held credit
+  // or an interval that just hasn't elapsed yet needs no proactive nudge, the
+  // button's own disabled state already covers those honestly.
+  const deepReviewStanding = standings.find((s) => s.kind === "DEEP_REVIEW");
+  const showPlanNudge =
+    deepReviewStanding !== undefined &&
+    !deepReviewStanding.includedInPlan &&
+    !deepReviewStanding.availableNow;
 
   const progress = buildProgress(evaluations);
   const points = progress.points;
@@ -110,6 +127,21 @@ export default async function EvaluationsPage() {
           canFollowUp={canFollowUp}
         />
       </div>
+
+      {/* Said before the click, not after it. */}
+      {showPlanNudge && (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+          <p className="max-w-2xl text-sm text-amber-900 dark:text-amber-200">
+            {notOnPlanMessage("DEEP_REVIEW")}
+          </p>
+          <Link
+            href="/settings/billing"
+            className="shrink-0 inline-flex items-center justify-center rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+          >
+            Upgrade or enter a code
+          </Link>
+        </section>
+      )}
 
       {/* --- Progress over time --------------------------------------- */}
       {points.length >= 2 && latest && (

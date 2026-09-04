@@ -104,6 +104,16 @@ export const PLANS: Plan[] = [STUDENT_FREE, STUDENT_PLUS, TUTOR_20, TUTOR_50];
 /** Plans a customer can actually buy — everything with a price to charge. */
 export const PURCHASABLE_PLANS = PLANS.filter((p) => p.stripePriceIdEnv !== "");
 
+/**
+ * Plans an operator may hand out as a free-subscription access code, rather
+ * than a run credit — see lib/billing/codes.ts. Deliberately a separate,
+ * short allowlist rather than "any purchasable plan": a leaked run-credit
+ * code is worth one run, but a leaked plan code is worth a recurring
+ * subscription, so which plans can be comped is a decision made here rather
+ * than inherited from what happens to be purchasable.
+ */
+export const GRANTABLE_PLAN_CODES = ["STUDENT_PLUS"] as const;
+
 export function planByCode(code: string | null | undefined): Plan | null {
   if (!code) return null;
   return PLANS.find((p) => p.code === code) ?? null;

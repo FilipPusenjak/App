@@ -199,3 +199,42 @@ ${reported}`;
 
   return { stable: parts.stable, variable };
 }
+
+/**
+ * Told to the model as its own last section, never folded into
+ * buildUserPromptParts: the allowance is not known until AFTER the prompt
+ * above is built and measured — see app/api/evaluate/route.ts, which sizes it
+ * from the prompt's own token count — so it has to be appended by the caller,
+ * once, right before the request goes out.
+ *
+ * Exists because the alternative already happened in production: a large
+ * profile pushed the prompt to 13,515 tokens, left roughly 5,000 for the
+ * model to answer in, and it wrote until it hit that ceiling mid-object — a
+ * response that parses as nothing, on a run that still cost the student their
+ * credit (the credit is spent before the call, not after — see
+ * lib/billing/quota-account.ts). There is no retry for this: the same prompt
+ * would just run out again. So the model has to plan a response that fits,
+ * not discover the ceiling by writing into it.
+ *
+ * Tokens are not a unit anyone reasons in sentence by sentence, so this also
+ * states the allowance in words — a coarser number closer to how the model
+ * actually paces itself while writing prose.
+ */
+export function budgetNote(allowanceTokens: number): string {
+  const approxWords = Math.round(allowanceTokens * 0.75);
+  return `
+
+# Response budget
+
+Your ENTIRE response — every field, from the scores through the last proposed
+commitment — must fit in about ${allowanceTokens.toLocaleString()} tokens
+(roughly ${approxWords.toLocaleString()} words). There is no retry for running
+out of room: a response cut off before the JSON closes is discarded and the
+run is wasted, so an honestly shorter response beats an unfinished longer one.
+
+If you sense room is getting tight partway through, keep every required field
+and switch the remaining prose — assessments, actions, reasoning — to its
+shortest accurate form. Never let elaboration in one field crowd out a
+required field elsewhere; the scores and the commitments matter more than the
+sentences around them.`;
+}

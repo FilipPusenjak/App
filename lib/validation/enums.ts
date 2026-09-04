@@ -85,6 +85,20 @@ export const TEST_SCORE_KIND_LABELS: Record<TestScoreKind, string> = {
   other: "Other",
 };
 
+/**
+ * Kinds that cover more than one subject, so the type alone doesn't say which
+ * — "AP exam" could be Physics or Spanish, so a label is how the two are told
+ * apart. A single-score kind like SAT needs no label; TEST_SCORE_KIND_LABELS
+ * already says everything there is to say about it.
+ */
+export const TEST_SCORE_KINDS_REQUIRING_LABEL = new Set<TestScoreKind>([
+  "ap",
+  "ib_subject",
+  "gcse",
+  "predicted_grade",
+  "other",
+]);
+
 // ---------------------------------------------------------------------------
 // Activity Discovery
 // ---------------------------------------------------------------------------

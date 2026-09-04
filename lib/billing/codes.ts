@@ -1,13 +1,17 @@
 // Access codes: minting them, and redeeming them.
 //
-// These exist to hand somebody a single run during testing, without giving them
-// a plan, a card, or a discount. A code grants a RUN, never a price — so it
-// touches no billing path and is worth nothing to a stranger who finds one
-// beyond a single Deep Review, bounded by maxRedemptions and by the account
-// spend cap sitting underneath everything.
+// These exist to hand somebody a single run, or a time-boxed subscription,
+// during testing — without a card ever being involved. A code grants either a
+// RUN (bounded by maxRedemptions and the quota underneath everything) or, for
+// the short allowlist in GRANTABLE_PLAN_CODES, a real subscription that lapses
+// on its own after COMP_GRANT_DAYS. Neither path touches Stripe or a
+// discount: the run kind is worth one run to a stranger who finds it, and the
+// plan kind is worth COMP_GRANT_DAYS, never a recurring charge.
 import { randomInt } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { RUN_KINDS, type RunKind } from "./quota";
+import { nextCompExpiry } from "./entitlement";
+import { planByCode } from "./plans";
 
 /**
  * The alphabet codes are drawn from.
@@ -42,7 +46,8 @@ export function storedForm(code: string): string {
 }
 
 export type RedeemResult =
-  | { ok: true; kind: RunKind; granted: number; totalRemaining: number }
+  | { ok: true; grant: "RUN"; kind: RunKind; granted: number; totalRemaining: number }
+  | { ok: true; grant: "PLAN"; planCode: string; planName: string; expiresAt: Date }
   | {
       ok: false;
       reason:
@@ -136,6 +141,51 @@ export async function redeemCode(input: {
         data: { redemptionCount: { increment: 1 } },
       });
 
+      // A plan code grants a subscription, not a run credit. The synthetic
+      // stripeSubscriptionId is keyed by (user, plan) rather than by
+      // redemption, so a second code for the same plan STACKS time onto the
+      // existing grant instead of creating a second, competing row — the
+      // same behavior an account would expect from paying for two months.
+      const plan = planByCode(code.grantsKind);
+      if (plan) {
+        const syntheticId = `comp_${input.userId}_${plan.code}`;
+        const existing = await tx.subscription.findUnique({
+          where: { stripeSubscriptionId: syntheticId },
+          select: { currentPeriodEnd: true },
+        });
+        const expiresAt = nextCompExpiry(existing?.currentPeriodEnd ?? null, now);
+
+        // status "canceled" + cancelAtPeriodEnd is the SAME state a real
+        // subscription is in the moment somebody cancels: entitlement.ts
+        // already honors currentPeriodEnd for exactly that state, so a comp
+        // grant lapsing on its own needs no new rule, just this shape.
+        await tx.subscription.upsert({
+          where: { stripeSubscriptionId: syntheticId },
+          create: {
+            userId: input.userId,
+            planCode: plan.code,
+            stripeSubscriptionId: syntheticId,
+            stripeCustomerId: "comp",
+            status: "canceled",
+            currentPeriodEnd: expiresAt,
+            cancelAtPeriodEnd: true,
+          },
+          update: {
+            status: "canceled",
+            currentPeriodEnd: expiresAt,
+            cancelAtPeriodEnd: true,
+          },
+        });
+
+        return {
+          ok: true as const,
+          grant: "PLAN" as const,
+          planCode: plan.code,
+          planName: plan.name,
+          expiresAt,
+        };
+      }
+
       const kind = code.grantsKind as RunKind;
       const credit = await tx.runCredit.upsert({
         where: { userId_kind: { userId: input.userId, kind } },
@@ -145,6 +195,7 @@ export async function redeemCode(input: {
 
       return {
         ok: true as const,
+        grant: "RUN" as const,
         kind,
         granted: code.grantsCount,
         totalRemaining: credit.remaining,
@@ -202,9 +253,17 @@ export async function creditsFor(
   return out;
 }
 
-/** Mint a code. Used by scripts/make-access-code.ts, not by any route. */
+/**
+ * Mint a code. Used by scripts/make-access-code.ts and the operator mint
+ * action, not by any route reachable without isOperator().
+ *
+ * `kind` is a RunKind for a run-credit code, or one of GRANTABLE_PLAN_CODES
+ * for a free-subscription code — validated by the caller, not here, the same
+ * split as everywhere else in this file: this function trusts its input and
+ * the two mint callers are the ones with something to check.
+ */
 export async function createAccessCode(input: {
-  kind: RunKind;
+  kind: RunKind | string;
   grantsCount?: number;
   maxRedemptions?: number;
   expiresAt?: Date | null;

@@ -59,8 +59,23 @@ export async function POST(request: Request) {
     );
   }
 
+  if (result.grant === "PLAN") {
+    const until = result.expiresAt.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    return NextResponse.json({
+      ok: true,
+      grant: "PLAN",
+      planCode: result.planCode,
+      message: `Code accepted — ${result.planName} added to your account until ${until}.`,
+    });
+  }
+
   return NextResponse.json({
     ok: true,
+    grant: "RUN",
     kind: result.kind,
     label: RUN_LABELS[result.kind],
     granted: result.granted,
