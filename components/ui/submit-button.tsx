@@ -17,8 +17,12 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus();
 
+  // focus-visible rather than focus: a mouse click should not paint a ring
+  // that only a keyboard user needs. Navy rather than the browser default
+  // blue, so keyboard focus reads as this app's own accent rather than an
+  // unstyled leftover.
   const base =
-    "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60";
+    "inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-zinc-700/40 focus-visible:ring-offset-2 dark:focus-visible:ring-zinc-300/40";
   const variants = {
     primary:
       "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200",
