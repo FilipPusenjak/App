@@ -14,7 +14,7 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations, getOwnedPlannedItems } from "@/lib/ownership";
 import { projectionRateLimiter } from "@/lib/rate-limit";
-import { authorizeRun } from "@/lib/billing/quota-account";
+import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
   getProjectionModel,
@@ -401,6 +401,15 @@ export async function POST() {
         completedAt: new Date(),
         ...usage,
       },
+    });
+
+    // What it cost us stays recorded; what it cost THEM is given back, unless
+    // this is the second failure in a row. See refundsFailedRun.
+    await refundFailedRun({
+      userId: user.id,
+      kind: "PROJECTION",
+      runId: projection.id,
+      usingCredit: quota?.usingCredit ?? false,
     });
     console.error("Projection failed:", error);
     return NextResponse.json(

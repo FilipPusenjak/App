@@ -4,6 +4,8 @@
 // weekly plans projections, check in every two days" is on the Stripe product
 // itself. So the first thing tested is that the code agrees with the sentence a
 // customer paid against.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   FREE_QUOTA,
@@ -13,6 +15,7 @@ import {
   describeInterval,
   notOnPlanMessage,
   quotaFor,
+  refundsFailedRun,
   standingFor,
 } from "@/lib/billing/quota";
 import { STUDENT_FREE, STUDENT_PLUS, TUTOR_20 } from "@/lib/billing/plans";
@@ -373,5 +376,80 @@ describe("codes are made to be read down a phone", () => {
   it("does not collide across a realistic batch", () => {
     const codes = new Set(Array.from({ length: 500 }, () => generateCode()));
     expect(codes.size).toBe(500);
+  });
+});
+
+describe("a failed run is given back, once", () => {
+  /**
+   * The promise is that an evaluation does not fail. When one does, charging
+   * for it bills a student for our bug — which is exactly what happened the
+   * first time a large profile overran the output budget.
+   */
+  it("refunds the first failure", () => {
+    expect(refundsFailedRun("completed")).toBe(true);
+  });
+
+  it("does not refund a second failure in succession", () => {
+    // Some profiles fail REPEATABLY — the same input assembles the same
+    // oversized prompt every time. Refunding those forever is an unlimited
+    // free retry loop against a model that bills per attempt.
+    expect(refundsFailedRun("failed")).toBe(false);
+  });
+
+  it("treats a failure after a success as a first failure again", () => {
+    // "In succession" is about the run immediately before, not a lifetime
+    // count: somebody who failed in March and again in July was not on a
+    // streak, and should not pay for the second one either.
+    expect(refundsFailedRun("completed")).toBe(true);
+  });
+
+  it("refunds the very first run an account ever makes", () => {
+    // No previous run at all is not a previous failure.
+    expect(refundsFailedRun(null)).toBe(true);
+  });
+
+  it("does not treat a pending run as a failure", () => {
+    expect(refundsFailedRun("pending")).toBe(true);
+  });
+});
+
+describe("the refund reaches both halves of what a run costs", () => {
+  const ROOT = process.cwd();
+  const code = (path: string) =>
+    readFileSync(join(ROOT, path), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+
+  it("skips refunded rows when working out when the last run was", () => {
+    // A refund that returned the credit but still started the interval would
+    // be a refund in name only — on Plus the interval is the half that
+    // actually blocks the retry.
+    const src = code("lib/billing/quota-account.ts");
+    const lastRunFn = src.slice(
+      src.indexOf("export async function lastRunAtByKind"),
+      src.indexOf("export async function authorizeRun"),
+    );
+    expect(lastRunFn).toMatch(/quotaRefunded:\s*false/);
+  });
+
+  it("returns the credit and marks the row in one transaction", () => {
+    const src = code("lib/billing/quota-account.ts");
+    const refundFn = src.slice(src.indexOf("export async function refundFailedRun"));
+    expect(refundFn).toMatch(/\$transaction/);
+    expect(refundFn).toMatch(/runCredit\.updateMany/);
+    expect(refundFn).toMatch(/quotaRefunded:\s*true/);
+  });
+
+  it("is wired into every route that can fail a paid run", () => {
+    // A route that records a failure without refunding it charges for our
+    // bug. All three spend from the same quota, so all three owe the same
+    // refund — this is the test that fails when a fourth is added.
+    for (const route of [
+      "app/api/evaluate/route.ts",
+      "app/api/project/route.ts",
+      "app/api/evaluations/check-in/route.ts",
+    ]) {
+      expect(code(route)).toMatch(/refundFailedRun\(/);
+    }
   });
 });

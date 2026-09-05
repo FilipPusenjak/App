@@ -14,7 +14,7 @@ import {
 } from "@/lib/anthropic";
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { authorizeRun } from "@/lib/billing/quota-account";
+import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
 import { estimateCost } from "@/lib/cost";
 import {
   describeShapeFailure,
@@ -249,6 +249,16 @@ export async function POST() {
         `(Fields the app could not accept: ${describeShapeFailure(parsed.error)}.)`,
       rawOutput: text,
     });
+    // The cost stays recorded on the row; the charge to the student does not.
+    // First failure free, second one in a row not — see refundsFailedRun.
+    if (id) {
+      await refundFailedRun({
+        userId: user.id,
+        kind: "CHECK_IN",
+        runId: id,
+        usingCredit: quota?.usingCredit ?? false,
+      });
+    }
     return NextResponse.json(
       { id, error: "The check-in came back in a shape we could not read." },
       { status: 502 },
@@ -264,6 +274,16 @@ export async function POST() {
       ...failureContext,
       error: `The check-in was discarded for containing disallowed phrasing (${banned.join(", ")}). This app never states odds of admission. This run still cost what it used — that cost is recorded here.`,
     });
+    // Our refusal, not the student's doing — so it is not charged to them
+    // either, on the same first-failure-free terms as any other failure.
+    if (id) {
+      await refundFailedRun({
+        userId: user.id,
+        kind: "CHECK_IN",
+        runId: id,
+        usingCredit: quota?.usingCredit ?? false,
+      });
+    }
     return NextResponse.json(
       { id, error: "The check-in contained disallowed phrasing and was discarded." },
       { status: 502 },

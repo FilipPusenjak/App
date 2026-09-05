@@ -391,6 +391,11 @@ model Projection {
   inputSnapshotJson String?
   resultJson        String?
   error             String?
+
+  /// Same rule as Evaluation.quotaRefunded — a first failure is given back,
+  /// a second one in succession is not.
+  quotaRefunded     Boolean   @default(false)
+
   createdAt         DateTime  @default(now())
   completedAt       DateTime?
   // What this run cost, same columns and same reason as Evaluation. A
@@ -688,6 +693,13 @@ model Evaluation {
   chartPointJson String?
 
   error        String? // populated when status = failed
+
+  /// True when this failed run was given back — the credit returned and the
+  /// quota interval not started. See lib/billing/quota.ts refundsFailedRun:
+  /// the FIRST failure in a row is refunded, a second one in succession is
+  /// not. Read by lastRunAtByKind, which skips refunded rows so they never
+  /// push out a next-available date.
+  quotaRefunded Boolean @default(false)
   createdAt    DateTime  @default(now())
   completedAt  DateTime?
 
