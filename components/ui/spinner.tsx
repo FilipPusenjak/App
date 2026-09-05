@@ -1,0 +1,31 @@
+// A pending-state indicator for buttons that used to be text alone
+// ("Reviewing…", "Checking…") with nothing to look at while waiting.
+//
+// Uses currentColor rather than a hardcoded navy, so it always matches
+// whatever the button's own text color already is — white on a navy button,
+// navy on a bordered one — with no variant prop to keep in sync.
+export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={`animate-spin ${className}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeOpacity="0.25"
+      />
+      <path
+        d="M22 12a10 10 0 0 0-10-10"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

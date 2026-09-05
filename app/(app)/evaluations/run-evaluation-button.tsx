@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/spinner";
 
 /**
  * The two things a student can run.
@@ -79,11 +80,16 @@ export function RunEvaluationButton({
         title={disabled ? disabledReason : undefined}
         className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 sm:py-2 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
       >
-        {running === "review"
-          ? "Reviewing… (this can take a minute)"
-          : canFollowUp
-            ? "Run a new Deep Review"
-            : "Run a Deep Review"}
+        {running === "review" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner />
+            Reviewing… (this can take a minute)
+          </span>
+        ) : canFollowUp ? (
+          "Run a new Deep Review"
+        ) : (
+          "Run a Deep Review"
+        )}
       </button>
 
       {/* The fortnightly rhythm. Offered only once a real review exists,
@@ -102,7 +108,14 @@ export function RunEvaluationButton({
           disabled={running !== null}
           className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-black/15 px-4 py-2.5 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-50 sm:py-2 dark:border-white/20 dark:hover:bg-white/10"
         >
-          {running === "checkin" ? "Checking in…" : "Run a Check-In"}
+          {running === "checkin" ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Spinner />
+              Checking in…
+            </span>
+          ) : (
+            "Run a Check-In"
+          )}
         </button>
       )}
 

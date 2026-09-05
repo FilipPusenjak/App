@@ -7,6 +7,7 @@ import {
 import { loadFollowThroughPatterns } from "@/lib/counselor/recommendations";
 import { isCounselorWithoutOwnStudent } from "@/lib/ownership";
 import { createOwnStudentProfileAction } from "@/app/actions/own-student";
+import { EmptyIcon } from "@/components/ui/empty-icon";
 
 /**
  * This week's attention list — the default screen.
@@ -30,8 +31,11 @@ export default async function CaseloadPage() {
 
       {totalActive === 0 ? (
         <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
-          <h2 className="text-sm font-medium text-zinc-500">No students yet</h2>
-          <p className="mt-1 max-w-2xl text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center gap-3">
+            <EmptyIcon className="h-9 w-9" />
+            <h2 className="text-sm font-medium text-zinc-500">No students yet</h2>
+          </div>
+          <p className="mt-3 max-w-2xl text-zinc-600 dark:text-zinc-400">
             A student appears here once both they and a guardian have approved
             the link. Until then you can see nothing about them, which is
             deliberate.

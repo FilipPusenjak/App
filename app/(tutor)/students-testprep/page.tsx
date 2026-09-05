@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadRoster } from "@/lib/testprep/roster";
+import { EmptyIcon } from "@/components/ui/empty-icon";
 
 /**
  * The tutor's students, alphabetically.
@@ -29,8 +30,11 @@ export default async function TutorStudentsPage() {
 
       {rows.length === 0 ? (
         <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
-          <h2 className="text-sm font-medium text-zinc-500">No students yet</h2>
-          <p className="mt-1 max-w-2xl text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center gap-3">
+            <EmptyIcon className="h-9 w-9" />
+            <h2 className="text-sm font-medium text-zinc-500">No students yet</h2>
+          </div>
+          <p className="mt-3 max-w-2xl text-zinc-600 dark:text-zinc-400">
             A student appears here once they have given you an invite code and
             both they and a parent or guardian have agreed. Until then you can
             see nothing about them, which is deliberate.
