@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   Palette — a muted light blue.
+   Palette — a muted light blue, deepening into a real navy.
 
    The whole interface was neutral grey on white. Rather than rewrite the
    colour classes on every component, the ZINC RAMP ITSELF is redefined here as
@@ -9,10 +9,18 @@
    the rest keep working and simply come out cooler. One file, no component
    churn, and no risk of a page being missed and left grey.
 
-   Muted is the point — low chroma, so it reads as a considered neutral rather
-   than a blue theme. The page sits on a soft tint and cards stay white, which
-   is what gives them lift; on a white page a white card has to be drawn with
-   borders and shadows instead.
+   TWO REGISTERS IN ONE RAMP, ON PURPOSE. zinc-50 through zinc-600 stay the
+   low-chroma neutral described below — body text and page surfaces, where
+   "considered neutral" is still the goal. zinc-700 through zinc-950 are a
+   deliberately richer, more saturated navy: this is the step every primary
+   button, active nav link and focus ring already draws from, so making that
+   end of the ramp read as a genuine brand colour costs no new classes
+   anywhere — every place already asking for "the dark one" gets it.
+
+   Muted is still the point for the LIGHT steps — low chroma, so the page
+   reads as a considered neutral rather than a blue theme. The page sits on a
+   soft tint and cards stay white, which is what gives them lift; on a white
+   page a white card has to be drawn with borders and shadows instead.
 
    Contrast was measured against the surface each step actually sits on, not
    assumed. zinc-500 secondary text is 5.2:1 on a white card and 4.8:1 on the
@@ -20,7 +28,9 @@
    metadata text, such as the rubric line under each school — was darkened from
    the value the ramp wanted so it lands at 4.4:1 on a card rather than 3.2:1;
    the stock grey it replaces was 2.3:1, which was never legible enough for
-   text a student is expected to read.
+   text a student is expected to read. The navy end was checked the same way:
+   white text on zinc-900 lands at 14.3:1, miles clear of the floor, so there
+   was room to make it richer without spending any legibility to get it.
 
    The page tint is deliberately not deeper than this. A stronger blue looked
    better in isolation and pushed zinc-500 body text to 4.5:1 exactly, which is
@@ -53,10 +63,10 @@
   --color-zinc-400: #6b7a8f;
   --color-zinc-500: #5b6e85;
   --color-zinc-600: #47586d;
-  --color-zinc-700: #364656;
-  --color-zinc-800: #273443;
-  --color-zinc-900: #1a2532;
-  --color-zinc-950: #111923;
+  --color-zinc-700: #33578c;
+  --color-zinc-800: #22406e;
+  --color-zinc-900: #152a4d;
+  --color-zinc-950: #0f2039;
 }
 
 @media (prefers-color-scheme: dark) {

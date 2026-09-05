@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { logoutAction } from "@/app/actions/auth";
+import { NavLink } from "./nav-links";
 
 /**
  * The phone nav disclosure. A native <details> so it opens before hydration
@@ -53,15 +54,16 @@ export function MobileNav({
         }}
       >
         {nav.map((item) => (
-          <Link
+          <NavLink
             key={item.href}
             href={item.href}
             // Generous hit targets: these are the primary navigation on a
             // touch screen, where a 14px text link is not a target.
             className="rounded-md px-2 py-2.5 text-sm text-zinc-600 hover:bg-black/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            activeClassName="font-semibold text-zinc-900 dark:text-white bg-black/5 dark:bg-white/10"
           >
             {item.label}
-          </Link>
+          </NavLink>
         ))}
         <div className="mt-2 flex items-center justify-between gap-3 border-t border-black/10 pt-3 dark:border-white/15">
           <span className="min-w-0 truncate text-sm text-zinc-500">

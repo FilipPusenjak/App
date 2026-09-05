@@ -6,8 +6,11 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 
+// The focus ring draws from zinc-700, the navy end of the ramp — one line
+// here means every text field, select and textarea in the app "lights up"
+// in the brand colour on focus, rather than a generic grey halo.
 export const fieldClass =
-  "mt-1 w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 disabled:opacity-60 dark:border-white/20 dark:bg-black/20 dark:focus:ring-white/10";
+  "mt-1 w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 disabled:opacity-60 dark:border-white/20 dark:bg-black/20 dark:focus:border-zinc-300 dark:focus:ring-white/10";
 export const labelClass = "text-sm font-medium";
 
 export function Field({

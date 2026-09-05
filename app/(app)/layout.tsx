@@ -6,6 +6,7 @@ import { logoutAction } from "@/app/actions/auth";
 import { isMultiStudent } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
 import { MobileNav } from "./mobile-nav";
+import { NavLink } from "./nav-links";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -79,13 +80,13 @@ export default async function AppLayout({
               </Link>
               <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
                 {nav.map((item) => (
-                  <Link
+                  <NavLink
                     key={item.href}
                     href={item.href}
                     className="hover:text-zinc-900 dark:hover:text-zinc-100"
                   >
                     {item.label}
-                  </Link>
+                  </NavLink>
                 ))}
               </nav>
             </div>
