@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { Spinner } from "./spinner";
 
 // A submit button that disables itself and shows pending text while its
 // enclosing <form> action is running. Works in any form (useActionState or plain).
@@ -38,7 +39,14 @@ export function SubmitButton({
       disabled={pending}
       className={`${base} ${variants[variant]} ${className}`}
     >
-      {pending && pendingText ? pendingText : children}
+      {pending ? (
+        <span className="inline-flex items-center gap-1.5">
+          <Spinner />
+          {pendingText ?? children}
+        </span>
+      ) : (
+        children
+      )}
     </button>
   );
 }

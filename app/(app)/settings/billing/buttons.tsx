@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Spinner } from "@/components/ui/spinner";
+
+// Shared by all three buttons below: none of them go through the SubmitButton
+// component (they POST via fetch, not a <form> action), so the focus-visible
+// ring has to be spelled out here too rather than inherited for free.
+const FOCUS_RING =
+  "outline-none focus-visible:ring-2 focus-visible:ring-zinc-700/40 focus-visible:ring-offset-2 dark:focus-visible:ring-zinc-300/40";
 
 /**
  * The two buttons that hand off to Stripe.
@@ -59,9 +66,16 @@ export function CheckoutButton({
             setBusy(false);
           }
         }}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        className={`rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 ${FOCUS_RING}`}
       >
-        {busy ? "Opening…" : label}
+        {busy ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner />
+            Opening…
+          </span>
+        ) : (
+          label
+        )}
       </button>
       {error && (
         <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>
@@ -136,9 +150,16 @@ export function RedeemCodeForm() {
         <button
           type="submit"
           disabled={busy || !code.trim()}
-          className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+          className={`rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10 ${FOCUS_RING}`}
         >
-          {busy ? "Checking…" : "Redeem"}
+          {busy ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Spinner />
+              Checking…
+            </span>
+          ) : (
+            "Redeem"
+          )}
         </button>
       </div>
       {error && (
@@ -172,9 +193,16 @@ export function PortalButton() {
             setBusy(false);
           }
         }}
-        className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10"
+        className={`rounded-md border border-black/15 px-4 py-2 text-sm font-medium transition-colors hover:bg-black/5 disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/10 ${FOCUS_RING}`}
       >
-        {busy ? "Opening…" : "Manage billing"}
+        {busy ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner />
+            Opening…
+          </span>
+        ) : (
+          "Manage billing"
+        )}
       </button>
       {error && (
         <p className="mt-2 text-sm text-red-700 dark:text-red-400">{error}</p>

@@ -12,6 +12,7 @@ import {
 import { summariseHistoryRow } from "@/lib/evaluation/history";
 import { ScoreTrend } from "@/components/score-trend";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
+import { EmptyIcon } from "@/components/ui/empty-icon";
 import { RunEvaluationButton } from "./run-evaluation-button";
 
 function scoreTone(score: number | null) {
@@ -357,6 +358,7 @@ export default async function EvaluationsPage() {
           </ul>
         ) : (
           <div className="rounded-lg border border-dashed border-black/15 p-8 text-center dark:border-white/20">
+            <EmptyIcon />
             <p className="text-sm text-zinc-500">
               No evaluations yet.{" "}
               {disabledReason ??

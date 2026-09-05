@@ -3,9 +3,8 @@
 import { useActionState } from "react";
 import { resetPasswordAction } from "@/app/actions/password-reset";
 import type { AuthFormState } from "@/app/actions/auth";
-
-const fieldClass =
-  "mt-1 w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:border-white/20 dark:bg-black/20 dark:focus:ring-white/10";
+import { fieldClass } from "@/components/ui/form";
+import { Spinner } from "@/components/ui/spinner";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
@@ -64,9 +63,16 @@ export function ResetPasswordForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white outline-none transition-colors hover:bg-zinc-700 focus-visible:ring-2 focus-visible:ring-zinc-700/40 focus-visible:ring-offset-2 disabled:opacity-60 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 dark:focus-visible:ring-zinc-300/40"
       >
-        {pending ? "Saving…" : "Set new password"}
+        {pending ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Spinner />
+            Saving…
+          </span>
+        ) : (
+          "Set new password"
+        )}
       </button>
     </form>
   );
