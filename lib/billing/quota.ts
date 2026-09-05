@@ -105,6 +105,32 @@ export function describeInterval(days: number): string {
   return `every ${days} days`;
 }
 
+/**
+ * Does a run that just failed get its credit and its interval back?
+ *
+ * THE FIRST ONE DOES; A SECOND ONE IN SUCCESSION DOES NOT.
+ *
+ * The product's promise is that an evaluation does not fail. When one does
+ * anyway, charging for it bills somebody for our bug — that is what happened
+ * to the first real failure this app produced, where a large profile overran
+ * the output budget and the student lost the credit they had redeemed for it.
+ * So the first failure is free.
+ *
+ * The second consecutive one is not, and the reason is that some profiles fail
+ * REPEATABLY: the same input assembles the same oversized prompt and runs out
+ * of room again. Refunding those forever turns a broken profile into an
+ * unlimited free retry loop against a model that bills per attempt. One free
+ * failure absorbs the transient case, which is the honest one; the second says
+ * the problem is not going to fix itself by trying again.
+ *
+ * Takes the PREVIOUS run's status rather than a count, because "in succession"
+ * is a fact about the run immediately before this one — a failure that follows
+ * a success is a first failure again, and should be free again.
+ */
+export function refundsFailedRun(previousRunStatus: string | null): boolean {
+  return previousRunStatus !== "failed";
+}
+
 export type QuotaDecision =
   | { allowed: true; usingCredit: false }
   /** Blocked by the interval or by the plan, but a redeemed credit covers it. */

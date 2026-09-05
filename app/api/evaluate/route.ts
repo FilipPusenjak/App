@@ -36,7 +36,7 @@ import {
 import { getCurrentUser } from "@/lib/session";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { authorizeRun } from "@/lib/billing/quota-account";
+import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
 import {
   getAnthropicClient,
   getModel,
@@ -709,6 +709,16 @@ export async function POST(request: Request) {
         completedAt: new Date(),
         ...usage,
       },
+    });
+
+    // The COST stays recorded above; what is given back is what the student
+    // was charged for it. The first failure is free — see refundsFailedRun —
+    // and a second one in succession is not.
+    await refundFailedRun({
+      userId: user.id,
+      kind: "DEEP_REVIEW",
+      runId: evaluation.id,
+      usingCredit: quota?.usingCredit ?? false,
     });
     console.error("Evaluation failed:", error);
     return NextResponse.json(

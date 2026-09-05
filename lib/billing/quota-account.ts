@@ -10,6 +10,7 @@ import {
   RUN_KINDS,
   checkQuota,
   quotaFor,
+  refundsFailedRun,
   standingFor,
   type QuotaDecision,
   type QuotaStanding,
@@ -26,7 +27,11 @@ import {
 export async function lastRunAtByKind(
   userId: string,
 ): Promise<Record<RunKind, Date | null>> {
-  const base = { profile: { userId }, isSample: false } as const;
+  // quotaRefunded rows are skipped for the same reason samples are: they cost
+  // the account nothing, so they must not start a window. A refunded failure
+  // that still pushed out the next-available date would be a refund in name
+  // only — see refundFailedRun below.
+  const base = { profile: { userId }, isSample: false, quotaRefunded: false } as const;
 
   const [deepReview, checkIn, projection] = await Promise.all([
     prisma.evaluation.findFirst({
@@ -104,6 +109,100 @@ export async function authorizeRun(input: {
   }
 
   return decision;
+}
+
+/**
+ * The status of the run before this one, for the same account and kind.
+ *
+ * Deep Reviews and Check-Ins share the Evaluation table and are told apart the
+ * same way lastRunAtByKind tells them apart — by the check-in prompt prefix
+ * rather than by `type`, because rows written before the type column exists
+ * still have to be classified correctly.
+ */
+async function previousRunStatus(
+  userId: string,
+  kind: RunKind,
+  excludeRunId: string,
+): Promise<string | null> {
+  const base = {
+    profile: { userId },
+    isSample: false,
+    id: { not: excludeRunId },
+  } as const;
+  const newest = { orderBy: { createdAt: "desc" }, select: { status: true } } as const;
+
+  if (kind === "PROJECTION") {
+    const row = await prisma.projection.findFirst({ where: base, ...newest });
+    return row?.status ?? null;
+  }
+
+  const row = await prisma.evaluation.findFirst({
+    where: {
+      ...base,
+      ...(kind === "CHECK_IN"
+        ? { promptVersion: { startsWith: "check-in/" } }
+        : { NOT: { promptVersion: { startsWith: "check-in/" } } }),
+    },
+    ...newest,
+  });
+  return row?.status ?? null;
+}
+
+/**
+ * Give a failed run back — the credit AND the interval — unless it is the
+ * second failure in a row.
+ *
+ * The decision itself is refundsFailedRun in quota.ts, which is where the
+ * reasoning lives; this is the part that reaches for the data and writes.
+ *
+ * Both halves happen in ONE transaction. Returning the credit without marking
+ * the row would leave the interval still charged, which on Plus is the half
+ * that actually blocks the retry — the student would be told to wait a month
+ * for a run they were just refunded.
+ *
+ * NEVER THROWS. It is called from an error path, and a failure to refund must
+ * not replace the message the student was about to be given with a second,
+ * more confusing one. A refund that did not happen is recoverable by hand; a
+ * 500 swallowing the real error is not.
+ */
+export async function refundFailedRun(input: {
+  userId: string;
+  kind: RunKind;
+  /** The failed row, so it can be excluded from "what came before" and marked. */
+  runId: string;
+  /** Whether authorizeRun spent a credit on this run — only then is one owed. */
+  usingCredit: boolean;
+}): Promise<boolean> {
+  try {
+    const previous = await previousRunStatus(input.userId, input.kind, input.runId);
+    if (!refundsFailedRun(previous)) return false;
+
+    await prisma.$transaction(async (tx) => {
+      if (input.usingCredit) {
+        // updateMany rather than update: an account that redeemed no code has
+        // no RunCredit row at all, and this must not throw on the error path.
+        await tx.runCredit.updateMany({
+          where: { userId: input.userId, kind: input.kind },
+          data: { remaining: { increment: 1 } },
+        });
+      }
+      if (input.kind === "PROJECTION") {
+        await tx.projection.update({
+          where: { id: input.runId },
+          data: { quotaRefunded: true },
+        });
+      } else {
+        await tx.evaluation.update({
+          where: { id: input.runId },
+          data: { quotaRefunded: true },
+        });
+      }
+    });
+    return true;
+  } catch (error) {
+    console.error("Could not refund a failed run:", error);
+    return false;
+  }
 }
 
 /** Everything the plan page shows about quotas. */
