@@ -27,6 +27,40 @@ export const RESET_TOKEN_TTL_MINUTES = Number(
   process.env.PASSWORD_RESET_TTL_MINUTES ?? 60,
 );
 
+/**
+ * How many reset links one account may be sent per hour.
+ *
+ * The forgot-password form is unauthenticated and sends mail to an address the
+ * requester types, which is the shape of a tool for flooding somebody's inbox.
+ * Three is enough for a person who mistypes their address, deletes the mail, or
+ * waits for one that was slow — and low enough that the form is useless as a
+ * way to bother anybody.
+ *
+ * Counted against ISSUED TOKENS rather than requests, so it throttles only the
+ * addresses that actually have an account. A request for an address with no
+ * account issues nothing, and so can never fill anyone's quota.
+ */
+export const RESET_REQUESTS_PER_HOUR = 3;
+
+/**
+ * The sentence shown after asking for a reset link.
+ *
+ * ALWAYS this one, whatever happened. A registered address, an address with no
+ * account, and an address that has already had its three links this hour all
+ * produce it, because a form that answers differently is a way for anyone to
+ * find out who has an account here — and the people with accounts here are
+ * mostly minors.
+ *
+ * Lives HERE rather than beside the action that returns it, because that file
+ * carries "use server" and such a file may only export async functions. Next
+ * rejects a string export from one at runtime, which is a 500 on submit rather
+ * than a build error — caught by opening the page, not by any test.
+ */
+export const RESET_REQUESTED_MESSAGE =
+  "If there's an account with that address, a reset link is on its way. " +
+  "It works once and expires in an hour — check your spam folder if it " +
+  "doesn't arrive.";
+
 /** SHA-256, hex. The only form of a token that touches storage. */
 export function hashResetToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");

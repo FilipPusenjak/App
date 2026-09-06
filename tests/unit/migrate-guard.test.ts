@@ -11,7 +11,23 @@
 // no network.
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+/**
+ * Longer than vitest's 5s default, because every test here spawns a process.
+ *
+ * The three cases where the script does NOT skip are the slow ones: they let
+ * it go on to start the Prisma CLI, which takes seconds to boot before it even
+ * reaches the deliberately-unreachable database. Comfortably under 5s on an
+ * idle machine and over it on a busy one — which made this file fail about one
+ * run in three under CPU contention while passing every time in isolation.
+ *
+ * A flake costs more than the wait does: it teaches you to re-run the suite
+ * instead of reading it. The bound is raised rather than removed, because a
+ * spawn taking half a minute means something is genuinely wrong and the test
+ * should still say so.
+ */
+vi.setConfig({ testTimeout: 30_000 });
 
 const SCRIPT = join(process.cwd(), "scripts", "migrate-deploy.mjs");
 
