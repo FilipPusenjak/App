@@ -10,7 +10,43 @@ import { prisma } from "../lib/db";
 const SEED_EMAIL = "student@example.com";
 const SEED_PASSWORD = "password123";
 
+/**
+ * Refuse to seed anything that is not a local database.
+ *
+ * This file is in a public repository, so the credential above is public too.
+ * Run against production it creates a working login that anyone who has read
+ * this file can use — which is exactly what happened: the seed account sat in
+ * the production user table for five weeks with its published password. It
+ * held no real data, but it was a signed-in foothold on a site that holds
+ * minors' records, and it got there by somebody running the normal seed
+ * command with the wrong DATABASE_URL in their shell.
+ *
+ * "Local" means the host is loopback. That is deliberately narrower than "not
+ * production": a staging database with real-looking data is not a place for a
+ * known password either.
+ */
+function assertLocalDatabase(): void {
+  const url = process.env.DATABASE_URL ?? "";
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // Unparseable is not local. Fall through to the refusal.
+  }
+  const local = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (!local) {
+    console.error(
+      `\n  Refusing to seed: DATABASE_URL points at "${host || "an unparseable URL"}", not a local database.\n` +
+        `  This seed creates the published login ${SEED_EMAIL} / ${SEED_PASSWORD}.\n` +
+        `  It must never exist anywhere but a developer's own machine.\n`,
+    );
+    process.exit(1);
+  }
+}
+
 async function main() {
+  assertLocalDatabase();
+
   const passwordHash = await bcrypt.hash(SEED_PASSWORD, 12);
 
   // Idempotent: wipe any prior seed user; the cascade clears the profile and
