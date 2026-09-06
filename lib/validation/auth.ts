@@ -20,6 +20,9 @@ export const loginSchema = z.object({
   password: z.string().min(1, { error: "Password is required." }),
 });
 
+/** Asking for a reset link. The address is all it takes. */
+export const forgotPasswordSchema = z.object({ email: normalizedEmail });
+
 /**
  * Which of the two products this account is for.
  *

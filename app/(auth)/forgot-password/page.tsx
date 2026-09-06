@@ -1,29 +1,45 @@
 import Link from "next/link";
+import { canSendEmail } from "@/lib/email/config";
+import { ForgotPasswordForm } from "./forgot-password-form";
 
 /**
  * What to do when you cannot get in.
  *
- * This page explains a manual process instead of offering a "send me a link"
- * form, and that is a deliberate choice rather than an unfinished one.
+ * TWO VERSIONS, chosen by whether this deployment can actually send mail.
  *
- * There is no email provider configured for this instance, and adding one is
- * not just a dependency: sending to an address the owner does not control
- * requires a verified sending domain, and without one the mail either fails or
- * lands in spam — which is worse than no button, because the person waits for
- * something that is never arriving.
+ * With a provider configured, the form: type an address, get a link. Without
+ * one, the manual instructions this page has always carried — ask whoever runs
+ * the instance, they mint a link with scripts/reset-link.ts and send it over.
  *
- * A form that silently does nothing would be the dishonest version of this
- * page. The instance is invite-only and its users know who runs it, so the
- * owner minting a link (scripts/reset-link.ts) and sending it over is a path
- * that actually works today.
+ * The fallback is not a placeholder. Sending from a domain nobody has verified
+ * gets the mail rejected or filed as spam, and a form that accepts an address
+ * and silently sends nothing is worse than no form at all: it leaves somebody
+ * refreshing an inbox instead of asking a person who could have helped them in
+ * a minute. So the honest page is whichever one matches reality — see
+ * lib/email/config.ts, which fails closed for the same reason.
  *
- * Note what this page does NOT do: it never takes an address and never says
- * whether one has an account. That is the property to preserve if a self-serve
- * form is added later — the response must be identical for a registered and an
- * unregistered address, or the form becomes a way to enumerate who is here.
+ * What NEITHER version does is say whether an address has an account. The old
+ * page managed it by never taking an address at all; the form manages it by
+ * answering identically whatever happened — see RESET_REQUESTED_MESSAGE. That
+ * property is the one to preserve through any future edit here, because a form
+ * that answers differently is a way to enumerate who uses this app, and who
+ * uses this app is mostly minors.
  */
 export default function ForgotPasswordPage() {
   const contact = process.env.PASSWORD_RESET_CONTACT?.trim();
+
+  if (canSendEmail()) {
+    return (
+      <div>
+        <h1 className="mb-1 text-xl font-semibold">Forgot your password?</h1>
+        <p className="mb-4 text-sm text-zinc-500">
+          Enter the address on your account and we&apos;ll send you a link to
+          choose a new password.
+        </p>
+        <ForgotPasswordForm />
+      </div>
+    );
+  }
 
   return (
     <div>

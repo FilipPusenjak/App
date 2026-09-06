@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import {
   hashResetToken,
   mintResetToken,
+  RESET_REQUESTS_PER_HOUR,
   resetTokenExpiry,
   resetTokenState,
   type ResetTokenState,
@@ -50,6 +51,39 @@ export async function issueResetToken(
   ]);
 
   return { token, expiresAt, userId: user.id };
+}
+
+/**
+ * The PUBLIC path's version: issue a link for an address, or quietly do
+ * nothing.
+ *
+ * Returns null for every reason it might decline — no such account, or that
+ * account has already been sent its hourly allowance — and the caller must
+ * treat all of them identically. That is the whole design: the forgot-password
+ * form is reachable by anyone, and a form that answers differently for a
+ * registered address is a way to find out who has an account here. Which, for
+ * a product whose users are mostly minors, is not a small thing to leak.
+ *
+ * The throttle is deliberately INSIDE this function rather than in the caller,
+ * so there is no way to reach the issuing path without it.
+ */
+export async function requestResetToken(
+  email: string,
+): Promise<{ token: string; expiresAt: Date } | null> {
+  const normalized = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: { email: normalized },
+    select: { id: true },
+  });
+  if (!user) return null;
+
+  const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recent = await prisma.passwordResetToken.count({
+    where: { userId: user.id, createdAt: { gte: anHourAgo } },
+  });
+  if (recent >= RESET_REQUESTS_PER_HOUR) return null;
+
+  return issueResetToken(email);
 }
 
 export type ConsumeResult =

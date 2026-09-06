@@ -89,6 +89,38 @@ model User {
   /// Test-access codes this account has redeemed, and the runs they bought.
   codeRedemptions AccessCodeRedemption[]
   runCredits      RunCredit[]
+
+  /// Set when this account has asked to stop receiving check-in reminders.
+  ///
+  /// A timestamp rather than a boolean, because "when did they opt out" is the
+  /// question anyone investigating a complaint actually asks, and a boolean
+  /// answers it with a shrug. Null means still subscribed.
+  ///
+  /// Reminders are the ONLY thing this governs. A password reset is something
+  /// the account holder just asked for, and honouring an unsubscribe against it
+  /// would lock somebody out of their own account.
+  remindersOptOutAt DateTime?
+
+  /// Secret that lets an unsubscribe link work without logging in.
+  ///
+  /// Necessarily a bearer credential in a URL — that is what a one-click
+  /// unsubscribe is — so it is scoped to exactly one irreversible-by-a-stranger
+  /// action: stopping mail. It can never read a profile, change a password, or
+  /// sign anybody in, so the worst a leaked one does is what its holder could
+  /// achieve by marking the mail as spam anyway.
+  ///
+  /// Null until the first reminder is sent, so accounts that are never mailed
+  /// never carry one.
+  unsubscribeToken String? @unique
+
+  /// When the last check-in reminder actually went out.
+  ///
+  /// Written only after the provider accepts the message, which is what makes
+  /// the nudge job safe to run repeatedly and safe to interrupt: a send that
+  /// failed leaves this untouched and is retried on the next pass, and a send
+  /// that succeeded is never repeated within the cooling-off window. A cron
+  /// that fires twice, or a job that dies halfway, cannot mail anybody twice.
+  remindersLastSentAt DateTime?
 }
 
 /// A paid plan an account holds, mirrored from Stripe.
