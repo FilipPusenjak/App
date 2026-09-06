@@ -16,4 +16,4 @@ export {
   buildUserPromptParts,
   budgetNote,
   PROMPT_VERSION,
-} from "./v11";
+} from "./v12";

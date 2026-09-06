@@ -84,6 +84,11 @@ export const VERSION_HISTORY: VersionEntry[] = [
     redefined: [],
     why: "Adds proposed commitments, which the retired Deep Review tier used to produce. Purely an addition to the output — a student's numbers must not move because the shape grew a field.",
   },
+  {
+    version: "evaluation/v12",
+    redefined: [],
+    why: "Asks for about four sentences in each per-target and per-item section, which is where nearly half a review's cost went. A length instruction on prose; no score means anything different.",
+  },
 ];
 
 /**

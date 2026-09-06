@@ -27,8 +27,16 @@
 import { z } from "zod";
 import {
   evaluationResultSchema,
+  itemAssessmentSchema,
+  schoolFitSchema,
   type EvaluationResult,
 } from "./evaluation";
+import {
+  KEY_RISKS_CEILING,
+  KEY_RISKS_TARGET,
+  SECTION_CEILING_CHARS,
+  tooLongMessage,
+} from "./evaluation-limits";
 
 /**
  * The headline reading: the numbers, what they mean, and how they moved.
@@ -91,6 +99,57 @@ export const evaluationWireSchema = evaluationResultSchema
   });
 
 export type EvaluationWireResult = z.infer<typeof evaluationWireSchema>;
+
+/**
+ * The wire schema WITH the length ceilings on the sections that multiply.
+ *
+ * This is what a response is validated against. It is deliberately NOT what
+ * is handed to the API as the output grammar — that stays evaluationWireSchema,
+ * unchanged, for two reasons:
+ *
+ *   - The grammar has a size budget (tests/unit/structured-output.test.ts) and
+ *     proven behaviour on every review to date. Adding constraints changes what
+ *     the API does on every call, to enforce something the prompt already asks
+ *     for.
+ *   - A ceiling in the grammar would TRUNCATE mid-sentence; a ceiling at
+ *     validation rejects and retries with a note saying what to fix. Only the
+ *     second produces a review a student can read.
+ *
+ * It is also deliberately NOT on evaluationResultSchema, which
+ * storedEvaluationResultSchema extends: rows written before this existed carry
+ * longer prose, and a ceiling there would make them fail to parse and render
+ * as "no result was stored". Stored rows are read exactly as they always were.
+ *
+ * See lib/validation/evaluation-limits.ts for the numbers and why there are
+ * two of them.
+ */
+const boundedProse = (field: string) =>
+  z.string().max(SECTION_CEILING_CHARS, { error: tooLongMessage(field) });
+
+const boundedSchoolFitSchema = schoolFitSchema.extend({
+  classificationReason: boundedProse("classificationReason"),
+  assessment: boundedProse("assessment"),
+  keyRisks: z
+    .array(boundedProse("a key risk"))
+    .max(KEY_RISKS_CEILING, {
+      error: `keyRisks lists far more than asked for — keep it to at most ${KEY_RISKS_TARGET}.`,
+    })
+    .optional()
+    .default([]),
+});
+
+const boundedItemAssessmentSchema = itemAssessmentSchema.extend({
+  compoundsInto: boundedProse("compoundsInto"),
+  verdict: boundedProse("verdict"),
+  howToStrengthen: boundedProse("howToStrengthen"),
+});
+
+export const evaluationOutputSchema = evaluationWireSchema.extend({
+  schoolFits: z.array(boundedSchoolFitSchema),
+  itemAssessments: z.array(boundedItemAssessmentSchema),
+});
+
+export type EvaluationOutputResult = z.infer<typeof evaluationOutputSchema>;
 
 /** Flatten the wire envelope back into the shape everything else expects. */
 export function fromWireResult(wire: EvaluationWireResult): EvaluationResult {

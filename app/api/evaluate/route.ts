@@ -69,6 +69,7 @@ import {
 } from "@/lib/prompts/evaluation";
 import type { EvaluationResult } from "@/lib/validation/evaluation";
 import {
+  evaluationOutputSchema,
   evaluationWireSchema,
   fromWireResult,
 } from "@/lib/validation/evaluation-wire";
@@ -590,8 +591,11 @@ export async function POST(request: Request) {
       };
     };
 
+    // Validated against the schema WITH the length ceilings, while the grammar
+    // handed to the API stays the unbounded one — see evaluationOutputSchema
+    // for why those are two different schemas.
     let outcome = parseModelJson(
-      evaluationWireSchema,
+      evaluationOutputSchema,
       await attempt(),
       "model's response",
     );
@@ -623,7 +627,7 @@ export async function POST(request: Request) {
     ) {
       console.warn("Evaluation response unusable; retrying once:", outcome.reason);
       const retried = parseModelJson(
-        evaluationWireSchema,
+        evaluationOutputSchema,
         await attempt(renderRetryNote(outcome.reason), retryAllowance),
         "model's response",
       );

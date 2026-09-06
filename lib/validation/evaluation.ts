@@ -80,7 +80,7 @@ export const SELECTIVITY_TIERS = [
 export const selectivitySchema = z.enum(SELECTIVITY_TIERS);
 export type Selectivity = (typeof SELECTIVITY_TIERS)[number];
 
-const schoolFitSchema = z.object({
+export const schoolFitSchema = z.object({
   schoolName: z.string(),
   course: z.string(),
   /** Which rubric was applied — surfaced in the UI so the branch is visible. */
