@@ -21,6 +21,43 @@
 // order and nothing has to be configured by hand on the common setups.
 import { spawnSync } from "node:child_process";
 
+// PRODUCTION DEPLOYS ONLY, ON VERCEL.
+//
+// This script runs from `build`, and on Vercel `build` runs for EVERY
+// deployment — previews included. Preview and production resolve the same
+// DATABASE_URL unless somebody has deliberately split them, so without this
+// guard every branch push migrates the production database: a schema change
+// reaches real data on `git push`, before review, before merge, and without
+// anybody deciding to deploy it. That was observed, not theorised — an
+// additive migration landed in production from a preview build.
+//
+// Additive columns survive that. A destructive migration on a branch still
+// being iterated on does not, and there is no undo.
+//
+// VERCEL_ENV is "production" | "preview" | "development" and is UNSET off
+// Vercel, so a local `npm run build`, CI, and any other host keep migrating
+// exactly as before — the guard narrows one platform's behaviour, it does not
+// change what a migration means everywhere else.
+//
+// MIGRATE_ON_PREVIEW re-opens it for the setup that makes previews safe:
+// giving Preview its own DATABASE_URL (a Neon branch, say). At that point
+// preview builds SHOULD migrate, because the database they would migrate is
+// their own — so this is a variable to set, not a line to delete.
+const vercelEnv = process.env.VERCEL_ENV;
+if (
+  vercelEnv &&
+  vercelEnv !== "production" &&
+  !process.env.MIGRATE_ON_PREVIEW?.trim()
+) {
+  console.log(
+    `Skipping migrations: VERCEL_ENV is "${vercelEnv}", not "production". ` +
+      `This deployment shares the production database, and a preview build ` +
+      `has no business changing its schema. Set MIGRATE_ON_PREVIEW=1 once ` +
+      `previews have a database of their own.`,
+  );
+  process.exit(0);
+}
+
 const CANDIDATES = [
   // Set this yourself to override everything below.
   "DIRECT_URL",
