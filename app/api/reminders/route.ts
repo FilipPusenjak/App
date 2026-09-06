@@ -10,6 +10,25 @@
 // which is most of them and is the correct behaviour rather than a degraded
 // one — see lib/email/config.ts.
 //
+// NOT SCHEDULED IN vercel.json YET, and that is deliberate rather than
+// forgotten. Vercel's Hobby plan caps how many cron jobs a project may have,
+// and this project already uses two (triage and retention). A third could be
+// refused, and the way you find out is a FAILED DEPLOYMENT — a bad trade for a
+// job that cannot send anything until a sending domain exists anyway.
+//
+// To turn it on, once RESEND_API_KEY and EMAIL_FROM are set and the dashboard
+// confirms the plan allows a third cron, add to vercel.json:
+//
+//   { "path": "/api/reminders", "schedule": "0 16 * * 2" }
+//
+// Weekly rather than fortnightly on purpose: the job decides who is due, so
+// running it often only means a lapsed student is noticed within a week
+// instead of waiting for a fixed date to come round. Until then it can be run
+// by hand with the CRON_SECRET:
+//
+//   curl -X POST -H "Authorization: Bearer $CRON_SECRET" \
+//     https://your-app/api/reminders
+//
 // WHO GETS MAILED is decided in lib/email/reminders.ts, which is pure and is
 // the file to read (or argue with) rather than this one. This route is the
 // plumbing: load candidates, apply the rules, send, record.

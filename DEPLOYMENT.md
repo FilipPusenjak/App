@@ -124,10 +124,44 @@ you use it). There are no `.env` files in production — these *are* the config.
 | `SESSION_PREP_BUDGET_USD` | No | Ceiling for ONE counselor session prep. Default 0.12, same construction. |
 | `RETENTION_INPUT_SNAPSHOT_DAYS` | No | Days before the profile snapshot taken at each evaluation is deleted. Default 60. `0` keeps it forever. |
 | `RETENTION_RESULT_DAYS` | No | Days before the evaluation write-up is deleted. Default 365. `0` keeps it forever. **Scores are never deleted** — the progress chart still covers every year. |
-| `CRON_SECRET` | For triage, retention and reminders | Bearer token the scheduled jobs authenticate with — nightly counselor triage, the weekly retention sweep, and the weekly check-in reminder. `vercel.json` schedules all three, and Vercel sets this header for you once the variable exists. **Fails closed: unset means no request is ever treated as the scheduler**, so triage only runs when a signed-in counselor asks for their own caseload, the retention sweep never runs at all — nothing is deleted — and no reminder is ever sent. |
+| `CRON_SECRET` | For triage, retention and reminders | Bearer token the scheduled jobs authenticate with. `vercel.json` schedules two of them — nightly counselor triage and the weekly retention sweep — and Vercel sets this header for you once the variable exists. **Fails closed: unset means no request is ever treated as the scheduler**, so triage only runs when a signed-in counselor asks for their own caseload, the retention sweep never runs at all — nothing is deleted — and no reminder is ever sent. The reminder job is deliberately NOT scheduled yet: see below. |
 | `RESEND_API_KEY` | For any email | Turns on password-reset emails and check-in reminders. **Requires a domain you control**: a `*.vercel.app` address cannot be verified with any provider, because you cannot add DNS records to it. Unset means the app sends nothing, `/forgot-password` shows the manual instructions, and the reminder job exits reporting "not configured". |
 | `EMAIL_FROM` | With `RESEND_API_KEY` | The From address, on the domain you verified at <https://resend.com/domains>. A display name is optional: `Course Correction <hello@yourdomain.com>`. |
 | `APP_URL` | With `RESEND_API_KEY` | Where the app is served from, e.g. `https://yourdomain.com`. Every link in every email is built from it. Falls back to `AUTH_URL`, `NEXTAUTH_URL` or `VERCEL_URL`; with none of them set, no email is sent at all rather than one whose links go nowhere. |
+
+### Turning on check-in reminders
+
+The reminder job exists at `/api/reminders` but is **not scheduled**. Two
+things have to be true before it is worth scheduling, and neither is something
+the code can decide for you:
+
+1. **A verified sending domain**, with `RESEND_API_KEY` and `EMAIL_FROM` set.
+   Without it the job runs, finds no provider, and exits — harmless, but
+   pointless.
+2. **Room for a third cron job.** Vercel's Hobby plan caps how many a project
+   may have, and this one already uses two. Check the cron limit for your plan
+   in the Vercel dashboard first: if a third is refused, you find out through a
+   failed deployment.
+
+With both true, add to `vercel.json`:
+
+```json
+{ "path": "/api/reminders", "schedule": "0 16 * * 2" }
+```
+
+Weekly rather than fortnightly is deliberate. The job decides who is actually
+due (see `lib/email/reminders.ts`), so running it more often only means a
+lapsed student is noticed within a week rather than waiting for a fixed date.
+
+To run it by hand at any time, with `CRON_SECRET` set:
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-app/api/reminders
+```
+
+It reports what it did — `{"configured":false}` when there is no provider, or
+`{"considered":N,"sent":N,"failed":N}` when there is. Sending is capped per
+run and paced per person, so running it twice by accident mails nobody twice.
 | `COUNSELOR_PRICE_PER_LINK_USD` | No | List price per active student per month, used only by the internal cost view's margin arithmetic. Default 12. Nothing in this app charges anybody. |
 | `OPERATOR_EMAILS` | No | Comma-separated addresses that may read `/operations` — the internal cost-per-caseload view, and the access-code minting form. **Fails closed** — unset means nobody, and the page 404s for everyone else. |
 | `EVAL_COOLDOWN_SECONDS` | No | Default 20. |
