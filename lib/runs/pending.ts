@@ -10,10 +10,10 @@
 // gone, but the run is not: it is a serverless function still working, and its
 // row has said `pending` since before the model was called.
 //
-// A check-in is deliberately absent here, and it is not an oversight. That
-// route writes its row at the END rather than the start, so there is no
-// pending row to find while one is in flight — see the note in
-// app/(app)/run-progress.tsx about what that costs.
+// All three run kinds open a pending row before calling the model, so all
+// three are findable here. The check-in was the last to do so: it used to
+// write its row only at the end, which made it the one run this query could
+// not see and the one whose banner did not survive a reload.
 import { prisma } from "@/lib/db";
 import { getOrCreateProfile } from "@/lib/ownership";
 import { isStale, type InFlightRun, type RunKind } from "./in-flight";

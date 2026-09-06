@@ -59,10 +59,22 @@ export type TokenUsage = {
  *
  * Never throws: this is called on the error path, and a failure to record a
  * failure must not replace the message the student was about to be given.
+ *
+ * Takes an `existingId` when the caller already opened a `pending` row before
+ * calling the model — which is now every caller that can be interrupted. That
+ * row IS this run, so it is completed in place rather than left pending beside
+ * a second row describing the same attempt.
  */
 export async function recordTierFailure(input: {
   profileId: string;
   type: "DEEP_REVIEW" | "CHECK_IN";
+  /**
+   * The pending row this run already owns, if there is one.
+   *
+   * Absent means create a fresh failed row, which is the older shape and still
+   * correct for a caller with nothing open.
+   */
+  existingId?: string | null;
   model: string;
   promptVersion: string;
   rubricVersion?: string | null;
@@ -81,25 +93,35 @@ export async function recordTierFailure(input: {
    */
   rawOutput?: string | null;
 }): Promise<string | null> {
+  const fields = {
+    type: input.type,
+    status: "failed",
+    error: input.error,
+    // Truncated: this is a debugging artifact, not a document, and an
+    // unbounded model response has no business sizing a database row.
+    resultJson: input.rawOutput ? input.rawOutput.slice(0, 8000) : null,
+    completedAt: new Date(),
+    model: input.model,
+    promptVersion: input.promptVersion,
+    rubricVersion: input.rubricVersion ?? null,
+    sourceDataVersion: input.sourceDataVersion ?? null,
+    precedingEvaluationId: input.precedingEvaluationId ?? null,
+    ...input.usage,
+    costCents: Math.round((estimateCost(input.usage, input.model) ?? 0) * 100),
+  };
+
   try {
+    if (input.existingId) {
+      const row = await prisma.evaluation.update({
+        where: { id: input.existingId },
+        data: fields,
+        select: { id: true },
+      });
+      return row.id;
+    }
+
     const row = await prisma.evaluation.create({
-      data: {
-        profileId: input.profileId,
-        type: input.type,
-        status: "failed",
-        error: input.error,
-        // Truncated: this is a debugging artifact, not a document, and an
-        // unbounded model response has no business sizing a database row.
-        resultJson: input.rawOutput ? input.rawOutput.slice(0, 8000) : null,
-        completedAt: new Date(),
-        model: input.model,
-        promptVersion: input.promptVersion,
-        rubricVersion: input.rubricVersion ?? null,
-        sourceDataVersion: input.sourceDataVersion ?? null,
-        precedingEvaluationId: input.precedingEvaluationId ?? null,
-        ...input.usage,
-        costCents: Math.round((estimateCost(input.usage, input.model) ?? 0) * 100),
-      },
+      data: { profileId: input.profileId, ...fields },
       select: { id: true },
     });
     return row.id;

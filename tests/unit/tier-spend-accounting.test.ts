@@ -111,4 +111,60 @@ describe("a check-in retries once before giving up", () => {
     expect(afterRetry).toMatch(/banned\.length > 0/);
     expect(afterRetry).toMatch(/recordTierFailure/);
   });
+
+  it("does not let a throwing retry bury the first failure", () => {
+    // The retry is a network call like any other. If IT throws, the run must
+    // still report the original problem rather than an exception raised while
+    // trying to fix it.
+    const afterRetry = source.slice(source.indexOf("renderRetryNote("));
+    expect(afterRetry).toMatch(/catch/);
+  });
+});
+
+describe("a check-in is visible while it runs", () => {
+  const source = readFileSync("app/api/evaluations/check-in/route.ts", "utf8");
+  const callIndex = source.indexOf("client.messages.create");
+
+  it("opens its row BEFORE calling the model", () => {
+    // The whole point. Nothing outside this request could see a check-in in
+    // progress while the row was written only at the end, so the "still
+    // running" strip — which reads pending rows — had nothing to find after a
+    // reload, on a second tab, or on another device.
+    //
+    // Measured against where the model is CALLED, not where the call is
+    // written: `attempt` is defined near the top and invoked much lower, so
+    // the definition's position says nothing about execution order.
+    const pendingIndex = source.indexOf('status: "pending"');
+    const firstAttempt = source.indexOf("await attempt()");
+    expect(pendingIndex).toBeGreaterThan(-1);
+    expect(firstAttempt).toBeGreaterThan(-1);
+    expect(pendingIndex).toBeLessThan(firstAttempt);
+  });
+
+  it("completes that row rather than opening a second one", () => {
+    // A create on the success path would leave the pending row behind
+    // forever, and the student would carry a permanent phantom run.
+    const creates = source.match(/prisma\.evaluation\.create/g) ?? [];
+    // Exactly two: the no-change path (which calls no model and needs no
+    // pending row) and the pending row itself.
+    expect(creates).toHaveLength(2);
+    expect(source).toMatch(/prisma\.evaluation\.update\(\{\s*where: \{ id: run\.id \}/);
+  });
+
+  it("hands every failure path the row it already owns", () => {
+    // Otherwise recordTierFailure writes a SECOND row describing the same
+    // attempt and the first stays pending next to it.
+    const postSpend = source.slice(callIndex);
+    for (const call of postSpend.match(/recordTierFailure\(\{[\s\S]*?\n {4}\}\)/g) ?? []) {
+      expect(call).toMatch(/failureContextFor\(run\.id\)/);
+    }
+  });
+
+  it("refunds a run that threw, now that there is a row to refund against", () => {
+    // authorizeRun spends the credit before the model is called. Without a row
+    // there was no runId to give it back against, so an exception charged the
+    // student for nothing at all.
+    const thrown = source.slice(callIndex, source.indexOf("safeParse"));
+    expect(thrown).toMatch(/refundFailedRun/);
+  });
 });

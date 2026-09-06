@@ -215,6 +215,20 @@ export async function POST() {
     cacheReadTokens: 0,
   };
 
+  // Built at call time rather than up front, because `usage` accumulates across
+  // attempts and a snapshot taken before the retry would understate the bill.
+  const failureContextFor = (existingId: string) => ({
+    profileId: data.profileId,
+    type: "CHECK_IN" as const,
+    existingId,
+    model,
+    promptVersion: CHECK_IN_PROMPT_VERSION,
+    rubricVersion: data.scored.rubricVersion,
+    sourceDataVersion: SOURCE_DATA_VERSION,
+    precedingEvaluationId: data.preceding?.id ?? null,
+    usage,
+  });
+
   const attempt = async (extra = "", max = allowance): Promise<string> => {
     const message = await client.messages.create({
       model,
@@ -243,7 +257,59 @@ export async function POST() {
       .join("");
   };
 
-  let text = await attempt();
+  // ── The row, opened BEFORE the model is called ────────────────────────────
+  //
+  // This route used to write its row only at the end, on the reasoning that a
+  // check-in either produces a narrative or produces nothing. Two things make
+  // that wrong.
+  //
+  // The visible one: nothing outside this request knew a check-in was running.
+  // A student who started one and reloaded, or opened the app on their phone,
+  // saw no sign of it — the "still running" strip reads pending rows, and a
+  // Deep Review and a projection both had one where this did not.
+  //
+  // The one that costs money: authorizeRun has already spent the credit by
+  // now. If the model call throws, there was no row to record the failure
+  // against and therefore nothing for refundFailedRun to give back, so the
+  // student paid for a run that produced nothing and left no trace. Every
+  // failure path below now completes THIS row rather than opening a new one.
+  const run = await prisma.evaluation.create({
+    data: {
+      profileId: data.profileId,
+      type: "CHECK_IN",
+      status: "pending",
+      model,
+      promptVersion: CHECK_IN_PROMPT_VERSION,
+      precedingEvaluationId: data.preceding?.id ?? null,
+    },
+    select: { id: true },
+  });
+
+  let text: string;
+  try {
+    text = await attempt();
+  } catch (error) {
+    // An exception, not an unusable answer: no response came back at all, so
+    // there is nothing to parse and nothing to retry against a correction.
+    const messageText =
+      error instanceof Error ? error.message : "Unknown error.";
+    await recordTierFailure({
+      ...failureContextFor(run.id),
+      error: `The check-in could not be completed: ${messageText}`,
+    });
+    await refundFailedRun({
+      userId: user.id,
+      kind: "CHECK_IN",
+      runId: run.id,
+      usingCredit: quota?.usingCredit ?? false,
+    });
+    console.error("Check-in failed:", error);
+    return NextResponse.json(
+      { id: run.id, error: "The check-in could not be completed." },
+      { status: 502 },
+    );
+  }
+
   let parsed = checkInNarrativeSchema.safeParse(safeJson(text));
   let banned = parsed.success ? findBannedPhrasing(parsed.data) : [];
 
@@ -278,15 +344,25 @@ export async function POST() {
         ? `Fields the app could not accept: ${describeShapeFailure(parsed.error)}.`
         : `It contained phrasing this app never uses (${banned.join(", ")}). Never state or imply a probability, chance or odds of admission.`;
       console.warn("Check-in response unusable; retrying once:", reason);
-      const retryText = await attempt(renderRetryNote(reason), retryAllowance);
-      const retryParsed = checkInNarrativeSchema.safeParse(safeJson(retryText));
-      const retryBanned = retryParsed.success
+      // A throwing retry must not replace a first failure we can still
+      // describe. Swallowed to the log for the same reason the adoption below
+      // is conditional: the original problem is the one worth reporting.
+      let retryText: string | null = null;
+      try {
+        retryText = await attempt(renderRetryNote(reason), retryAllowance);
+      } catch (error) {
+        console.error("Check-in retry threw; keeping the first failure:", error);
+      }
+      const retryParsed = retryText
+        ? checkInNarrativeSchema.safeParse(safeJson(retryText))
+        : null;
+      const retryBanned = retryParsed?.success
         ? findBannedPhrasing(retryParsed.data)
         : [];
       // Only adopted if it is actually usable. A second unusable answer leaves
       // the FIRST failure reported, because that one describes the original
       // problem rather than the model's response to a correction.
-      if (retryParsed.success && retryBanned.length === 0) {
+      if (retryText && retryParsed?.success && retryBanned.length === 0) {
         text = retryText;
         parsed = retryParsed;
         banned = [];
@@ -294,20 +370,9 @@ export async function POST() {
     }
   }
 
-  const failureContext = {
-    profileId: data.profileId,
-    type: "CHECK_IN" as const,
-    model,
-    promptVersion: CHECK_IN_PROMPT_VERSION,
-    rubricVersion: data.scored.rubricVersion,
-    sourceDataVersion: SOURCE_DATA_VERSION,
-    precedingEvaluationId: data.preceding?.id ?? null,
-    usage,
-  };
-
   if (!parsed.success) {
     const id = await recordTierFailure({
-      ...failureContext,
+      ...failureContextFor(run.id),
       error:
         `The check-in came back in a shape the app could not read, so it was discarded. ` +
         `This run still cost what it used — that cost is recorded here. ` +
@@ -336,7 +401,7 @@ export async function POST() {
   // retry above either had no room or offended a second time.
   if (banned.length > 0) {
     const id = await recordTierFailure({
-      ...failureContext,
+      ...failureContextFor(run.id),
       error: `The check-in was discarded for containing disallowed phrasing (${banned.join(", ")}). This app never states odds of admission. This run still cost what it used — that cost is recorded here.`,
     });
     // Our refusal, not the student's doing — so it is not charged to them
@@ -355,10 +420,10 @@ export async function POST() {
     );
   }
 
-  const evaluation = await prisma.evaluation.create({
+  // The pending row opened before the model call, completed in place.
+  const evaluation = await prisma.evaluation.update({
+    where: { id: run.id },
     data: {
-      profileId: data.profileId,
-      type: "CHECK_IN",
       status: "completed",
       completedAt: new Date(),
       materialChange: true,
