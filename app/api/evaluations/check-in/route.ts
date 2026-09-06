@@ -41,7 +41,9 @@ import {
   MIN_USEFUL_OUTPUT_TOKENS,
   estimateInputTokens,
   maxOutputTokensFor,
+  remainingBudget,
 } from "@/lib/cost-budget";
+import { renderRetryNote } from "@/lib/structured-output";
 import { rungMap } from "@/lib/readiness/score";
 
 export const maxDuration = 120;
@@ -204,26 +206,94 @@ export async function POST() {
     );
   }
 
-  const message = await client.messages.create({
-    model,
-    max_tokens: allowance,
-    system: CHECK_IN_SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-    // Explicit, for the same reason as the deep review. getFollowupEffort
-    // defaults to the baseline effort rather than dropping it: a check-in that
-    // both changed model AND lowered effort would make an unexplained movement
-    // impossible to attribute to either.
-    output_config: { format: OUTPUT_FORMAT, effort: getFollowupEffort() as Effort },
-  });
-
-  // Read the usage BEFORE anything can reject the output — everything below is
-  // a path where the tokens are already spent. See lib/evaluation/record-failure.
+  // Accumulated across attempts rather than assigned, because a retry is a
+  // SECOND BILL and reporting only the last one would understate the run.
   const usage = {
-    inputTokens: message.usage.input_tokens,
-    outputTokens: message.usage.output_tokens,
-    cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-    cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheWriteTokens: 0,
+    cacheReadTokens: 0,
   };
+
+  const attempt = async (extra = "", max = allowance): Promise<string> => {
+    const message = await client.messages.create({
+      model,
+      max_tokens: max,
+      system: CHECK_IN_SYSTEM_PROMPT,
+      // A correction is appended AFTER the prompt, so the first attempt's
+      // wording is untouched and the model is answering the same question
+      // with one more instruction rather than a different question.
+      messages: [
+        { role: "user", content: extra ? `${userPrompt}\n\n${extra}` : userPrompt },
+      ],
+      // Explicit, for the same reason as the deep review. getFollowupEffort
+      // defaults to the baseline effort rather than dropping it: a check-in that
+      // both changed model AND lowered effort would make an unexplained movement
+      // impossible to attribute to either.
+      output_config: { format: OUTPUT_FORMAT, effort: getFollowupEffort() as Effort },
+    });
+    // Read the usage BEFORE anything can reject the output — every path below
+    // is one where the tokens are already spent.
+    usage.inputTokens += message.usage.input_tokens ?? 0;
+    usage.outputTokens += message.usage.output_tokens ?? 0;
+    usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+    usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+    return message.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("");
+  };
+
+  let text = await attempt();
+  let parsed = checkInNarrativeSchema.safeParse(safeJson(text));
+  let banned = parsed.success ? findBannedPhrasing(parsed.data) : [];
+
+  // ── One retry, told what was wrong with the last answer ───────────────────
+  //
+  // The Deep Review has had this since it was written, and the reasoning is
+  // the same: generation is stochastic, a single malformed response is usually
+  // not repeated, and losing a whole run to one bad roll is a much worse
+  // outcome than one extra request. The check-in simply never got it — the
+  // only check-in that has ever failed in production failed exactly this way,
+  // on a shape the app could not read, with no second attempt.
+  //
+  // BANNED PHRASING IS RETRIED TOO, and that is deliberate. It is the same
+  // kind of fault — the model wrote something it was told not to — and a
+  // correction naming the phrase is very likely to fix it. What does NOT
+  // change is the refusal to store it: if the retry offends as well, nothing
+  // is written, exactly as before. Retrying is not softening the constraint.
+  //
+  // Sized from what the ceiling has left AFTER the first attempt, whose usage
+  // is exact rather than estimated, so the pair still cannot exceed the
+  // per-check-in budget. Below the floor, there is no room for a second answer
+  // worth having and the first failure stands.
+  if (!parsed.success || banned.length > 0) {
+    const retryAllowance = maxOutputTokensFor({
+      budgetUsd: remainingBudget(RUN_BUDGET_USD.CHECK_IN, usage, model),
+      inputTokens: promptTokens,
+      model,
+      cachesInput: false,
+    });
+    if (retryAllowance >= MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN) {
+      const reason = !parsed.success
+        ? `Fields the app could not accept: ${describeShapeFailure(parsed.error)}.`
+        : `It contained phrasing this app never uses (${banned.join(", ")}). Never state or imply a probability, chance or odds of admission.`;
+      console.warn("Check-in response unusable; retrying once:", reason);
+      const retryText = await attempt(renderRetryNote(reason), retryAllowance);
+      const retryParsed = checkInNarrativeSchema.safeParse(safeJson(retryText));
+      const retryBanned = retryParsed.success
+        ? findBannedPhrasing(retryParsed.data)
+        : [];
+      // Only adopted if it is actually usable. A second unusable answer leaves
+      // the FIRST failure reported, because that one describes the original
+      // problem rather than the model's response to a correction.
+      if (retryParsed.success && retryBanned.length === 0) {
+        text = retryText;
+        parsed = retryParsed;
+        banned = [];
+      }
+    }
+  }
+
   const failureContext = {
     profileId: data.profileId,
     type: "CHECK_IN" as const,
@@ -235,11 +305,6 @@ export async function POST() {
     usage,
   };
 
-  const text = message.content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("");
-
-  const parsed = checkInNarrativeSchema.safeParse(safeJson(text));
   if (!parsed.success) {
     const id = await recordTierFailure({
       ...failureContext,
@@ -267,8 +332,8 @@ export async function POST() {
 
   // Last line of defence on the hard constraint. A banned phrasing reaching a
   // student is worse than a failed check-in, so this refuses to store it — but
-  // the attempt is still recorded, with what it cost.
-  const banned = findBannedPhrasing(parsed.data);
+  // the attempt is still recorded, with what it cost. Reaching here means the
+  // retry above either had no room or offended a second time.
   if (banned.length > 0) {
     const id = await recordTierFailure({
       ...failureContext,

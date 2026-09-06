@@ -11,6 +11,10 @@ import {
   DevelopmentItem,
 } from "@/components/developments/composer";
 import { getOwnedDevelopments } from "@/lib/developments";
+import {
+  canRunEvaluation,
+  firstRunSteps,
+} from "@/lib/evaluation/prerequisites";
 
 const card =
   "rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5";
@@ -24,6 +28,11 @@ export default async function DashboardPage() {
   ]);
   const multiStudent = profiles.length > 1;
   const { latest, gaps } = data;
+  // Whether a Deep Review is reachable at all, and what is in the way — the
+  // same rule the Evaluations page disables its button with.
+  const ready = canRunEvaluation(data.counts);
+  const steps = firstRunSteps(data.counts);
+  const shownGaps = ready ? gaps : gaps.filter((gap) => !gap.blocking);
 
   return (
     <div className="space-y-6">
@@ -201,16 +210,73 @@ export default async function DashboardPage() {
             </p>
           )}
         </section>
-      ) : (
+      ) : ready ? (
         <section className={card}>
           <h2 className="text-sm font-medium text-zinc-500">
             No evaluation yet
           </h2>
           <p className="mt-1 max-w-2xl text-zinc-600 dark:text-zinc-400">
-            Build your profile, add the universities you&apos;re aiming at, then
-            run a Deep Review for an honest read on how your profile fits each
-            one — judged by that country&apos;s admissions rubric.
+            Your profile has enough to work with. Run a Deep Review for an
+            honest read on how it fits each of your targets — judged by that
+            country&apos;s admissions rubric.
           </p>
+        </section>
+      ) : (
+        /* WHAT IS MISSING, not "build your profile".
+           The generic version of this card said "build your profile, add the
+           universities you're aiming at, then run a Deep Review" to everybody,
+           which is advice rather than a status — it never said which of those
+           this particular account had already done. Three of the six profiles
+           that could not run anything had already added a target school and
+           stopped, and nothing on the screen they landed on acknowledged that
+           or named the one remaining step. */
+        <section className={card}>
+          <h2 className="text-sm font-medium text-zinc-500">
+            Before your first Deep Review
+          </h2>
+          <p className="mt-1 max-w-2xl text-zinc-600 dark:text-zinc-400">
+            Two things, and you can run one. Nothing here is a form to finish —
+            one entry each is enough to start.
+          </p>
+          <ol className="mt-4 space-y-3">
+            {steps.map((step) => (
+              <li key={step.id} className="flex gap-3">
+                {/* Done is stated, not just implied by absence: seeing the
+                    step you already did ticked is what makes the remaining
+                    one read as "one thing left" rather than "a list". */}
+                <span
+                  aria-hidden="true"
+                  className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                    step.done
+                      ? "bg-emerald-600 text-white"
+                      : "border border-black/15 text-zinc-500 dark:border-white/25"
+                  }`}
+                >
+                  {step.done ? "✓" : ""}
+                </span>
+                <div className="min-w-0">
+                  {step.done ? (
+                    <p className="font-medium text-zinc-500 line-through decoration-zinc-400">
+                      <span className="sr-only">Done: </span>
+                      {step.label}
+                    </p>
+                  ) : (
+                    <Link
+                      href={step.href}
+                      className="font-medium underline underline-offset-2"
+                    >
+                      {step.label}
+                    </Link>
+                  )}
+                  {!step.done && (
+                    <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+                      {step.detail}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
         </section>
       )}
 
@@ -297,15 +363,24 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {gaps.length > 0 && (
+      {/* When the first-run checklist is on screen it OWNS the blocking gaps —
+          it says the same two things, in the order they have to be done. This
+          card keeps what it is uniquely for: the gaps that let an evaluation
+          run but leave it working blind. Showing both lists unfiltered told a
+          student to add a resume item twice on one screen, in two different
+          voices. `blocking` has distinguished the two kinds since gaps were
+          written; nothing had used it. */}
+      {shownGaps.length > 0 && (
         <section className={card}>
           <h2 className="text-sm font-medium text-zinc-500">
             {latest
               ? "This would make your next evaluation sharper"
-              : "Before you evaluate"}
+              : ready
+                ? "Before you evaluate"
+                : "Worth adding while you're here"}
           </h2>
           <ul className="mt-3 space-y-3">
-            {gaps.map((gap) => (
+            {shownGaps.map((gap) => (
               <li key={gap.id}>
                 <Link
                   href={gap.href}

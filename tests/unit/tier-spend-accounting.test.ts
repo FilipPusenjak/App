@@ -73,3 +73,42 @@ describe("tier routes never spend without recording", () => {
     });
   }
 });
+
+// A check-in gets a second chance, on the same money.
+//
+// The Deep Review has retried a malformed response since it was written;
+// the check-in never did, and the only check-in that has ever failed in
+// production failed exactly that way — an unreadable shape, no second
+// attempt, and a student charged for it. Source-level for the same reason as
+// everything above: the claim is about the route's shape, and a behavioural
+// test would need the model to misbehave on demand.
+describe("a check-in retries once before giving up", () => {
+  const source = readFileSync("app/api/evaluations/check-in/route.ts", "utf8");
+
+  it("asks again, told what was wrong", () => {
+    expect(source).toMatch(/renderRetryNote\(/);
+  });
+
+  it("sizes the retry from what the ceiling has left", () => {
+    // A retry is a SECOND BILL. Sized from the first attempt's ACTUAL usage —
+    // exact, not estimated — so the pair still cannot exceed the per-check-in
+    // budget. Without this the "cheap tier" quietly costs twice its cap.
+    expect(source).toMatch(/remainingBudget\(\s*RUN_BUDGET_USD\.CHECK_IN/);
+    expect(source).toMatch(/MIN_USEFUL_OUTPUT_TOKENS\.CHECK_IN/);
+  });
+
+  it("counts both attempts' spend, rather than only the last", () => {
+    // Assignment here would report a retry's bill as if it were the whole run
+    // and hide the first attempt entirely.
+    expect(source).toMatch(/usage\.inputTokens\s*\+=/);
+    expect(source).toMatch(/usage\.outputTokens\s*\+=/);
+  });
+
+  it("still refuses to store banned phrasing after a retry", () => {
+    // Retrying a phrasing violation is a second chance for the MODEL, not a
+    // softening of the rule. If the retry offends too, nothing is stored.
+    const afterRetry = source.slice(source.indexOf("renderRetryNote("));
+    expect(afterRetry).toMatch(/banned\.length > 0/);
+    expect(afterRetry).toMatch(/recordTierFailure/);
+  });
+});

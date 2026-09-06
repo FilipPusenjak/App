@@ -12,6 +12,7 @@ import {
 import { summariseHistoryRow } from "@/lib/evaluation/history";
 import { ScoreTrend } from "@/components/score-trend";
 import { failStalePendingEvaluations } from "@/lib/evaluation/stale-sweep";
+import { blockingReason } from "@/lib/evaluation/prerequisites";
 import { EmptyIcon } from "@/components/ui/empty-icon";
 import { RunEvaluationButton } from "./run-evaluation-button";
 
@@ -103,14 +104,14 @@ export default async function EvaluationsPage() {
     (e) => e.status === "completed" && !e.isSample,
   );
 
-  const noTargets = profile.targetSchools.length === 0;
-  const noContent =
-    profile.resumeItems.length === 0 && profile.testScores.length === 0;
-  const disabledReason = noTargets
-    ? "Add a target school first — the rubric depends on where you're applying."
-    : noContent
-      ? "Add resume items or test scores first — there's nothing to assess yet."
-      : undefined;
+  // The same rule the dashboard's first-run checklist reads, so the two
+  // surfaces cannot disagree about what is still missing — see
+  // lib/evaluation/prerequisites.ts.
+  const disabledReason = blockingReason({
+    targets: profile.targetSchools.length,
+    resumeItems: profile.resumeItems.length,
+    testScores: profile.testScores.length,
+  });
 
   return (
     <div className="space-y-8">
