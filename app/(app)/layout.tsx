@@ -7,6 +7,8 @@ import { isMultiStudent } from "@/lib/students";
 import { StudentSwitcher } from "./student-switcher";
 import { MobileNav } from "./mobile-nav";
 import { NavLink } from "./nav-links";
+import { RunProgressProvider } from "./run-progress";
+import { findInFlightRun } from "@/lib/runs/pending";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
@@ -47,6 +49,11 @@ export default async function AppLayout({
   // itself is gated the same way — see app/(app)/students/page.tsx.
   const showStudents = isMultiStudent(await getOwnedProfiles());
   const nav = NAV.filter((item) => !item.studentsOnly || showStudents);
+
+  // A run already going when this page loads — the browser was reloaded, or
+  // the review was started on another device. Without this the banner would
+  // only ever know about runs THIS tab started.
+  const inFlight = await findInFlightRun();
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -107,9 +114,13 @@ export default async function AppLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        {children}
-      </main>
+      {/* Wraps the children so the run it is tracking survives navigation
+          between them — the point of the whole component. */}
+      <RunProgressProvider serverRun={inFlight}>
+        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {children}
+        </main>
+      </RunProgressProvider>
     </div>
   );
 }

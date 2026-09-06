@@ -120,6 +120,26 @@ export function renderRubric(rubric: Rubric): string {
     "Stage ladder — what each point in school is actually for:",
     stages,
     "",
+    // A stage label names the same point in school in more than one system's
+    // vocabulary ("Final — Year 13 / Grade 12") because the rubric has to be
+    // legible to whoever is being measured against it. The model was reading
+    // those labels and writing back whichever half came first.
+    //
+    // Observed, not hypothetical: a US student in Grade 9 with Oxford among
+    // their targets was told their personal statement was "gated to Year 13".
+    // The UK rubric was correctly applied — they are applying to UK
+    // universities — but Year 13 is not a thing that exists in their school,
+    // so the one sentence explaining WHEN something happens was the one
+    // sentence they could not place.
+    "VOCABULARY: the stage labels above name the same point in school in more",
+    "than one system, because this rubric is applied to students from many.",
+    "When you write about WHERE THE STUDENT IS OR WILL BE, use the naming from",
+    "their own school system — the one their stated grade level is written in —",
+    "even while judging them against this rubric. A student who says they are in",
+    "Grade 9 is in Grade 9, not Year 10, and their final year is Grade 12, not",
+    "Year 13. Name the other system's term only when the student's own record",
+    "is in it, or when the two must be compared explicitly.",
+    "",
     "How to weigh evidence in this system:",
     guidance,
     "",

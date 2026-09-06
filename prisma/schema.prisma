@@ -360,6 +360,20 @@ model PlannedItem {
   /// When they intend to start, or the deadline they are working toward.
   targetDate   DateTime?
   hoursPerWeek Float?
+
+  /// Set when this item was created by accepting a Commitment, rather than
+  /// typed by the student — see lib/plans/from-commitment.ts.
+  ///
+  /// A plain id rather than a relation, for the same reason
+  /// Projection.baseEvaluationId is: a deleted commitment must not cascade
+  /// away a plan the student is working from.
+  ///
+  /// Unique so that accepting the same commitment twice — a double click, a
+  /// retried request — cannot put the same thing in the plan twice. Postgres
+  /// permits many NULLs under a unique index, so every hand-written plan item
+  /// is unaffected.
+  sourceCommitmentId String? @unique
+
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
