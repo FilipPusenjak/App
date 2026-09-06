@@ -6,7 +6,7 @@
 // that the credit comes back, that the row stops counting toward the interval,
 // and that a second failure in a row does neither. Those are three writes and
 // a query, and the only honest way to check them is to make them.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { cleanupRun, createUserWithProfile, hasTestDb, makeRunTag } from "./helpers";
 import { prisma } from "@/lib/db";
 import {

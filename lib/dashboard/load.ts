@@ -15,6 +15,7 @@ import {
   getProfileWithRelations,
   getOwnedEvaluations,
 } from "@/lib/ownership";
+import type { ProfileCounts } from "@/lib/evaluation/prerequisites";
 import {
   readStoredEvaluation,
   headlineOf,
@@ -88,6 +89,14 @@ export type CarriedScores = {
 export type DashboardData = {
   studentLabelSource: Awaited<ReturnType<typeof getOrCreateProfile>>;
   gaps: ProfileGap[];
+  /**
+   * What the profile holds, for the first-run checklist — see
+   * lib/evaluation/prerequisites.ts. Counts rather than the rows themselves:
+   * the question is whether the profile can be evaluated at all, and the
+   * relations are already loaded here for the gaps above, so this costs no
+   * extra query.
+   */
+  counts: ProfileCounts;
   latest: {
     id: string;
     createdAt: Date;
@@ -201,6 +210,11 @@ export async function loadDashboard(): Promise<DashboardData> {
   return {
     studentLabelSource: profile,
     gaps,
+    counts: {
+      targets: withRelations.targetSchools.length,
+      resumeItems: withRelations.resumeItems.length,
+      testScores: withRelations.testScores.length,
+    },
     latest:
       newest && shape.kind !== "none"
         ? {
