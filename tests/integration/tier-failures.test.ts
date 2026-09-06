@@ -136,3 +136,107 @@ describe.skipIf(!hasTestDb)("a tier run that failed after spending", () => {
     expect(id).toBeNull();
   });
 });
+
+describe.skipIf(!hasTestDb)("a run that already opened a pending row", () => {
+  // Every tier route now writes its row BEFORE calling the model, so the
+  // student's app can see a run in progress. That row IS the run: a failure
+  // has to complete it rather than write a second row describing the same
+  // attempt and leave the first pending forever.
+  let profileId = "";
+
+  beforeEach(async () => {
+    const { user, profile } = await createUserWithProfile(
+      runTag,
+      `p${Date.now()}${Math.random().toString(36).slice(2, 6)}`,
+    );
+    sessionUserId.current = user.id;
+    profileId = profile.id;
+  });
+
+  afterAll(async () => {
+    await cleanupRun(runTag);
+  });
+
+  const openPendingRun = () =>
+    prisma.evaluation.create({
+      data: {
+        profileId,
+        type: "CHECK_IN",
+        status: "pending",
+        model: "claude-sonnet-5",
+        promptVersion: "check-in/v3",
+      },
+      select: { id: true },
+    });
+
+  it("completes the row it already has", async () => {
+    const run = await openPendingRun();
+
+    const id = await recordTierFailure({
+      profileId,
+      type: "CHECK_IN",
+      existingId: run.id,
+      model: "claude-sonnet-5",
+      promptVersion: "check-in/v3",
+      usage,
+      error: "The check-in came back in a shape the app could not read.",
+    });
+
+    expect(id).toBe(run.id);
+    const row = await prisma.evaluation.findUniqueOrThrow({ where: { id: run.id } });
+    expect(row.status).toBe("failed");
+    expect(row.completedAt).not.toBeNull();
+    expect(row.inputTokens).toBe(120_000);
+    expect(row.costCents).toBeGreaterThan(0);
+  });
+
+  it("leaves no second row behind", async () => {
+    // The failure mode this replaces: a pending row stuck forever next to a
+    // failed one, both describing the single run the student actually made.
+    const run = await openPendingRun();
+    await recordTierFailure({
+      profileId,
+      type: "CHECK_IN",
+      existingId: run.id,
+      model: "claude-sonnet-5",
+      promptVersion: "check-in/v3",
+      usage,
+      error: "Discarded.",
+    });
+
+    const rows = await prisma.evaluation.findMany({ where: { profileId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.status).toBe("failed");
+  });
+
+  it("still creates one when the caller has nothing open", async () => {
+    // The older shape, and still correct: not every caller opens a row first.
+    const id = await recordTierFailure({
+      profileId,
+      type: "CHECK_IN",
+      model: "claude-sonnet-5",
+      promptVersion: "check-in/v3",
+      usage,
+      error: "Discarded.",
+    });
+
+    expect(id).toBeTruthy();
+    const rows = await prisma.evaluation.findMany({ where: { profileId } });
+    expect(rows).toHaveLength(1);
+  });
+
+  it("does not throw when the row it was handed is gone", async () => {
+    // Same contract as every other path here: recording a failure must never
+    // become the failure the student hears about.
+    const id = await recordTierFailure({
+      profileId,
+      type: "CHECK_IN",
+      existingId: "no-such-evaluation-id",
+      model: "claude-sonnet-5",
+      promptVersion: "check-in/v3",
+      usage,
+      error: "Discarded.",
+    });
+    expect(id).toBeNull();
+  });
+});
