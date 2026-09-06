@@ -125,7 +125,7 @@ describe("the evaluation prompt states the enum it gained with commitments", () 
   });
 
   it("was version-bumped for the added field", () => {
-    expect(EVALUATION_PROMPT_VERSION).toBe("evaluation/v11");
+    expect(EVALUATION_PROMPT_VERSION).toBe("evaluation/v12");
     expect(EVALUATION_PROMPT_VERSION.startsWith("evaluation/")).toBe(true);
   });
 
