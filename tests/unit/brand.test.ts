@@ -25,6 +25,18 @@ describe("the mark actually builds", () => {
     expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   }, 30_000);
 
+  it("renders the tab icon at 64, which halves and quarters cleanly", async () => {
+    // The browser does the resizing, and 64 lands on whole pixels at both 32
+    // and 16. A source that does not divide evenly resamples across fractional
+    // pixels, which is the difference between a small sextant and a smudge.
+    // The mark carries detail that a 32px source would discard before the
+    // browser ever saw it.
+    const { size } = await import("@/app/icon");
+    expect(size).toEqual({ width: 64, height: 64 });
+    expect(size.width % 32).toBe(0);
+    expect(size.width % 16).toBe(0);
+  });
+
   it("renders the iOS home-screen icon from the same mark", async () => {
     const { default: AppleIcon } = await import("@/app/apple-icon");
     const response = AppleIcon() as unknown as Response;
@@ -62,9 +74,25 @@ describe("the mark actually builds", () => {
     // find out. The render tests above would catch it; this says why.
     const mark = readFileSync("lib/brand/mark.tsx", "utf8");
     expect(mark).not.toMatch(/<>\s*\n?\s*<(polygon|path|circle)/);
-    for (const key of ["main", "jib", "mast", "boom", "hull"]) {
+    for (const key of ["limb", "frame", "arm", "pivot", "scope", "lens"]) {
       expect(mark).toContain(`key="${key}"`);
     }
+  });
+
+  it("derives the graduations from the limb it sits on", () => {
+    // The ticks are radii of the limb arc. Hard-coding their endpoints is how
+    // they end up floating off the arc the next time it is nudged, which is
+    // exactly what happened while drawing this.
+    const mark = readFileSync("lib/brand/mark.tsx", "utf8");
+    expect(mark).toContain("LIMB_CX");
+    expect(mark).toContain("LIMB_CY");
+    expect(mark).toContain("LIMB_R");
+    // Both tick distances are computed from the radius, not typed in.
+    expect(mark).toContain("graduation(degrees, TICK_INNER, TICK_OUTER)");
+    expect(mark).toMatch(/const TICK_INNER = LIMB_R -/);
+    expect(mark).toMatch(/const TICK_OUTER = LIMB_R -/);
+    // And the arc is built from the radius rather than repeating it.
+    expect(mark).toMatch(/A \$\{LIMB_R\} \$\{LIMB_R\}/);
   });
 
   it("scales by the viewBox rather than by multiplying every coordinate", () => {

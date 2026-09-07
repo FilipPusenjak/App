@@ -1,10 +1,11 @@
-// The CourseChart mark: a sloop under sail, on a blue field.
+// The CourseChart mark: a sextant.
 //
 // The name reads two ways and this is the better one. A chart is a graph, but a
-// CHART is also the thing a navigator plots a course on, and "charting your
-// course" is what the product actually does for a student — it is not a
-// dashboard, it is a heading. The first mark was three ascending bars, which
-// was the dull reading of the name and looked like every analytics tool.
+// CHART is also what a navigator plots a course on, and charting a course is
+// what this product does for a student — it gives a heading, not a dashboard.
+// A sextant is the instrument that makes that possible: you point it at
+// something fixed and far away, and it tells you where you actually are. That
+// is the whole product in one object.
 //
 // ONE definition, rendered at two sizes — the browser-tab icon (app/icon.tsx)
 // and the iOS home-screen icon (app/apple-icon.tsx). They were going to be two
@@ -12,38 +13,27 @@
 // the tab icon, nobody thinks about the touch icon, and the phone keeps showing
 // last year's mark.
 //
-// DESIGNED FOR 16 PIXELS, and chosen there rather than at 32. A favicon renders
-// in a tab strip at half this canvas, beside a dozen others, and that is the
-// only size at which it truly has to work. Six maritime candidates were drawn
-// and rendered at 16px on both light and dark chrome before this one was
-// picked. What the small size ruled out is most of what it ruled out:
+// SIXTEEN OTHER MARKS WERE DRAWN AND REJECTED, most of them for reasons only
+// visible at small sizes: a ship's wheel whose ring and spokes merge into a
+// blob, a compass needle that goes muddy the moment it is two-tone, a
+// four-point compass star that is legible but now reads as the AI sparkle every
+// product has, a plotted course line indistinguishable at 16px from a line
+// chart, an anchor that is perfectly crisp and means "moored", and a series of
+// increasingly detailed sloops.
 //
-//   - a ship's wheel, whose ring and spokes merge into a blob;
-//   - a compass needle, which goes muddy the moment it is two-tone;
-//   - a four-point compass star, which is legible but now reads as the AI
-//     sparkle every product has, not as navigation;
-//   - a plotted course line, which at 16px is indistinguishable from the line
-//     chart this mark exists to get away from;
-//   - sails with no hull, which read as two mountains.
-//
-// A hull with a main and a jib survives it. The boat leans right, which reads
-// as making way rather than moored, and the jib is held at 0.6 rather than half
-// opacity because below that it washes out against dark browser chrome.
-//
-// The rig is drawn rather than implied: a mast, a boom, sails whose leeches
-// curve as wind fills them, and a hull with a sheer line instead of a flat
-// wedge. That detail is spent where it survives the downscale — silhouette and
-// contrast — rather than on rigging lines, a masthead pennant or a waterline,
-// each of which was drawn, rendered at 16px, and turned out to be a smudge.
+// THE SEXTANT IS A DELIBERATE TRADE. It is the least legible of the finalists
+// at 16 pixels and the most distinctive at every size above that. It was chosen
+// knowing that, which is why the tab icon is rendered at 64 rather than 32 —
+// see app/icon.tsx for why that particular number.
 //
 // The geometry is an SVG on a 32-unit viewBox, so it scales by setting the
-// canvas rather than by multiplying every number — one source of truth for the
+// canvas rather than by multiplying every number: one source of truth for the
 // shape at any size.
 //
 // The gradient runs from a bright blue into the navy the interface already uses
 // (zinc-900, #152a4d, defined in app/globals.css). Bright at the top left is
-// what keeps it visible against both light and dark chrome; a flat navy square
-// disappeared into a dark tab strip.
+// what keeps it visible against both light and dark browser chrome; a flat navy
+// square disappeared into a dark tab strip.
 
 /** The design canvas. Every coordinate below is in these units. */
 const VIEW = 32;
@@ -52,32 +42,96 @@ const CORNER_RADIUS = 7;
 export const MARK_GRADIENT =
   "linear-gradient(135deg, #4a84e0 0%, #24427a 58%, #152a4d 100%)";
 
+const WHITE = "#ffffff";
+
+// The limb — the graduated arc a sextant is named for, since it spans a sixth
+// of a circle. Drawn as an SVG arc, and its centre and radius are stated here
+// rather than left implicit in the path, because the graduation marks below are
+// radii of this exact circle. Deriving them keeps the ticks on the arc when the
+// arc moves; eyeballing them did not.
+const LIMB_CX = 16;
+const LIMB_CY = 16.33;
+const LIMB_R = 12.8;
+const LIMB_STROKE = 3.2;
+/** The arc itself, built from the radius above rather than repeating it. */
+const LIMB_PATH = `M3.8 20.2 A ${LIMB_R} ${LIMB_R} 0 0 0 28.2 20.2`;
+/** Where the graduations start and stop: just inside the limb's inner edge. */
+const TICK_INNER = LIMB_R - LIMB_STROKE;
+const TICK_OUTER = LIMB_R - LIMB_STROKE / 2 + 0.1;
+
+/** One graduation, as a radius of the limb between two distances from centre. */
+function graduation(degrees: number, from: number, to: number) {
+  const radians = (degrees * Math.PI) / 180;
+  const at = (r: number) =>
+    `${(LIMB_CX + r * Math.cos(radians)).toFixed(2)} ${(
+      LIMB_CY +
+      r * Math.sin(radians)
+    ).toFixed(2)}`;
+
+  return (
+    <path
+      key={`tick-${degrees}`}
+      d={`M${at(from)} L${at(to)}`}
+      stroke={WHITE}
+      strokeWidth="0.9"
+      strokeLinecap="round"
+      opacity="0.85"
+    />
+  );
+}
+
 // Satori cannot stringify a React fragment inside <svg>, so the shapes are an
 // array of keyed elements rather than siblings in a fragment. It reports that
-// only as "Cannot convert a Symbol value to a string", which is a confusing
-// way to find out.
-const SLOOP = [
-  /** Mainsail, aft of the mast, its leech curved as wind fills it. */
+// only as "Cannot convert a Symbol value to a string", which is a confusing way
+// to find out.
+const SEXTANT = [
   <path
-    key="main"
-    d="M17.8 4.2 L17.8 20.2 L27.4 20.2 C23.6 14.4 21 9 17.8 4.2 Z"
-    fill="#ffffff"
+    key="limb"
+    d={LIMB_PATH}
+    fill="none"
+    stroke={WHITE}
+    strokeWidth={LIMB_STROKE}
+    strokeLinecap="round"
   />,
-  /** Jib, forward of the mast and smaller, as a sloop's headsail is. */
+  /** The frame: two legs from the pivot down to the ends of the limb. */
   <path
-    key="jib"
-    d="M15.4 7.4 L15.4 20.2 L7 20.2 C10.6 15.6 13.2 11.4 15.4 7.4 Z"
-    fill="#ffffff"
-    opacity="0.6"
+    key="frame"
+    d="M16 4 L5.6 22.6 M16 4 L26.4 22.6"
+    fill="none"
+    stroke={WHITE}
+    strokeWidth="2.3"
+    strokeLinecap="round"
   />,
-  <rect key="mast" x="16.1" y="3" width="1.1" height="18.6" rx="0.5" fill="#ffffff" />,
-  <rect key="boom" x="16.4" y="20.4" width="10.6" height="1.1" rx="0.5" fill="#ffffff" />,
-  /** Hull, with a sheer line rather than a flat wedge. */
+  /** The index arm, swinging from the pivot across the graduations. */
   <path
-    key="hull"
-    d="M4.6 23.2 h22.8 c-1.1 3.3 -3.9 5.2 -7.4 5.2 h-8 c-3.5 0 -6.3 -1.9 -7.4 -5.2 z"
-    fill="#ffffff"
+    key="arm"
+    d="M16 4 L22 25.8"
+    fill="none"
+    stroke={WHITE}
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    opacity="0.62"
   />,
+  /** The index mirror sits at the pivot the arm turns on. */
+  <circle key="pivot" cx="16" cy="4.2" r="1.9" fill={WHITE} />,
+  /** The telescope, sighted on the horizon. */
+  <rect key="scope" x="4.6" y="8.6" width="9" height="2.8" rx="1.4" fill={WHITE} />,
+  <rect
+    key="lens"
+    x="3.2"
+    y="7.8"
+    width="1.9"
+    height="4.4"
+    rx="0.95"
+    fill={WHITE}
+    opacity="0.8"
+  />,
+  // Five graduations, stopping just inside the limb's inner edge — both
+  // distances derived from the arc above, so nudging the limb moves them with
+  // it rather than leaving them floating in the gap.
+  ...[52, 71, 90, 109, 128].map((degrees) =>
+    graduation(degrees, TICK_INNER, TICK_OUTER),
+  ),
 ];
 
 /**
@@ -106,7 +160,7 @@ export function CourseMark({
       }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`}>
-        {SLOOP}
+        {SEXTANT}
       </svg>
     </div>
   );
