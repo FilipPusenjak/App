@@ -93,6 +93,34 @@ describeDb("redeeming a reset token", () => {
     expect(await bcrypt.compare("original-password", after.passwordHash)).toBe(false);
   });
 
+  it("bumps the session version, which signs every other device out", async () => {
+    // Sessions are JWTs and cannot be listed or revoked. What a reset does
+    // instead is move the account's version on, so every token minted under
+    // the old one stops matching — see lib/session-version.ts. Whoever is
+    // sitting inside the account when its owner resets the password is out
+    // on their next request.
+    const { email, user } = await makeUser("sessions");
+    const before = await reread(user.id);
+    const issued = await issueResetToken(email);
+
+    await consumeResetToken(issued!.token, "a-brand-new-password");
+
+    const after = await reread(user.id);
+    expect(after.sessionVersion).toBe(before.sessionVersion + 1);
+  });
+
+  it("does not move the version when the reset is refused", async () => {
+    // A stale or forged link must not be able to log the owner out.
+    const { user } = await makeUser("sessions-refused");
+    const before = await reread(user.id);
+
+    const outcome = await consumeResetToken("never-issued-token", "whatever");
+    expect(outcome.ok).toBe(false);
+
+    const after = await reread(user.id);
+    expect(after.sessionVersion).toBe(before.sessionVersion);
+  });
+
   it("stores the new password hashed, not in the clear", async () => {
     const { email, user } = await makeUser("hashing");
     const issued = await issueResetToken(email);

@@ -125,7 +125,17 @@ export async function consumeResetToken(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: record.user.id },
-      data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
+      data: {
+        passwordHash,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        // Signs every other device out. The person who asked for this reset
+        // may be taking the account back from somebody who is inside it right
+        // now, and a new password that left that session working would not
+        // have taken anything back. The sign-in that follows the reset mints
+        // a fresh token under the new version, so THIS device stays in.
+        sessionVersion: { increment: 1 },
+      },
     }),
     // Conditional on still being unused, so two simultaneous redemptions of the
     // same link cannot both succeed.

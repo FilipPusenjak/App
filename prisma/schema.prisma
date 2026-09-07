@@ -42,6 +42,17 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
 
+  /// Bumped whenever the password is set, which signs every other device out.
+  ///
+  /// Sessions are stateless JWTs, so there is no list of them to revoke. What
+  /// there is instead is this number: a token carries the version it was
+  /// minted under, and a token whose version no longer matches is treated as
+  /// signed out — see lib/session.ts. A password reset is the case that
+  /// matters: whoever prompted it may be recovering an account somebody else
+  /// is currently inside, and a reset that left that session working would
+  /// have changed the lock without changing who holds the key.
+  sessionVersion Int @default(0)
+
   // MANY profiles per user, one per student.
   //
   // A counselor or tutoring agency runs several students from one account, so
@@ -160,9 +171,9 @@ model Subscription {
   /// When the paid-for period ends. An access decision reads this rather than
   /// assuming a canceled subscription ends immediately — somebody who cancels
   /// on the 2nd keeps what they paid for until the 30th.
-  currentPeriodEnd DateTime?
+  currentPeriodEnd  DateTime?
   /// Set when the customer has cancelled but the period has not run out yet.
-  cancelAtPeriodEnd Boolean @default(false)
+  cancelAtPeriodEnd Boolean   @default(false)
 
   /// The `created` timestamp of the most recent Stripe event applied to this
   /// row. Webhook deliveries are not ordered, so an older event arriving late
@@ -190,20 +201,20 @@ model AccessCode {
   code String @unique
 
   /// A RunKind: DEEP_REVIEW | PROJECTION | CHECK_IN.
-  grantsKind String
+  grantsKind  String
   /// How many runs one redemption is worth. Almost always 1.
-  grantsCount Int @default(1)
+  grantsCount Int    @default(1)
 
   /// How many DIFFERENT accounts may redeem this. A code handed to one tester
   /// is 1; a code read out to a room is however many people are in it.
-  maxRedemptions Int @default(1)
+  maxRedemptions  Int @default(1)
   redemptionCount Int @default(0)
 
   expiresAt DateTime?
   /// Why this code exists, for whoever finds it in the table in six months.
   note      String?
 
-  createdAt   DateTime            @default(now())
+  createdAt   DateTime               @default(now())
   redemptions AccessCodeRedemption[]
 
   @@index([code])
@@ -257,11 +268,11 @@ model RunCredit {
 /// effect or record it as done without doing it.
 model StripeEvent {
   /// Stripe's own event id (evt_...), which is the deduplication key.
-  id          String   @id
-  type        String
+  id              String   @id
+  type            String
   /// Stripe's created time, used to reject events older than applied state.
   stripeCreatedAt DateTime
-  receivedAt  DateTime @default(now())
+  receivedAt      DateTime @default(now())
 
   @@index([type])
 }
@@ -406,8 +417,8 @@ model PlannedItem {
   /// is unaffected.
   sourceCommitmentId String? @unique
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([profileId])
 }
@@ -440,18 +451,21 @@ model Projection {
 
   /// Same rule as Evaluation.quotaRefunded — a first failure is given back,
   /// a second one in succession is not.
-  quotaRefunded     Boolean   @default(false)
+  quotaRefunded Boolean @default(false)
 
-  createdAt         DateTime  @default(now())
-  completedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
   // What this run cost, same columns and same reason as Evaluation. A
   // projection is a real API call on the account's credits, so leaving it
   // unrecorded would make the per-account spending cap undercount — and a cap
   // that quietly misses a whole category of spend is worse than none.
-  inputTokens       Int?
-  outputTokens      Int?
-  cacheWriteTokens  Int?
-  cacheReadTokens   Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheWriteTokens Int?
+  cacheReadTokens  Int?
+  /// What this run cost, in cents, at the prices in lib/cost.ts — see
+  /// Evaluation.costCents for why it is stored rather than derived.
+  costCents        Int?
 
   @@index([profileId])
 }
@@ -738,16 +752,16 @@ model Evaluation {
   /// keep after the assessment itself is gone.
   chartPointJson String?
 
-  error        String? // populated when status = failed
+  error String? // populated when status = failed
 
   /// True when this failed run was given back — the credit returned and the
   /// quota interval not started. See lib/billing/quota.ts refundsFailedRun:
   /// the FIRST failure in a row is refunded, a second one in succession is
   /// not. Read by lastRunAtByKind, which skips refunded rows so they never
   /// push out a next-available date.
-  quotaRefunded Boolean @default(false)
-  createdAt    DateTime  @default(now())
-  completedAt  DateTime?
+  quotaRefunded Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
 
   // What this run actually cost, straight from the API's usage block.
   //
@@ -819,6 +833,7 @@ model Commitment {
   updatedAt DateTime @updatedAt
 
   @@index([profileId, status])
+  @@index([sourceEvaluationId])
 }
 
 /// Something the student says happened, in their own words.
@@ -853,6 +868,7 @@ model Development {
   createdAt DateTime @default(now())
 
   @@index([profileId, createdAt])
+  @@index([commitmentId])
 }
 
 /// A completed grade year, compacted.
@@ -1086,6 +1102,7 @@ model CaseloadLink {
   @@unique([counselorAccountId, studentProfileId])
   @@index([counselorAccountId, status])
   @@index([studentUserId, status])
+  @@index([studentProfileId])
 }
 
 /// A computed reason one student needs attention. NEVER a quality judgement.
@@ -1257,6 +1274,7 @@ model CounselorReadLog {
 
   @@index([studentProfileId, readAt])
   @@index([counselorAccountId, readAt])
+  @@index([caseloadLinkId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1406,6 +1424,7 @@ model SchoolTestPolicy {
   @@unique([schoolId, testTypeId, effectiveCycle])
   @@index([schoolId, testTypeId])
   @@index([sourceDataVersion])
+  @@index([testTypeId])
 }
 
 /// The score that actually clears this student's list, and who sets it.

@@ -46,6 +46,22 @@ export type TokenUsage = {
   cacheReadTokens: number | null;
 };
 
+/**
+ * What a run cost, in whole cents, for storing on its row.
+ *
+ * One rounding, in one place. Every row that carries costCents writes it
+ * through here, so a run is never booked at a different figure from the one
+ * the spend cap later reads back — and a run whose usage was recorded as
+ * zero is booked at zero rather than left null, which the reader would
+ * otherwise mistake for "not recorded".
+ */
+export function costCentsFor(
+  usage: TokenUsage,
+  model: string | null | undefined,
+): number {
+  return Math.round((estimateCost(usage, model) ?? 0) * 100);
+}
+
 /** Estimated USD for one run. Null when nothing was recorded. */
 export function estimateCost(
   usage: TokenUsage,

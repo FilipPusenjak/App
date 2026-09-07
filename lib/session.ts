@@ -3,6 +3,7 @@
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { sessionIsCurrent } from "@/lib/session-version";
 
 /**
  * The signed-in user's database row, or null.
@@ -29,15 +30,35 @@ export const getCurrentDbUser = cache(async () => {
   const sessionUserId = session?.user?.id;
   if (!sessionUserId) return null;
 
-  return prisma.user.findUnique({
+  const row = await prisma.user.findUnique({
     where: { id: sessionUserId },
     select: {
       id: true,
       email: true,
       name: true,
       countryOfOrigin: true,
+      sessionVersion: true,
     },
   });
+  if (!row) return null;
+
+  // The second thing a cookie is not sufficient for. A token minted before the
+  // password was last set is treated exactly like one pointing at a deleted
+  // user: signed out. This is the whole of "resetting your password signs
+  // every other device out" — see lib/session-version.ts for the rule and the
+  // schema comment on User.sessionVersion for why it is a number.
+  if (!sessionIsCurrent(session?.user?.sessionVersion, row.sessionVersion)) {
+    return null;
+  }
+
+  // Not handed on: nothing outside this check needs the version, and a field
+  // on every user object is a field that ends up in a JSON response eventually.
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    countryOfOrigin: row.countryOfOrigin,
+  };
 });
 
 /** The signed-in user, or null. Deduplicated per request. */

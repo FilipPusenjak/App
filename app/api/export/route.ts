@@ -41,7 +41,8 @@ export async function GET() {
   // one query per profile: an agency with thirty students would otherwise make
   // a hundred round trips to build one file.
   const profileIds = owned.map((p) => p.id);
-  const [full, evaluations, plannedItems, projections] = await Promise.all([
+  const [full, evaluations, plannedItems, projections, commitments, developments] =
+    await Promise.all([
     prisma.profile.findMany({
       where: { id: { in: profileIds } },
       include: {
@@ -62,6 +63,17 @@ export async function GET() {
     prisma.projection.findMany({
       where: { profileId: { in: profileIds } },
       orderBy: { createdAt: "desc" },
+    }),
+    // The student's own decisions and their own words. A data export that
+    // carried every model-written narrative and none of what the student
+    // committed to, or said had happened, would have the emphasis backwards.
+    prisma.commitment.findMany({
+      where: { profileId: { in: profileIds } },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.development.findMany({
+      where: { profileId: { in: profileIds } },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -88,6 +100,25 @@ export async function GET() {
     resumeItems: profile.resumeItems,
     targetSchools: profile.targetSchools,
     plannedItems: by(plannedItems, profile.id),
+    commitments: by(commitments, profile.id).map((c) => ({
+      id: c.id,
+      description: c.description,
+      targetRung: c.targetRung,
+      dueDate: c.dueDate,
+      status: c.status,
+      sourceEvaluationId: c.sourceEvaluationId,
+      resolvedAt: c.resolvedAt,
+      resolvedInEvaluationId: c.resolvedInEvaluationId,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    })),
+    developments: by(developments, profile.id).map((d) => ({
+      id: d.id,
+      body: d.body,
+      commitmentId: d.commitmentId,
+      readByEvaluationId: d.readByEvaluationId,
+      createdAt: d.createdAt,
+    })),
     projections: by(projections, profile.id).map((p) => ({
       id: p.id,
       createdAt: p.createdAt,

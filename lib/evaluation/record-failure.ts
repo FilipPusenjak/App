@@ -22,7 +22,7 @@
 // It exists to be counted and to be seen.
 import type { ZodError } from "zod";
 import { prisma } from "@/lib/db";
-import { estimateCost } from "@/lib/cost";
+import { costCentsFor } from "@/lib/cost";
 
 /**
  * Which fields a rejected narrative got wrong, in one short line.
@@ -107,7 +107,7 @@ export async function recordTierFailure(input: {
     sourceDataVersion: input.sourceDataVersion ?? null,
     precedingEvaluationId: input.precedingEvaluationId ?? null,
     ...input.usage,
-    costCents: Math.round((estimateCost(input.usage, input.model) ?? 0) * 100),
+    costCents: costCentsFor(input.usage, input.model),
   };
 
   try {

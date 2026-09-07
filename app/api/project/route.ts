@@ -45,6 +45,7 @@ import {
   renderSchemaInstructions,
   type ModelAttempt,
 } from "@/lib/structured-output";
+import { costCentsFor } from "@/lib/cost";
 
 const MAX_TOKENS = 16000;
 
@@ -388,6 +389,8 @@ export async function POST() {
         resultJson: JSON.stringify(result),
         completedAt: new Date(),
         ...usage,
+        // Same columns and same reason as Evaluation — see costCentsFor.
+        costCents: costCentsFor(usage, getProjectionModel()),
       },
     });
 
@@ -404,6 +407,7 @@ export async function POST() {
         error: messageText,
         completedAt: new Date(),
         ...usage,
+        costCents: costCentsFor(usage, getProjectionModel()),
       },
     });
 

@@ -69,20 +69,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         await clearFailedLogins(user);
-        // Never return the password hash to the session.
-        return { id: user.id, email: user.email, name: user.name };
+        // Never return the password hash to the session. The session version
+        // travels with the token from here — see lib/session-version.ts.
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          sessionVersion: user.sessionVersion,
+        };
       },
     }),
   ],
   callbacks: {
     // Persist the user id on the token...
     jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id;
+        // Fixed at sign-in and never refreshed: a token minted under version
+        // N keeps saying N, and the row moving on to N+1 is exactly what
+        // signs it out.
+        const version: unknown = user.sessionVersion;
+        token.sv = typeof version === "number" ? version : undefined;
+      }
       return token;
     },
     // ...and expose it on the session so server code can scope queries by it.
     session({ session, token }) {
       if (token.id) session.user.id = token.id as string;
+      const sv: unknown = token.sv;
+      session.user.sessionVersion = typeof sv === "number" ? sv : undefined;
       return session;
     },
   },

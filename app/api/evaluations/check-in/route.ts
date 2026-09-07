@@ -15,7 +15,7 @@ import {
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
-import { estimateCost } from "@/lib/cost";
+import { costCentsFor } from "@/lib/cost";
 import {
   describeShapeFailure,
   recordTierFailure,
@@ -443,7 +443,7 @@ export async function POST() {
       resultJson: JSON.stringify(parsed.data),
       precedingEvaluationId: data.preceding?.id ?? null,
       ...usage,
-      costCents: Math.round((estimateCost(usage, model) ?? 0) * 100),
+      costCents: costCentsFor(usage, model),
     },
   });
 

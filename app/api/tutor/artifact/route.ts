@@ -21,7 +21,7 @@ import {
 } from "@/lib/anthropic";
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
-import { estimateCost } from "@/lib/cost";
+import { costCentsFor } from "@/lib/cost";
 import {
   MIN_USEFUL_OUTPUT_TOKENS,
   RUN_BUDGET_USD,
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
     promptVersion: PROGRESS_PROMPT_VERSION,
     modelUsed: model,
     ...usage,
-    costCents: Math.round((estimateCost(usage, model) ?? 0) * 100),
+    costCents: costCentsFor(usage, model),
   };
 
   const text = message.content

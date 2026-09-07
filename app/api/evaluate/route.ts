@@ -81,6 +81,7 @@ import {
   remainingBudget,
   retryIsWorthwhile,
 } from "@/lib/cost-budget";
+import { costCentsFor } from "@/lib/cost";
 import {
   isGrammarTooLargeError,
   isStructuredOutputParseError,
@@ -709,6 +710,11 @@ export async function POST(request: Request) {
         ),
         completedAt: new Date(),
         ...usage,
+        // Booked now, at the price it ran at. The token counts alone are not
+        // enough: prices change, and a row read back in a year has to carry
+        // what it cost, not what it would cost then. Evaluation has had the
+        // column since the start; this route simply never wrote it.
+        costCents: costCentsFor(usage, choice.model),
       },
     });
 
@@ -753,6 +759,7 @@ export async function POST(request: Request) {
         error: messageText,
         completedAt: new Date(),
         ...usage,
+        costCents: costCentsFor(usage, choice.model),
       },
     });
 

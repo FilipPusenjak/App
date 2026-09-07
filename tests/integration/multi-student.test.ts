@@ -327,4 +327,60 @@ describe.skipIf(!hasTestDb)("the export route", () => {
     expect(body.students[0]!.evaluations).toHaveLength(1);
     expect(body.students[1]!.evaluations).toHaveLength(0);
   });
+
+  it("carries the student's commitments and developments, bucketed the same way", async () => {
+    // The student's own decisions and words. An export that had every
+    // model-written narrative and none of these was a backup that wasn't.
+    const { user, profile } = await createUserWithProfile(runTag, "export-own-words");
+    const second = await addStudent(user.id, "Other Student");
+    const commitment = await prisma.commitment.create({
+      data: {
+        profileId: profile.id,
+        description: "Ship the robotics write-up",
+        status: "ACCEPTED",
+        targetRung: "contributor",
+      },
+    });
+    await prisma.development.create({
+      data: {
+        profileId: profile.id,
+        body: "Draft done, mentor reviewing it",
+        commitmentId: commitment.id,
+      },
+    });
+    await prisma.development.create({
+      data: { profileId: second.id, body: "Belongs to the other student" },
+    });
+    sessionUserId.current = user.id;
+
+    const { GET } = await import("@/app/api/export/route");
+    const raw = await (await GET()).text();
+    const body = JSON.parse(raw) as {
+      students: {
+        commitments: { id: string; description: string; status: string }[];
+        developments: { body: string; commitmentId: string | null }[];
+      }[];
+    };
+
+    expect(body.students[0]!.commitments).toEqual([
+      expect.objectContaining({
+        id: commitment.id,
+        description: "Ship the robotics write-up",
+        status: "ACCEPTED",
+        targetRung: "contributor",
+      }),
+    ]);
+    expect(body.students[0]!.developments).toEqual([
+      expect.objectContaining({
+        body: "Draft done, mentor reviewing it",
+        commitmentId: commitment.id,
+      }),
+    ]);
+    // The other student's entry is in the other student's bucket, not this one.
+    expect(body.students[1]!.commitments).toHaveLength(0);
+    expect(body.students[1]!.developments).toEqual([
+      expect.objectContaining({ body: "Belongs to the other student" }),
+    ]);
+    expect(raw).not.toContain("passwordHash");
+  });
 });
