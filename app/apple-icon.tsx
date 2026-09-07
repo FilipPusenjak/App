@@ -6,15 +6,13 @@
 //
 // Same mark as the tab icon, from the same file, so the two cannot drift.
 import { ImageResponse } from "next/og";
-import { ChartMark } from "@/lib/brand/mark";
+import { CourseMark } from "@/lib/brand/mark";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function AppleIcon() {
-  return new ImageResponse(
-    // 180/32: the mark is designed at the 32px canvas and scales from it.
-    <ChartMark scale={size.width / 32} rounded={false} />,
-    { ...size },
-  );
+  return new ImageResponse(<CourseMark size={size.width} rounded={false} />, {
+    ...size,
+  });
 }

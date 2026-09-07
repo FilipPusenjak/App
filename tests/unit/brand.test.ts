@@ -55,6 +55,23 @@ describe("the mark actually builds", () => {
     expect(mark).toContain("#152a4d");
     expect(readFileSync("app/globals.css", "utf8")).toContain("#152a4d");
   });
+
+  it("keys the SVG shapes instead of wrapping them in a fragment", () => {
+    // Satori cannot stringify a React fragment inside <svg> — it throws
+    // "Cannot convert a Symbol value to a string", which is a confusing way to
+    // find out. The render tests above would catch it; this says why.
+    const mark = readFileSync("lib/brand/mark.tsx", "utf8");
+    expect(mark).not.toMatch(/<>\s*\n?\s*<(polygon|path|circle)/);
+    for (const key of ["main", "jib", "hull"]) {
+      expect(mark).toContain(`key="${key}"`);
+    }
+  });
+
+  it("scales by the viewBox rather than by multiplying every coordinate", () => {
+    // Two sizes are rendered from these numbers. Scaling by arithmetic on each
+    // one is how the touch icon ends up subtly different from the tab icon.
+    expect(readFileSync("lib/brand/mark.tsx", "utf8")).toContain("viewBox=");
+  });
 });
 
 describe("no static favicon overrides the generated one", () => {
