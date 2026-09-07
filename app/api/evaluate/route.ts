@@ -79,6 +79,7 @@ import {
   estimateInputTokens,
   maxOutputTokensFor,
   remainingBudget,
+  retryIsWorthwhile,
 } from "@/lib/cost-budget";
 import {
   isGrammarTooLargeError,
@@ -558,6 +559,20 @@ export async function POST(request: Request) {
         };
       }
       const { message, constrained } = outcome;
+      // Recorded FIRST, before anything below can throw. Every path past this
+      // line is one where the tokens are already spent, and the two throws
+      // beneath used to come before this block — so an attempt that ran out
+      // of room was billed by the API and recorded nowhere. A real failed
+      // review on the deployment was booked at ~34¢ that way; its retry had
+      // burned another 16k input and 5k output that appear on no row.
+      //
+      // Accumulated rather than assigned: a retry is a second billed request,
+      // and reporting only the last one would understate what the run cost.
+      usage.inputTokens += message.usage.input_tokens ?? 0;
+      usage.outputTokens += message.usage.output_tokens ?? 0;
+      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+
       // Neither of these is a bad roll of the dice, so neither is retried: a
       // refusal is a decision, and a response that ran out of tokens will
       // simply run out again.
@@ -571,12 +586,6 @@ export async function POST(request: Request) {
           `The evaluation ran out of room before it finished (max_tokens ${allowance}, the most the $${RUN_BUDGET_USD.DEEP_REVIEW.toFixed(2)} per-review budget allows after a ${promptTokens.toLocaleString()}-token prompt). Try again, or reduce the size of your profile.`,
         );
       }
-      // Accumulated rather than assigned: a retry is a second billed request,
-      // and reporting only the last one would understate what the run cost.
-      usage.inputTokens += message.usage.input_tokens ?? 0;
-      usage.outputTokens += message.usage.output_tokens ?? 0;
-      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
-      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
 
       return {
         text: message.content
@@ -609,6 +618,11 @@ export async function POST(request: Request) {
     // 120. So it is sized from what the ceiling has left after the first
     // attempt — and the first attempt's usage is exact, reported on its own
     // response, rather than estimated. `usage` has already accumulated it.
+    // What the first attempt actually wrote. A retry is asked to write the
+    // same review again, so this — not the floor — is the least room it can
+    // possibly succeed in. Read now, before anything else is added to usage.
+    const firstAttemptOutputTokens = usage.outputTokens;
+
     const retryAllowance = maxOutputTokensFor({
       budgetUsd: remainingBudget(RUN_BUDGET_USD.DEEP_REVIEW, usage, choice.model),
       inputTokens: promptTokens,
@@ -619,22 +633,49 @@ export async function POST(request: Request) {
     // still gets recorded with what it cost, exactly as before. It is the same
     // judgement retryFits already makes about time, applied to money — a second
     // attempt too small to finish would spend the rest of the ceiling to
-    // produce another unparseable answer.
-    if (
-      !outcome.ok &&
-      retryFits(startedAt) &&
-      retryAllowance >= MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW
-    ) {
-      console.warn("Evaluation response unusable; retrying once:", outcome.reason);
-      const retried = parseModelJson(
-        evaluationOutputSchema,
-        await attempt(renderRetryNote(outcome.reason), retryAllowance),
-        "model's response",
-      );
-      // Report the FIRST failure if both fail: it describes the original
-      // problem, where the second describes a response to a correction.
-      if (retried.ok) outcome = retried;
-      else outcome = { ok: false, reason: `${outcome.reason} Retried once; still unusable.` };
+    // produce another unparseable answer. See retryIsWorthwhile for the case
+    // that taught this: a retry above the floor but below what the first
+    // attempt needed, sent, and out of room at exactly its allowance.
+    if (!outcome.ok && retryFits(startedAt)) {
+      const verdict = retryIsWorthwhile({
+        retryAllowance,
+        firstAttemptOutputTokens,
+        floor: MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW,
+      });
+
+      if (!verdict.retry) {
+        // The first failure's reason is the informative one. The retry that
+        // was not sent gets a sentence saying why, appended to it.
+        console.warn("Evaluation response unusable; not retrying:", verdict.reason);
+        outcome = { ok: false, reason: `${outcome.reason} ${verdict.reason}` };
+      } else {
+        console.warn("Evaluation response unusable; retrying once:", outcome.reason);
+        const firstReason = outcome.reason;
+        try {
+          const retried = parseModelJson(
+            evaluationOutputSchema,
+            await attempt(renderRetryNote(firstReason), retryAllowance),
+            "model's response",
+          );
+          // Report the FIRST failure if both fail: it describes the original
+          // problem, where the second describes a response to a correction.
+          outcome = retried.ok
+            ? retried
+            : { ok: false, reason: `${firstReason} Retried once; still unusable.` };
+        } catch (error) {
+          // A retry that THROWS — out of room, refused — used to propagate to
+          // the catch below and become the recorded error, erasing the first
+          // attempt's reason. That is how a run whose real problem was an
+          // unreadable shape was recorded as "ran out of room at 5,167
+          // tokens". Keep the first reason; append the second.
+          if (isDeadlineAbort(error)) throw error;
+          const second = error instanceof Error ? error.message : "Unknown error.";
+          outcome = {
+            ok: false,
+            reason: `${firstReason} Retried once; the retry then failed too: ${second}`,
+          };
+        }
+      }
     }
 
     if (!outcome.ok) throw new Error(outcome.reason);

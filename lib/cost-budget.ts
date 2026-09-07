@@ -160,6 +160,47 @@ function costOfOutputTokens(n: number, model: string): number {
  * response — so this is a real figure rather than an estimate, and a retry
  * sized from it cannot push the pair over the ceiling.
  */
+/**
+ * Whether a second attempt has enough room to be worth paying for.
+ *
+ * A retry is asked to write the SAME review again, corrected. It cannot do
+ * that in less room than the first attempt needed, and a floor alone does not
+ * catch this: the floor is the least any review could possibly be, not the
+ * least THIS review turned out to be.
+ *
+ * Observed on the deployment, not hypothetical. A first attempt with 18,594
+ * tokens of room wrote 10,169 and was rejected. What was left of the budget
+ * after paying for it gave the retry 5,167 — above the 4,000 floor, so it was
+ * sent — and it ran out of room at exactly 5,167, as it was always going to.
+ * That is a second bill for a review that had no chance, and the retry's
+ * error then overwrote the first attempt's, which was the informative one.
+ *
+ * So the retry runs only when it has at least as much room as the first
+ * attempt actually used, and at least the floor. Below either, the honest
+ * answer is to stop, keep the first failure's reason, and say why there was
+ * no second try.
+ */
+export function retryIsWorthwhile(input: {
+  retryAllowance: number;
+  firstAttemptOutputTokens: number;
+  floor: number;
+}): { retry: true } | { retry: false; reason: string } {
+  const { retryAllowance, firstAttemptOutputTokens, floor } = input;
+  if (retryAllowance < floor) {
+    return {
+      retry: false,
+      reason: `Not retried: only ${retryAllowance.toLocaleString()} output tokens of budget remained, below the ${floor.toLocaleString()} a review needs.`,
+    };
+  }
+  if (retryAllowance < firstAttemptOutputTokens) {
+    return {
+      retry: false,
+      reason: `Not retried: only ${retryAllowance.toLocaleString()} output tokens of budget remained, and the first attempt needed ${firstAttemptOutputTokens.toLocaleString()} — a retry cannot write the same review in less room.`,
+    };
+  }
+  return { retry: true };
+}
+
 export function remainingBudget(
   budgetUsd: number,
   spent: TokenUsage,

@@ -327,6 +327,15 @@ export async function POST() {
         };
       }
       const { message, constrained } = outcome;
+      // Recorded FIRST, before either throw below. The tokens are spent the
+      // moment the response arrives; recording them after a check that can
+      // throw meant a projection that ran out of room was billed by the API
+      // and written to no row — the same hole the evaluation route had.
+      usage.inputTokens += message.usage.input_tokens ?? 0;
+      usage.outputTokens += message.usage.output_tokens ?? 0;
+      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
+      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+
       // Neither a refusal nor a truncated response is a bad roll of the dice,
       // so neither is retried.
       if (message.stop_reason === "refusal") {
@@ -339,11 +348,6 @@ export async function POST() {
           `The projection ran out of room before it finished (max_tokens ${MAX_TOKENS}). Try again, or shorten your plan list.`,
         );
       }
-
-      usage.inputTokens += message.usage.input_tokens ?? 0;
-      usage.outputTokens += message.usage.output_tokens ?? 0;
-      usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
-      usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
 
       return {
         text: message.content
