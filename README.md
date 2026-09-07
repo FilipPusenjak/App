@@ -1,4 +1,4 @@
-# Application Profile Evaluator
+# CourseChart
 
 A private tool for students building a university application. You describe your
 profile — grades, curriculum, test scores, and everything you do outside class —

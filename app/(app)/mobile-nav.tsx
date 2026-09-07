@@ -28,7 +28,7 @@ export function MobileNav({
           href="/dashboard"
           className="min-w-0 truncate text-sm font-semibold"
         >
-          Application Profile Evaluator
+          CourseChart
         </Link>
         <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-black/15 px-2.5 py-1.5 text-sm font-medium dark:border-white/20">
           Menu

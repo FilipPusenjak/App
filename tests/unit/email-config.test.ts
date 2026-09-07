@@ -37,7 +37,7 @@ afterEach(() => {
 
 const configured = () => {
   process.env.RESEND_API_KEY = "re_test";
-  process.env.EMAIL_FROM = "Course Correction <hello@example.com>";
+  process.env.EMAIL_FROM = "CourseChart <hello@example.com>";
   process.env.APP_URL = "https://example.com";
 };
 

@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           href="/"
           className="mb-8 block text-center text-sm font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          ← Application Profile Evaluator
+          ← CourseChart
         </Link>
         <div className="rounded-xl border border-black/10 bg-white p-6 shadow-sm dark:border-white/15 dark:bg-white/5">
           {children}

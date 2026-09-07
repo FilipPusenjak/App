@@ -25,7 +25,10 @@ const nunitoSans = Nunito_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Application Profile Evaluator",
+  title: "CourseChart",
+  // What iOS labels the icon when a student adds it to their home screen.
+  // Without it the label is taken from the page title, which changes per page.
+  applicationName: "CourseChart",
   description:
     "Build your college & career application profile and get honest, calibrated AI feedback.",
 };

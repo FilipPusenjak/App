@@ -83,7 +83,7 @@ export default async function AppLayout({
                 href="/dashboard"
                 className="whitespace-nowrap text-sm font-semibold"
               >
-                Application Profile Evaluator
+                CourseChart
               </Link>
               <nav className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
                 {nav.map((item) => (
