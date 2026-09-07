@@ -62,7 +62,7 @@ describe("the mark actually builds", () => {
     // find out. The render tests above would catch it; this says why.
     const mark = readFileSync("lib/brand/mark.tsx", "utf8");
     expect(mark).not.toMatch(/<>\s*\n?\s*<(polygon|path|circle)/);
-    for (const key of ["main", "jib", "hull"]) {
+    for (const key of ["main", "jib", "mast", "boom", "hull"]) {
       expect(mark).toContain(`key="${key}"`);
     }
   });

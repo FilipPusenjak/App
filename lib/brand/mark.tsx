@@ -27,8 +27,14 @@
 //   - sails with no hull, which read as two mountains.
 //
 // A hull with a main and a jib survives it. The boat leans right, which reads
-// as making way rather than moored, and the jib is held at 0.62 rather than
-// half opacity because below that it washes out against dark browser chrome.
+// as making way rather than moored, and the jib is held at 0.6 rather than half
+// opacity because below that it washes out against dark browser chrome.
+//
+// The rig is drawn rather than implied: a mast, a boom, sails whose leeches
+// curve as wind fills them, and a hull with a sheer line instead of a flat
+// wedge. That detail is spent where it survives the downscale — silhouette and
+// contrast — rather than on rigging lines, a masthead pennant or a waterline,
+// each of which was drawn, rendered at 16px, and turned out to be a smudge.
 //
 // The geometry is an SVG on a 32-unit viewBox, so it scales by setting the
 // canvas rather than by multiplying every number — one source of truth for the
@@ -47,14 +53,31 @@ export const MARK_GRADIENT =
   "linear-gradient(135deg, #4a84e0 0%, #24427a 58%, #152a4d 100%)";
 
 // Satori cannot stringify a React fragment inside <svg>, so the shapes are an
-// array of keyed elements rather than siblings in a fragment.
-const SAIL = [
-  /** Mainsail, aft of the mast. */
-  <polygon key="main" points="17.5,2.5 17.5,20.5 28.5,20.5" fill="#ffffff" />,
-  /** Jib, forward of it and smaller, as a sloop's headsail is. */
-  <polygon key="jib" points="15,8 15,20.5 6,20.5" fill="#ffffff" opacity="0.62" />,
-  /** Hull, a shallow wedge with the transom square and the bow drawn in. */
-  <path key="hull" d="M5.5 23.5 h21.5 l-4 5 h-13.5 z" fill="#ffffff" />,
+// array of keyed elements rather than siblings in a fragment. It reports that
+// only as "Cannot convert a Symbol value to a string", which is a confusing
+// way to find out.
+const SLOOP = [
+  /** Mainsail, aft of the mast, its leech curved as wind fills it. */
+  <path
+    key="main"
+    d="M17.8 4.2 L17.8 20.2 L27.4 20.2 C23.6 14.4 21 9 17.8 4.2 Z"
+    fill="#ffffff"
+  />,
+  /** Jib, forward of the mast and smaller, as a sloop's headsail is. */
+  <path
+    key="jib"
+    d="M15.4 7.4 L15.4 20.2 L7 20.2 C10.6 15.6 13.2 11.4 15.4 7.4 Z"
+    fill="#ffffff"
+    opacity="0.6"
+  />,
+  <rect key="mast" x="16.1" y="3" width="1.1" height="18.6" rx="0.5" fill="#ffffff" />,
+  <rect key="boom" x="16.4" y="20.4" width="10.6" height="1.1" rx="0.5" fill="#ffffff" />,
+  /** Hull, with a sheer line rather than a flat wedge. */
+  <path
+    key="hull"
+    d="M4.6 23.2 h22.8 c-1.1 3.3 -3.9 5.2 -7.4 5.2 h-8 c-3.5 0 -6.3 -1.9 -7.4 -5.2 z"
+    fill="#ffffff"
+  />,
 ];
 
 /**
@@ -83,7 +106,7 @@ export function CourseMark({
       }}
     >
       <svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`}>
-        {SAIL}
+        {SLOOP}
       </svg>
     </div>
   );
