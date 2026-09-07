@@ -3,8 +3,8 @@
   "regions": ["cle1"],
   "crons": [
     {
-      "path": "/api/counselor/triage",
-      "schedule": "0 6 * * *"
+      "path": "/api/cron/daily",
+      "schedule": "0 16 * * *"
     },
     {
       "path": "/api/retention",

@@ -178,6 +178,13 @@ describe("the route that sends them", () => {
     join(process.cwd(), "app/api/reminders/route.ts"),
     "utf8",
   );
+  // The pass itself moved out of the route so the daily cron can call it too
+  // — see lib/email/reminders-pass.ts. The ordering guarantees below are about
+  // the pass; the authorization ones are about the route.
+  const pass = readFileSync(
+    join(process.cwd(), "lib/email/reminders-pass.ts"),
+    "utf8",
+  );
 
   it("is reachable only by the scheduler, and fails closed", () => {
     // An unset CRON_SECRET must mean no request is the scheduler, rather than
@@ -194,17 +201,17 @@ describe("the route that sends them", () => {
 
   it("records the send only after the provider accepted it", () => {
     // The ordering that makes the job safe to run twice or to die halfway.
-    const sendIndex = src.indexOf("sendEmail(");
-    const markIndex = src.indexOf("markReminderSent(");
+    const sendIndex = pass.indexOf("sendEmail(");
+    const markIndex = pass.indexOf("markReminderSent(");
     expect(sendIndex).toBeGreaterThan(-1);
     expect(markIndex).toBeGreaterThan(sendIndex);
-    expect(src).toMatch(/if \(result\.ok\)[\s\S]*?markReminderSent/);
+    expect(pass).toMatch(/if \(result\.ok\)[\s\S]*?markReminderSent/);
   });
 
   it("mints the unsubscribe token before sending, never after", () => {
     // No reminder may go out without a working way to stop the next one.
-    expect(src.indexOf("unsubscribeTokenFor(")).toBeLessThan(
-      src.indexOf("sendEmail("),
+    expect(pass.indexOf("unsubscribeTokenFor(")).toBeLessThan(
+      pass.indexOf("sendEmail("),
     );
   });
 });
