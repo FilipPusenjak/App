@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  findOwnedEvaluation,
-  findPrecedingEvaluationModel,
-} from "@/lib/ownership";
+import { findOwnedEvaluation } from "@/lib/ownership";
 import { prisma } from "@/lib/db";
 import { readStoredEvaluation } from "@/lib/evaluation/stored-shape";
 import { tierLabel } from "@/lib/evaluation/history";
@@ -206,16 +203,6 @@ export default async function EvaluationPage({
   const evaluation = await findOwnedEvaluation(id);
   if (!evaluation) notFound();
 
-  // Which model judged the run before this one. Follow-up evaluations run on a
-  // cheaper model, anchored to the previous scores so they stay comparable —
-  // but a student comparing two numbers is still owed the fact that a
-  // different model produced them.
-  const precedingModel =
-    evaluation.isSample || !evaluation.model
-      ? null
-      : await findPrecedingEvaluationModel(evaluation);
-  const judgeChanged =
-    precedingModel !== null && precedingModel !== evaluation.model;
 
   // Which instrument produced this row. Dispatching on the stored shape rather
   // than duck-typing the JSON matters most here: the legacy result and the Deep
@@ -311,24 +298,13 @@ export default async function EvaluationPage({
             dateStyle: "long",
             timeStyle: "short",
           })}
-          {evaluation.model ? ` · ${evaluation.model}` : ""}
           {evaluation.promptVersion ? ` · ${evaluation.promptVersion}` : ""}
         </p>
       </div>
 
-      {judgeChanged && (
-        <p className="rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
-          <strong className="font-semibold text-foreground">
-            Judged by a different model than the run before it.
-          </strong>{" "}
-          This one used {evaluation.model}; the previous used {precedingModel}.
-          Your earlier scores were fed in as an anchor, so the numbers are meant
-          to stay on the same scale — but if something moved and nothing in your
-          profile changed, this is the first thing to suspect. Run a full
-          evaluation from the evaluations page for a fresh read on the strongest
-          model.
-        </p>
-      )}
+      <p className="rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
+        All evaluations are run on <strong className="font-semibold text-foreground">Claude Opus 5</strong>.
+      </p>
 
 
       {evaluation.isSample && (
