@@ -4,6 +4,7 @@
 // and rubrics into text is mechanical, so it lives here and is shared — keeping
 // a formatting fix from having to be made in every version.
 import { getRubric, renderRubric, rubricsForCountries } from "@/lib/rubrics";
+import { GRADE_STATUS_PROMPT, type GradeStatus } from "@/lib/validation/enums";
 import type { EvaluationSnapshot } from "@/lib/evaluation/snapshot";
 import type { SnapshotDiff } from "@/lib/evaluation/diff";
 import { SCORE_KEYS, SCORE_LABELS, type ScoreKey } from "./versions";
@@ -140,6 +141,32 @@ export function describeLeadTime(
   return ` — ${humanDuration(today, target)} from now`;
 }
 
+/**
+ * Whether that grade is underway or finished, stated rather than guessed.
+ *
+ * The model used to be told to work this out from today's date, which is not
+ * something a date can settle: school years start and end on different dates by
+ * country and by school, so "June" means mid-year in Sydney and finished in
+ * Chicago. Getting it wrong moves every timing judgement on the page — how much
+ * of the year is left to act in, whether a gap is "now" or "soon", whether an
+ * activity still has room to compound.
+ *
+ * The old instruction survives as the fallback for profiles saved before the
+ * question was asked, where a reasoned guess still beats no guidance at all.
+ */
+function gradeStatusClause(status: string | null): string {
+  const known = GRADE_STATUS_PROMPT[status as GradeStatus];
+  if (known) {
+    return `${known}. The student stated this themselves, so treat it as fact and do not re-derive it from the date.`;
+  }
+  return (
+    "this is the grade the student is currently IN, or has JUST COMPLETED — they " +
+    "did not say which. Read it together with today's date, bearing in mind that " +
+    "school years do not start or end on the same date everywhere, and say in " +
+    "verifyThese that you assumed one."
+  );
+}
+
 /** Compact, readable rendering of the student's data. */
 export function renderSnapshot(s: EvaluationSnapshot): string {
   const st = s.student;
@@ -154,7 +181,7 @@ export function renderSnapshot(s: EvaluationSnapshot): string {
 
   lines.push("## Student");
   lines.push(
-    `- Grade level: ${st.gradeLevel ?? "not stated"} — this is the grade the student is currently IN, or has JUST COMPLETED. Read it together with today's date: late in a school year or over the summer it most likely means the year is finished and the next one is about to start, so do not assume they still have the whole of that year ahead of them.`,
+    `- Grade level: ${st.gradeLevel ?? "not stated"} — ${gradeStatusClause(st.gradeStatus)}`,
   );
   lines.push(`- School: ${st.schoolName ?? "not stated"}`);
   lines.push(

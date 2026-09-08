@@ -84,6 +84,9 @@ const TRACKED_FIELDS: {
   label: string;
 }[] = [
   { key: "gradeLevel", label: "Grade level" },
+  // Moving from in_progress to completed is a year ending, which changes what
+  // is still reachable — the follow-up should see it as a real change.
+  { key: "gradeStatus", label: "Grade status" },
   { key: "curriculum", label: "Curriculum" },
   { key: "gpa", label: "GPA" },
   { key: "gpaScale", label: "GPA scale" },

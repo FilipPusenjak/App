@@ -18,6 +18,10 @@ export type EvaluationSnapshot = {
   capturedAt: string;
   student: {
     gradeLevel: string | null;
+    /** "in_progress" | "completed" — the raw enum, not a label, because the
+     *  prompt turns it into a full sentence and the diff reads it back. Null on
+     *  snapshots taken before the field existed. */
+    gradeStatus: string | null;
     schoolName: string | null;
     schoolContext: string | null;
     curriculum: string | null;
@@ -64,6 +68,10 @@ export type EvaluationSnapshot = {
 
 type ProfileLike = {
   gradeLevel: string | null;
+  /** Optional on the way IN, always present on the way out. Every real caller
+   *  loads the profile with `include`, so the field arrives whether or not it
+   *  is named here; leaving it optional is what lets a fixture omit it. */
+  gradeStatus?: string | null;
   schoolName: string | null;
   schoolContext: string | null;
   curriculum: string | null;
@@ -114,6 +122,7 @@ export function buildSnapshot(
     capturedAt: new Date().toISOString(),
     student: {
       gradeLevel: profile.gradeLevel,
+      gradeStatus: profile.gradeStatus ?? null,
       schoolName: profile.schoolName,
       schoolContext: profile.schoolContext,
       curriculum: label(CURRICULUM_LABELS, profile.curriculum as Curriculum),

@@ -65,6 +65,9 @@ async function main() {
           studentName: "Ada Sample",
           countryOfOrigin: "SG",
           gradeLevel: "Grade 11",
+          // Singapore's school year runs January to November, which is the
+          // whole reason this is stored rather than guessed from the date.
+          gradeStatus: "in_progress",
           curriculum: "ib",
           gpa: 3.9,
           gpaScale: "4.0",

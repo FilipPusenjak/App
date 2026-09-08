@@ -46,6 +46,7 @@ export default async function ProfilePage() {
         <ProfileForm
           values={{
             gradeLevel: profile.gradeLevel,
+            gradeStatus: profile.gradeStatus,
             schoolName: profile.schoolName,
             schoolContext: profile.schoolContext,
             curriculum: profile.curriculum,

@@ -60,6 +60,7 @@ export async function updateProfileAction(
 ): Promise<FormResult> {
   const parsed = profileSchema.safeParse({
     gradeLevel: optText(fd, "gradeLevel"),
+    gradeStatus: optText(fd, "gradeStatus"),
     schoolName: optText(fd, "schoolName"),
     schoolContext: optText(fd, "schoolContext"),
     curriculum: optText(fd, "curriculum"),
@@ -89,6 +90,7 @@ export async function updateProfileAction(
       // someone saved their profile.
       ...(fd.has("studentName") ? { studentName: d.studentName ?? null } : {}),
       gradeLevel: d.gradeLevel ?? null,
+      gradeStatus: d.gradeStatus ?? null,
       schoolName: d.schoolName ?? null,
       schoolContext: d.schoolContext ?? null,
       curriculum: d.curriculum ?? null,

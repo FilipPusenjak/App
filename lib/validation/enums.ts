@@ -3,6 +3,30 @@
 // what the app actually validates against, and the *_LABELS maps drive the UI.
 import { z } from "zod";
 
+/**
+ * Whether the stated grade level is in progress or already finished.
+ *
+ * Asked of the student rather than worked out from the date. School years do not
+ * begin or end on a shared date — June is mid-year in the southern hemisphere and
+ * done in the northern, and an international school can sit on neither calendar —
+ * so a date-based guess is wrong for a whole hemisphere of users at a time.
+ */
+export const GRADE_STATUSES = ["in_progress", "completed"] as const;
+export const gradeStatusSchema = z.enum(GRADE_STATUSES);
+export type GradeStatus = (typeof GRADE_STATUSES)[number];
+export const GRADE_STATUS_LABELS: Record<GradeStatus, string> = {
+  in_progress: "I am in it now",
+  completed: "I have just finished it",
+};
+
+/** How each status is stated to the model. Full sentences, because the prompt
+ *  reads as prose and "completed" alone invites the same guess back. */
+export const GRADE_STATUS_PROMPT: Record<GradeStatus, string> = {
+  in_progress: "the student is CURRENTLY IN this grade — it is not finished yet",
+  completed:
+    "the student has ALREADY FINISHED this grade — the next one has not started yet, so do not treat that year as still ahead of them",
+};
+
 export const CURRICULA = [
   "pre_ib",
   "ib",

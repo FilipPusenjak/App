@@ -2,7 +2,12 @@
 
 import { useActionState } from "react";
 import { updateProfileAction, type FormResult } from "@/app/actions/profile";
-import { CURRICULA, CURRICULUM_LABELS } from "@/lib/validation/enums";
+import {
+  CURRICULA,
+  CURRICULUM_LABELS,
+  GRADE_STATUSES,
+  GRADE_STATUS_LABELS,
+} from "@/lib/validation/enums";
 import { COUNTRIES } from "@/lib/data/countries";
 import {
   Field,
@@ -16,6 +21,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 
 export type ProfileFormValues = {
   gradeLevel: string | null;
+  gradeStatus: string | null;
   schoolName: string | null;
   schoolContext: string | null;
   curriculum: string | null;
@@ -51,6 +57,30 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
             defaultValue={values.gradeLevel ?? ""}
             placeholder="e.g. Grade 11 / Year 12"
           />
+        </Field>
+
+        {/* Asked rather than inferred. School years start and end on different
+            dates around the world, so the date this is read on cannot settle
+            whether that grade is underway or over. */}
+        <Field
+          label="And that grade is…"
+          htmlFor="gradeStatus"
+          error={fe.gradeStatus}
+          hint="So an evaluation knows how much of the year is still ahead of you."
+        >
+          <Select
+            key={values.gradeStatus ?? ""}
+            id="gradeStatus"
+            name="gradeStatus"
+            defaultValue={values.gradeStatus ?? ""}
+          >
+            <option value="">Not set</option>
+            {GRADE_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {GRADE_STATUS_LABELS[s]}
+              </option>
+            ))}
+          </Select>
         </Field>
 
         <Field label="School" htmlFor="schoolName" error={fe.schoolName}>

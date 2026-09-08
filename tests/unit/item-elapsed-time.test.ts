@@ -173,16 +173,19 @@ describe("the prompt states today's date", () => {
 });
 
 describe("grade level says which grade it means", () => {
-  it("states that it is the grade in progress or just completed", () => {
-    // Previously a bare free-text passthrough: the model was given "Grade 11"
-    // with no indication of whether that year was ahead of them or behind.
+  // Originally: a bare free-text passthrough, the model given "Grade 11" with
+  // no indication of whether that year was ahead of them or behind. It was
+  // first fixed by having the model infer it from the date, and is now fixed by
+  // asking the student outright — see tests/unit/grade-status.test.ts for both
+  // branches. What survives here is the guarantee that predates either fix.
+  it("never hands over a bare grade with no reading attached", () => {
     const text = renderSnapshot(snapshotWithItem({}));
-    expect(text).toMatch(/currently IN, or has JUST COMPLETED/);
+    expect(text).toMatch(/Grade level: Grade 11 — ./);
   });
 
-  it("ties that reading to today's date rather than leaving it open", () => {
+  it("says whether that year is underway or behind them", () => {
     const text = renderSnapshot(snapshotWithItem({}));
-    expect(text).toMatch(/together with today's date/i);
+    expect(text).toMatch(/CURRENTLY IN this grade/);
   });
 });
 
@@ -194,6 +197,7 @@ function snapshotWithItem(item: {
     capturedAt: TODAY,
     student: {
       gradeLevel: "Grade 11",
+      gradeStatus: "in_progress",
       schoolName: "Riverside High",
       schoolContext: null,
       curriculum: "AP",

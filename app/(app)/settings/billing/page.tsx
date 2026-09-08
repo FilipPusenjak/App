@@ -54,6 +54,37 @@ export default async function BillingPage() {
         ))}
       </div>
 
+      {/* Cancelling has to stay as easy as subscribing was, so the way out sits
+          on the same page as the way in. The cards above already say which plan
+          is current; this is only the door to Stripe, plus the sentence somebody
+          whose card expired is owed — without it they see "Free" and reasonably
+          conclude the app lost their payment. */}
+      {summary.status && summary.status !== "active" && (
+        <p className="max-w-2xl rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          {describeStatus(summary.status, summary.currentPeriodEnd)}
+        </p>
+      )}
+      {summary.cancelAtPeriodEnd && summary.currentPeriodEnd && (
+        <p className="max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+          Cancelled — your plan runs until{" "}
+          {summary.currentPeriodEnd.toLocaleDateString("en-US", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })}
+          . You keep everything you paid for until then.
+        </p>
+      )}
+      {summary.hasCustomer && configured && (
+        <div>
+          <PortalButton />
+          <p className="mt-1.5 text-xs text-zinc-500">
+            Change or cancel your plan, update your card, and download receipts.
+            Cancelling takes as few clicks as subscribing did.
+          </p>
+        </div>
+      )}
+
       {/* What the plan actually gets you, as dates rather than allowances.
           Sits directly under the plans because "when can I run this again" is
           the question somebody arrives on this page holding. */}

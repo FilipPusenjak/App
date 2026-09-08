@@ -4,6 +4,7 @@
 import { z } from "zod";
 import {
   curriculumSchema,
+  gradeStatusSchema,
   resumeItemTypeSchema,
   testScoreKindSchema,
   TEST_SCORE_KIND_LABELS,
@@ -15,6 +16,7 @@ export const profileSchema = z.object({
   /** What the account calls this student. Null/blank for a solo student. */
   studentName: z.string().trim().max(120).optional(),
   gradeLevel: z.string().trim().max(100).optional(),
+  gradeStatus: gradeStatusSchema.optional(),
   schoolName: z.string().trim().max(200).optional(),
   schoolContext: z.string().trim().max(2000).optional(),
   curriculum: curriculumSchema.optional(),

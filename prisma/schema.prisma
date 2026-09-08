@@ -316,6 +316,13 @@ model Profile {
   // domestic vs international status, which changes the assessment.
   countryOfOrigin String? // ISO code
   gradeLevel      String? // e.g. "Grade 11", "Year 12"
+  /// Whether gradeLevel is the year in progress or the one just finished. Asked
+  /// rather than inferred: school calendars do not share a start or end date, so
+  /// "Grade 11" in June is mid-year in Sydney and finished in Chicago, and the
+  /// date alone cannot tell the two apart. Null on profiles predating the field,
+  /// where the prompt falls back to reasoning from the date.
+  /// Zod enum: in_progress | completed.
+  gradeStatus     String?
   // School context. Not all schools are equally rigorous, and a GPA means very
   // little without knowing what was available to earn it — which courses the
   // school offers, how it grades, whether it ranks.
