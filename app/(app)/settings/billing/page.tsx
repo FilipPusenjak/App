@@ -204,7 +204,7 @@ function PlanCard({
       </p>
       {purchasable && (
         <div className="mt-4">
-          <CheckoutButton planCode={plan.code} label={`Move to ${plan.name}`} />
+          <CheckoutButton planCode={plan.code} label={`Upgrade to ${plan.name}`} />
         </div>
       )}
     </section>
