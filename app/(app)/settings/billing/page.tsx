@@ -43,51 +43,6 @@ export default async function BillingPage() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
-        <h2 className="text-sm font-medium text-zinc-500">Where you stand</h2>
-        <p className="mt-2 text-lg">
-          <strong className="font-semibold">
-            {summary.plan?.name ?? "Free"}
-          </strong>
-          {summary.plan && summary.plan.monthlyUsd > 0 && (
-            <span className="text-zinc-500">
-              {" "}
-              · ${summary.plan.monthlyUsd}/mo
-            </span>
-          )}
-        </p>
-
-        {/* The lapse sentence. Somebody whose card expired needs to be told
-            that, not shown "Free" with no explanation and left to assume the
-            app lost their payment. */}
-        {summary.status && summary.status !== "active" && (
-          <p className="mt-2 max-w-2xl text-sm text-amber-800 dark:text-amber-200">
-            {describeStatus(summary.status, summary.currentPeriodEnd)}
-          </p>
-        )}
-        {summary.cancelAtPeriodEnd && summary.currentPeriodEnd && (
-          <p className="mt-2 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-            Cancelled — your plan runs until{" "}
-            {summary.currentPeriodEnd.toLocaleDateString("en-US", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-            . You keep everything you paid for until then.
-          </p>
-        )}
-
-        {summary.hasCustomer && configured && (
-          <div className="mt-4">
-            <PortalButton />
-            <p className="mt-1.5 text-xs text-zinc-500">
-              Change or cancel your plan, update your card, and download
-              receipts. Cancelling takes as few clicks as subscribing did.
-            </p>
-          </div>
-        )}
-      </section>
-
       <div className="grid gap-4 sm:grid-cols-2">
         {plans.map((plan) => (
           <PlanCard
