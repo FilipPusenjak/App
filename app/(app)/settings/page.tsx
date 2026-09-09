@@ -12,7 +12,11 @@ import { getAiStatus } from "@/lib/ai-status";
 import { getDeploymentInfo } from "@/lib/deployment-info";
 import { getOwnedProfiles } from "@/lib/ownership";
 import { DeleteAccountForm } from "./delete-account-form";
-import { getRetentionPolicy } from "@/lib/evaluation/retention";
+import {
+  getRetentionPolicy,
+  PAID_RESULT_DAYS,
+} from "@/lib/evaluation/retention";
+import { loadBillingSummary } from "@/lib/billing/subscription";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
@@ -30,7 +34,12 @@ export default async function SettingsPage() {
   ]);
 
   const ai = getAiStatus();
-  const retention = getRetentionPolicy();
+  // This account's own window, not the deployment's — the two tiers keep prose
+  // for different lengths, and showing somebody the other one's date would be
+  // worse than showing nothing.
+  const billing = await loadBillingSummary(user.id, "STUDENT");
+  const paying = (billing.plan?.monthlyUsd ?? 0) > 0;
+  const retention = getRetentionPolicy(paying ? "paid" : "free");
   const deployment = getDeploymentInfo();
 
   // Counted as "live" only when the link is ACTIVE and BOTH consents are in —
@@ -286,6 +295,23 @@ export default async function SettingsPage() {
               {retention.resultDays} days.
             </li>
           </ul>
+          {/* Said once, next to the date it applies to, rather than as a
+              separate upsell. Somebody reading their own retention window is
+              owed the fact that it is not the only one available. */}
+          {!paying && (
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+              On{" "}
+              <Link
+                href="/settings/billing"
+                className="underline underline-offset-2"
+              >
+                Plus
+              </Link>{" "}
+              the write-up is kept for {PAID_RESULT_DAYS} days instead, which
+              covers a full application cycle. Your scores and progress chart
+              are unaffected either way.
+            </p>
+          )}
           <p className="mt-2 text-xs text-zinc-400">
             Download your data above if you want to keep the full text. An
             evaluation that has passed these dates still shows its scores, just

@@ -5,8 +5,53 @@
 // is ownership-scoped like everything else: every query filters by ONE
 // authenticated user id, never by anything a client supplied.
 import { prisma } from "@/lib/db";
-import { effectivePlan, type SubscriptionState } from "./entitlement";
+import {
+  effectivePlan,
+  subscriptionGrantsAccess,
+  type SubscriptionState,
+} from "./entitlement";
 import { planByCode, type Plan, type PlanAudience } from "./plans";
+
+/**
+ * Every account currently entitled to a paid plan.
+ *
+ * The one query in this file that is NOT scoped to a single user, because its
+ * caller is the retention sweep — a background job with no session, deciding
+ * how long to keep each account's data.
+ *
+ * It reuses subscriptionGrantsAccess rather than expressing "is paying" as a
+ * WHERE clause. That rule is subtle in ways SQL would lose: a cancelled
+ * subscription still grants access until the period it paid for runs out, and
+ * past_due keeps access while Stripe retries. Reimplemented in the query, every
+ * one of those cases would silently delete a paying customer's data early,
+ * which is the worst thing this system can do.
+ *
+ * Reads the whole Subscription table, which is bounded by the number of people
+ * who have ever paid — an account with no row is free by definition and never
+ * needs loading.
+ */
+export async function userIdsWithPaidAccess(now: Date): Promise<Set<string>> {
+  const rows = await prisma.subscription.findMany({
+    select: {
+      userId: true,
+      planCode: true,
+      status: true,
+      currentPeriodEnd: true,
+      cancelAtPeriodEnd: true,
+    },
+  });
+
+  const paid = new Set<string>();
+  for (const row of rows) {
+    if (!subscriptionGrantsAccess(row, now)) continue;
+    // Audience-blind on purpose: retention asks only whether somebody is
+    // paying, so a tutor plan counts the same as a student one. A comped plan
+    // priced at zero does not, since it is not what the long window is for.
+    const plan = planByCode(row.planCode);
+    if (plan && plan.monthlyUsd > 0) paid.add(row.userId);
+  }
+  return paid;
+}
 
 /** Every subscription row this account holds, in the pure rules' shape. */
 export async function loadSubscriptionStates(

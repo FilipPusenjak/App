@@ -8,10 +8,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_INPUT_SNAPSHOT_DAYS,
-  DEFAULT_RESULT_DAYS,
   EXPIRY_WARNING_DAYS,
+  PAID_RESULT_DAYS,
   cutoffFor,
   expiryFor,
+  getRetentionPolicy,
   isExpiringSoon,
   type RetentionPolicy,
 } from "@/lib/evaluation/retention";
@@ -23,9 +24,11 @@ import {
 import { buildProgress } from "@/lib/evaluation/progress";
 import { legacyResult } from "./fixtures/legacy-result";
 
+/** The paid window, which is the one the original tests were written against. */
 const POLICY: RetentionPolicy = {
   inputSnapshotDays: DEFAULT_INPUT_SNAPSHOT_DAYS,
-  resultDays: DEFAULT_RESULT_DAYS,
+  resultDays: PAID_RESULT_DAYS,
+  warningDays: EXPIRY_WARNING_DAYS,
 };
 
 const NOW = new Date("2028-06-01T00:00:00Z");
@@ -192,11 +195,11 @@ describe("what expires, and when", () => {
     // The snapshot is essays and activity write-ups a teenager typed about
     // themselves — arguably more sensitive than the assessment of them, and
     // needed for less time.
-    expect(DEFAULT_INPUT_SNAPSHOT_DAYS).toBeLessThan(DEFAULT_RESULT_DAYS);
+    expect(DEFAULT_INPUT_SNAPSHOT_DAYS).toBeLessThan(PAID_RESULT_DAYS);
   });
 
   it("keeps a write-up long enough to cover an application cycle", () => {
-    expect(DEFAULT_RESULT_DAYS).toBeGreaterThanOrEqual(365);
+    expect(PAID_RESULT_DAYS).toBeGreaterThanOrEqual(365);
   });
 
   it("expires each field on its own schedule", () => {
@@ -211,7 +214,11 @@ describe("what expires, and when", () => {
   });
 
   it("never expires anything when a window is switched off", () => {
-    const off: RetentionPolicy = { inputSnapshotDays: 0, resultDays: -1 };
+    const off: RetentionPolicy = {
+      inputSnapshotDays: 0,
+      resultDays: -1,
+      warningDays: 0,
+    };
     const state = expiryFor(daysAgo(5000), off, NOW);
     expect(state).toEqual({
       snapshotExpired: false,
@@ -222,18 +229,67 @@ describe("what expires, and when", () => {
   });
 
   it("warns before a write-up goes, not after", () => {
+    const warn = POLICY.warningDays;
     const { resultExpiresAt } = expiryFor(daysAgo(340), POLICY, NOW);
-    expect(isExpiringSoon(resultExpiresAt, NOW)).toBe(true);
+    expect(isExpiringSoon(resultExpiresAt, NOW, warn)).toBe(true);
 
     // Not yet close.
-    expect(isExpiringSoon(expiryFor(daysAgo(10), POLICY, NOW).resultExpiresAt, NOW)).toBe(
-      false,
-    );
+    expect(
+      isExpiringSoon(expiryFor(daysAgo(10), POLICY, NOW).resultExpiresAt, NOW, warn),
+    ).toBe(false);
     // Already gone — nothing left to warn about.
-    expect(isExpiringSoon(expiryFor(daysAgo(400), POLICY, NOW).resultExpiresAt, NOW)).toBe(
+    expect(
+      isExpiringSoon(expiryFor(daysAgo(400), POLICY, NOW).resultExpiresAt, NOW, warn),
+    ).toBe(false);
+    expect(EXPIRY_WARNING_DAYS).toBeGreaterThan(0);
+  });
+});
+
+describe("the free window is shorter, and that is the whole point", () => {
+  const free = getRetentionPolicy("free");
+  const paid = getRetentionPolicy("paid");
+
+  it("keeps free prose for a month and paid prose for a cycle", () => {
+    expect(free.resultDays).toBe(30);
+    expect(paid.resultDays).toBe(365);
+  });
+
+  it("gives the paid plan a genuinely longer window", () => {
+    // If these ever converged, the upgrade would be selling nothing.
+    expect(paid.resultDays).toBeGreaterThan(free.resultDays);
+  });
+
+  it("never lets the raw profile outlive the write-up made from it", () => {
+    // The snapshot is the more sensitive of the two — what a teenager typed
+    // about themselves, not a judgement about it. A free account keeping it
+    // for 60 days after the narrative went at 30 would invert the policy.
+    for (const policy of [free, paid]) {
+      expect(policy.inputSnapshotDays).toBeLessThanOrEqual(policy.resultDays);
+    }
+    expect(free.inputSnapshotDays).toBe(30);
+    expect(paid.inputSnapshotDays).toBe(60);
+  });
+
+  it("scales the warning so a 30-day window does not warn from birth", () => {
+    // 30 days' notice on a 30-day window means every evaluation is "expiring
+    // soon" the moment it is written, which is noise rather than notice.
+    expect(free.warningDays).toBeLessThan(free.resultDays);
+    expect(paid.warningDays).toBe(EXPIRY_WARNING_DAYS);
+
+    const fresh = expiryFor(daysAgo(1), free, NOW);
+    expect(isExpiringSoon(fresh.resultExpiresAt, NOW, free.warningDays)).toBe(
       false,
     );
-    expect(EXPIRY_WARNING_DAYS).toBeGreaterThan(0);
+    const nearly = expiryFor(daysAgo(29), free, NOW);
+    expect(isExpiringSoon(nearly.resultExpiresAt, NOW, free.warningDays)).toBe(
+      true,
+    );
+  });
+
+  it("expires free prose at 30 days and keeps paid prose past it", () => {
+    const at40 = daysAgo(40);
+    expect(expiryFor(at40, free, NOW).resultExpired).toBe(true);
+    expect(expiryFor(at40, paid, NOW).resultExpired).toBe(false);
   });
 });
 
