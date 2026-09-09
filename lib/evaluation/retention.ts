@@ -66,6 +66,51 @@ export const FREE_RESULT_DAYS = 30;
 export const PAID_RESULT_DAYS = 365;
 
 /**
+ * Evaluations written before this are never stripped of their narrative.
+ *
+ * The 30-day free window is a change to a promise already made: everything
+ * written before it was written under "kept for 365 days", shown to the student
+ * on their own settings page. Applying the new window to that backlog would
+ * delete up to eleven months of somebody's history on the first sweep, under a
+ * rule that did not exist when they wrote it. So it only ever applies going
+ * forward, and the old rows are kept indefinitely.
+ *
+ * Their SNAPSHOTS still expire on the ordinary 60-day schedule. That half was
+ * never part of the promise being honoured here — the raw profile is the more
+ * sensitive of the two, and keeping essay drafts forever to grandfather a
+ * write-up would be honouring the wrong thing.
+ *
+ * Overridable so the date can be pushed forward if the deploy slips: anything
+ * written before the new copy is actually visible should be on the old terms.
+ */
+export const DEFAULT_POLICY_START = "2026-09-10T00:00:00Z";
+
+/**
+ * Read on each call rather than frozen at import, matching how the day counts
+ * above are read. It is also what makes the sweep testable: a test can move the
+ * boundary without the module having already decided where it is.
+ */
+export function grandfatheredBefore(): Date {
+  const raw = process.env.RETENTION_POLICY_START?.trim();
+  const parsed = raw ? new Date(raw) : null;
+  // An unparseable date falls back rather than becoming Invalid Date, which
+  // compares false against everything and would silently grandfather nothing.
+  return parsed && !Number.isNaN(parsed.getTime())
+    ? parsed
+    : new Date(DEFAULT_POLICY_START);
+}
+
+/**
+ * What the grandfathered rows get: the narrative kept forever, the raw profile
+ * still expiring exactly as it always did.
+ */
+export const LEGACY_POLICY: RetentionPolicy = {
+  inputSnapshotDays: DEFAULT_INPUT_SNAPSHOT_DAYS,
+  resultDays: 0,
+  warningDays: 0,
+};
+
+/**
  * Which window an account gets. Not the plan name — retention only cares
  * whether somebody is paying, so a second paid plan needs no change here.
  */

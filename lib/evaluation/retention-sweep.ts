@@ -30,7 +30,13 @@
 import { prisma } from "@/lib/db";
 import { userIdsWithPaidAccess } from "@/lib/billing/subscription";
 import { countMissingChartPoints } from "./backfill-chart-points";
-import { cutoffFor, getRetentionPolicy, type RetentionPolicy } from "./retention";
+import {
+  cutoffFor,
+  getRetentionPolicy,
+  grandfatheredBefore,
+  LEGACY_POLICY,
+  type RetentionPolicy,
+} from "./retention";
 
 export type SweepResult =
   | {
@@ -47,7 +53,12 @@ export type SweepResult =
        *  cleared a lot did so on free accounts or on paying ones. */
       free: { snapshotsCleared: number; resultsCleared: number };
       paid: { snapshotsCleared: number; resultsCleared: number };
+      /** Rows predating the tier split. Their resultsCleared is always 0 —
+       *  their narratives are kept indefinitely — so a non-zero value here is
+       *  the signal that the grandfather clause has stopped working. */
+      legacy: { snapshotsCleared: number; resultsCleared: number };
       paidAccounts: number;
+      grandfatheredBefore: Date;
       policy: { free: RetentionPolicy; paid: RetentionPolicy };
     };
 
@@ -71,38 +82,60 @@ export async function sweepExpiredProse(
     paid: getRetentionPolicy("paid"),
   };
 
-  // Who is paying RIGHT NOW, resolved once and applied to both passes. Read
+  // Who is paying RIGHT NOW, resolved once and applied to every pass. Read
   // before any deletion so a subscription that lapses mid-sweep cannot cause
-  // the two passes to disagree about the same account.
+  // two passes to disagree about the same account.
   const paidUserIds = [...(await userIdsWithPaidAccess(now))];
 
-  // The two passes are each other's complement: `in` for payers, `notIn` for
-  // everyone else. An account with no subscription row is free by definition
-  // and is caught by the second — which is also why an empty payer list is
-  // correct rather than a bug, `notIn: []` matching every row.
-  const paid = await clearExpired(policy.paid, now, {
-    profile: { userId: { in: paidUserIds } },
-  });
-  const free = await clearExpired(policy.free, now, {
-    profile: { userId: { notIn: paidUserIds } },
-  });
+  // Written before the tiers existed, on the old promise. Swept on the legacy
+  // policy — snapshot still goes at 60 days, narrative never — and split off
+  // FIRST so neither tier pass can reach it.
+  const boundary = grandfatheredBefore();
+  const written = { createdAt: { gte: boundary } };
+  const legacy = await clearExpired(LEGACY_POLICY, now, [
+    { createdAt: { lt: boundary } },
+  ]);
+
+  // The two tier passes are each other's complement: `in` for payers, `notIn`
+  // for everyone else. An account with no subscription row is free by
+  // definition and is caught by the second — which is also why an empty payer
+  // list is correct rather than a bug, `notIn: []` matching every row.
+  const paid = await clearExpired(policy.paid, now, [
+    written,
+    { profile: { userId: { in: paidUserIds } } },
+  ]);
+  const free = await clearExpired(policy.free, now, [
+    written,
+    { profile: { userId: { notIn: paidUserIds } } },
+  ]);
 
   return {
     ran: true,
-    snapshotsCleared: free.snapshotsCleared + paid.snapshotsCleared,
-    resultsCleared: free.resultsCleared + paid.resultsCleared,
+    snapshotsCleared:
+      free.snapshotsCleared + paid.snapshotsCleared + legacy.snapshotsCleared,
+    resultsCleared:
+      free.resultsCleared + paid.resultsCleared + legacy.resultsCleared,
     free,
     paid,
+    legacy,
     paidAccounts: paidUserIds.length,
+    grandfatheredBefore: boundary,
     policy,
   };
 }
 
-/** One tier's worth of deletion, over both row types that carry prose. */
+/**
+ * One policy's worth of deletion, over both row types that carry prose.
+ *
+ * `scope` is a list of conditions ANDed together rather than one object,
+ * because the caller and this function both constrain createdAt — the caller
+ * to split old rows from new, this function to pick the expired ones — and two
+ * bounds on one field cannot be expressed by merging objects.
+ */
 async function clearExpired(
   policy: RetentionPolicy,
   now: Date,
-  scope: { profile: { userId: { in: string[] } | { notIn: string[] } } },
+  scope: Record<string, unknown>[],
 ): Promise<{ snapshotsCleared: number; resultsCleared: number }> {
   const snapshotCutoff = cutoffFor(policy.inputSnapshotDays, now);
   const resultCutoff = cutoffFor(policy.resultDays, now);
@@ -113,45 +146,31 @@ async function clearExpired(
   if (snapshotCutoff) {
     // Evaluations first, then projections — both carry a raw profile snapshot
     // and both are equally sensitive.
+    const where = {
+      AND: [
+        ...scope,
+        { createdAt: { lt: snapshotCutoff } },
+        { inputSnapshotJson: { not: null } },
+      ],
+    };
     const [a, b] = await Promise.all([
-      prisma.evaluation.updateMany({
-        where: {
-          ...scope,
-          createdAt: { lt: snapshotCutoff },
-          inputSnapshotJson: { not: null },
-        },
-        data: { inputSnapshotJson: null },
-      }),
-      prisma.projection.updateMany({
-        where: {
-          ...scope,
-          createdAt: { lt: snapshotCutoff },
-          inputSnapshotJson: { not: null },
-        },
-        data: { inputSnapshotJson: null },
-      }),
+      prisma.evaluation.updateMany({ where, data: { inputSnapshotJson: null } }),
+      prisma.projection.updateMany({ where, data: { inputSnapshotJson: null } }),
     ]);
     snapshotsCleared = a.count + b.count;
   }
 
   if (resultCutoff) {
+    const where = {
+      AND: [
+        ...scope,
+        { createdAt: { lt: resultCutoff } },
+        { resultJson: { not: null } },
+      ],
+    };
     const [a, b] = await Promise.all([
-      prisma.evaluation.updateMany({
-        where: {
-          ...scope,
-          createdAt: { lt: resultCutoff },
-          resultJson: { not: null },
-        },
-        data: { resultJson: null },
-      }),
-      prisma.projection.updateMany({
-        where: {
-          ...scope,
-          createdAt: { lt: resultCutoff },
-          resultJson: { not: null },
-        },
-        data: { resultJson: null },
-      }),
+      prisma.evaluation.updateMany({ where, data: { resultJson: null } }),
+      prisma.projection.updateMany({ where, data: { resultJson: null } }),
     ]);
     resultsCleared = a.count + b.count;
   }

@@ -64,14 +64,25 @@ d("the retention sweep", () => {
   let profileId = "";
   let userId = "";
 
+  const originalPolicyStart = process.env.RETENTION_POLICY_START;
+
   beforeEach(async () => {
     await cleanupRun(runTag);
+    // Push the grandfather boundary into the distant past by default, so every
+    // row these tests create counts as written under the new policy. The tests
+    // that are ABOUT the boundary move it themselves.
+    process.env.RETENTION_POLICY_START = "2000-01-01T00:00:00Z";
     const made = await createUserWithProfile(runTag, "ret");
     profileId = made.profile.id;
     userId = made.user.id;
   });
 
   afterAll(async () => {
+    if (originalPolicyStart === undefined) {
+      delete process.env.RETENTION_POLICY_START;
+    } else {
+      process.env.RETENTION_POLICY_START = originalPolicyStart;
+    }
     await cleanupRun(runTag);
   });
 
@@ -193,6 +204,52 @@ d("the retention sweep", () => {
     expect(row.resultJson).toBeNull();
     expect(row.overallScore).toBe(58);
     expect(parseChartPoint(row.chartPointJson)?.overall).toBe(58);
+  });
+
+  it("keeps the write-up of anything written before the policy changed", async () => {
+    // The backlog. These were written when the settings page said 365 days, so
+    // the 30-day rule must not reach back and delete eleven months of somebody's
+    // history under a rule that did not exist when they wrote it.
+    process.env.RETENTION_POLICY_START = daysAgo(100).toISOString();
+
+    const before = await makeEvaluation(profileId, daysAgo(300));
+    const after = await makeEvaluation(profileId, daysAgo(50));
+
+    await backfillChartPoints();
+    const result = await sweepExpiredProse(NOW);
+    expect(result.ran).toBe(true);
+
+    const [old, recent] = await Promise.all(
+      [before.id, after.id].map((id) =>
+        prisma.evaluation.findUniqueOrThrow({ where: { id } }),
+      ),
+    );
+
+    // Written under the old promise: narrative kept, however old it gets.
+    expect(old!.resultJson).not.toBeNull();
+    // Written under the new one, on a free account, past 30 days: gone.
+    expect(recent!.resultJson).toBeNull();
+
+    if (result.ran) {
+      // The signal that the clause is working. A non-zero value here means
+      // grandfathered narratives are being deleted.
+      expect(result.legacy.resultsCleared).toBe(0);
+    }
+  });
+
+  it("still takes the raw profile snapshot off a grandfathered row", async () => {
+    // The half deliberately NOT grandfathered. Essay drafts are the more
+    // sensitive of the two and were always going at 60 days; keeping them
+    // forever to protect a write-up would honour the wrong promise.
+    process.env.RETENTION_POLICY_START = daysAgo(100).toISOString();
+
+    const old = await makeEvaluation(profileId, daysAgo(300));
+    await backfillChartPoints();
+    await sweepExpiredProse(NOW);
+
+    const row = await prisma.evaluation.findUniqueOrThrow({ where: { id: old.id } });
+    expect(row.inputSnapshotJson).toBeNull();
+    expect(row.resultJson).not.toBeNull();
   });
 
   it("is idempotent — a second pass clears nothing more", async () => {

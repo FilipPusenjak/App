@@ -14,6 +14,7 @@ import { getOwnedProfiles } from "@/lib/ownership";
 import { DeleteAccountForm } from "./delete-account-form";
 import {
   getRetentionPolicy,
+  grandfatheredBefore,
   PAID_RESULT_DAYS,
 } from "@/lib/evaluation/retention";
 import { loadBillingSummary } from "@/lib/billing/subscription";
@@ -40,6 +41,8 @@ export default async function SettingsPage() {
   const billing = await loadBillingSummary(user.id, "STUDENT");
   const paying = (billing.plan?.monthlyUsd ?? 0) > 0;
   const retention = getRetentionPolicy(paying ? "paid" : "free");
+  const policyStart = grandfatheredBefore();
+  const hasGrandfathered = evaluations.some((e) => e.createdAt < policyStart);
   const deployment = getDeploymentInfo();
 
   // Counted as "live" only when the link is ACTIVE and BOTH consents are in —
@@ -294,6 +297,21 @@ export default async function SettingsPage() {
               The evaluation write-up itself is removed after{" "}
               {retention.resultDays} days.
             </li>
+            {/* Only where it is true. Somebody who joined after the change has
+                no grandfathered rows, and telling them about a cutoff that
+                keeps nothing of theirs is just confusing. */}
+            {hasGrandfathered && (
+              <li>
+                Evaluations you ran before{" "}
+                {policyStart.toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}{" "}
+                are an exception — their write-ups are kept for as long as your
+                account exists, on the terms they were written under.
+              </li>
+            )}
           </ul>
           {/* Said once, next to the date it applies to, rather than as a
               separate upsell. Somebody reading their own retention window is

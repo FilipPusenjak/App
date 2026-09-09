@@ -5,14 +5,17 @@
 // scores were originally read out of, so the single most important test in this
 // file is that a four-year chart survives an evaluation losing its narrative.
 // Everything else is detail.
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_INPUT_SNAPSHOT_DAYS,
+  DEFAULT_POLICY_START,
   EXPIRY_WARNING_DAYS,
+  LEGACY_POLICY,
   PAID_RESULT_DAYS,
   cutoffFor,
   expiryFor,
   getRetentionPolicy,
+  grandfatheredBefore,
   isExpiringSoon,
   type RetentionPolicy,
 } from "@/lib/evaluation/retention";
@@ -290,6 +293,66 @@ describe("the free window is shorter, and that is the whole point", () => {
     const at40 = daysAgo(40);
     expect(expiryFor(at40, free, NOW).resultExpired).toBe(true);
     expect(expiryFor(at40, paid, NOW).resultExpired).toBe(false);
+  });
+});
+
+describe("evaluations written under the old promise", () => {
+  it("never lose their write-up, at any age", () => {
+    // They were written when the page said 365 days. Applying a 30-day rule to
+    // that backlog would delete eleven months of somebody's history under a
+    // rule that did not exist when they wrote it.
+    for (const age of [40, 400, 4000]) {
+      expect(expiryFor(daysAgo(age), LEGACY_POLICY, NOW).resultExpired).toBe(
+        false,
+      );
+    }
+    expect(expiryFor(daysAgo(4000), LEGACY_POLICY, NOW).resultExpiresAt).toBeNull();
+  });
+
+  it("still lose their raw profile snapshot on the old schedule", () => {
+    // The half that is NOT being grandfathered, and deliberately so: essay
+    // drafts are the more sensitive of the two, and they were always going at
+    // 60 days. Keeping them forever would honour the wrong promise.
+    expect(LEGACY_POLICY.inputSnapshotDays).toBe(DEFAULT_INPUT_SNAPSHOT_DAYS);
+    expect(expiryFor(daysAgo(90), LEGACY_POLICY, NOW).snapshotExpired).toBe(true);
+    expect(expiryFor(daysAgo(10), LEGACY_POLICY, NOW).snapshotExpired).toBe(false);
+  });
+
+  it("never warns about an expiry that is not coming", () => {
+    const { resultExpiresAt } = expiryFor(daysAgo(400), LEGACY_POLICY, NOW);
+    expect(isExpiringSoon(resultExpiresAt, NOW, LEGACY_POLICY.warningDays)).toBe(
+      false,
+    );
+  });
+});
+
+describe("where the boundary sits", () => {
+  const original = process.env.RETENTION_POLICY_START;
+  afterEach(() => {
+    if (original === undefined) delete process.env.RETENTION_POLICY_START;
+    else process.env.RETENTION_POLICY_START = original;
+  });
+
+  it("defaults to the date the tier split shipped", () => {
+    delete process.env.RETENTION_POLICY_START;
+    expect(grandfatheredBefore().toISOString()).toBe(
+      new Date(DEFAULT_POLICY_START).toISOString(),
+    );
+  });
+
+  it("can be moved, for a deploy that slips", () => {
+    process.env.RETENTION_POLICY_START = "2027-01-01T00:00:00Z";
+    expect(grandfatheredBefore().getUTCFullYear()).toBe(2027);
+  });
+
+  it("falls back rather than becoming an Invalid Date", () => {
+    // Invalid Date compares false against everything, so a typo here would
+    // grandfather NOTHING and quietly delete the backlog it exists to protect.
+    process.env.RETENTION_POLICY_START = "not-a-date";
+    expect(Number.isNaN(grandfatheredBefore().getTime())).toBe(false);
+    expect(grandfatheredBefore().toISOString()).toBe(
+      new Date(DEFAULT_POLICY_START).toISOString(),
+    );
   });
 });
 
