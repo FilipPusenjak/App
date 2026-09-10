@@ -82,6 +82,107 @@ export function passwordResetEmail(input: {
  * implies a deadline, and never states or hints at odds of admission — the
  * same rule the evaluations themselves are held to.
  */
+/**
+ * The weekly triage digest.
+ *
+ * NAMES STUDENTS AND NOTHING ELSE ABOUT THEM. No score, no band, no signal
+ * detail, no basis — those live behind a login where the counselor's read of
+ * them is logged, and dual consent has already been checked. Mail is forwarded,
+ * quoted, synced to phones and read on trains; a subject line carrying a
+ * teenager's readiness score is a disclosure the student never agreed to, and
+ * the counselor's own inbox is not a place this app can make any promises about.
+ *
+ * A name plus "needs attention" is the smallest thing that does the job, which
+ * is to get a professional to open the caseload. Everything else is one click
+ * away, in the place designed to show it.
+ *
+ * NO INVENTED URGENCY. Same house style as the rest: the severity ordering is
+ * real and computed, so the list speaks for itself without adjectives.
+ */
+export function counselorDigestEmail(input: {
+  to: string;
+  /** The practice name, when the account has one. */
+  orgName: string | null;
+  /** Already ordered — most severe first. Never re-sorted here. */
+  students: { linkId: string; name: string | null }[];
+  /** How many of them are new since the last digest. */
+  newSince: number;
+  /** Total needing attention, which may exceed what is listed. */
+  totalNeedingAttention: number;
+  appUrl: string;
+  unsubscribeToken: string;
+}): EmailMessage {
+  const {
+    to,
+    orgName,
+    students,
+    newSince,
+    totalNeedingAttention,
+    appUrl,
+    unsubscribeToken,
+  } = input;
+
+  const caseloadUrl = `${appUrl}/caseload`;
+  const visibleUnsubscribe = unsubscribeUrl(appUrl, unsubscribeToken);
+  const headerUnsubscribe = oneClickUnsubscribeUrl(appUrl, unsubscribeToken);
+
+  const label = (s: { name: string | null }) => s.name ?? "A student";
+  const notListed = totalNeedingAttention - students.length;
+
+  const opening =
+    totalNeedingAttention === 1
+      ? "One student on your caseload needs a look."
+      : `${totalNeedingAttention} students on your caseload need a look.`;
+  // Stated separately from the total, because "6 need attention" and "2 of
+  // those are new this week" are different facts and the second is the reason
+  // this mail arrived at all.
+  const newsLine =
+    newSince === totalNeedingAttention
+      ? null
+      : newSince === 1
+        ? "One of them is new since the last digest."
+        : `${newSince} of them are new since the last digest.`;
+
+  const text = [
+    orgName ? `${orgName} — ${opening}` : opening,
+    ...(newsLine ? [newsLine] : []),
+    "",
+    ...students.map((s) => `- ${label(s)}`),
+    ...(notListed > 0 ? [`- and ${notListed} more`] : []),
+    "",
+    "Triage ordered these by how much time is left to act, not by how strong",
+    "the student is. Open the caseload to see what surfaced and why:",
+    "",
+    caseloadUrl,
+    "",
+    "—",
+    `Don't want these? Unsubscribe: ${visibleUnsubscribe}`,
+  ].join("\n");
+
+  const html = [
+    `<p>${escapeHtml(orgName ? `${orgName} — ${opening}` : opening)}</p>`,
+    ...(newsLine ? [`<p>${escapeHtml(newsLine)}</p>`] : []),
+    "<ul>",
+    ...students.map((s) => `<li>${escapeHtml(label(s))}</li>`),
+    ...(notListed > 0 ? [`<li>and ${notListed} more</li>`] : []),
+    "</ul>",
+    "<p>Triage ordered these by how much time is left to act, not by how ",
+    "strong the student is.</p>",
+    `<p><a href="${escapeHtml(caseloadUrl)}">Open your caseload</a></p>`,
+    `<p style="color:#666;font-size:12px"><a href="${escapeHtml(visibleUnsubscribe)}">Unsubscribe from these digests</a></p>`,
+  ].join("");
+
+  return {
+    to,
+    // Deliberately free of names and numbers. A subject line is the one part
+    // shown on a lock screen, in a notification, and over a shoulder.
+    subject: "Your caseload this week",
+    text,
+    html,
+    unsubscribeUrl: headerUnsubscribe,
+  };
+}
+
 export function checkInNudgeEmail(input: {
   to: string;
   /** The student's own name, when the account has one. */

@@ -130,11 +130,27 @@ export async function unsubscribeByToken(token: string): Promise<boolean> {
   });
   if (!user) return false;
 
+  const now = new Date();
+
   if (!user.remindersOptOutAt) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { remindersOptOutAt: new Date() },
+      data: { remindersOptOutAt: now },
     });
   }
+
+  // STOPS EVERY STREAM, not the one the link happened to arrive in. The columns
+  // are separate so the two states can be represented independently, but a
+  // person clicking "unsubscribe" means stop mailing me — honouring that
+  // narrowly, and then sending them the other kind next week, is how a sender
+  // earns a spam complaint it entirely deserves.
+  //
+  // updateMany rather than update: an account with no caseload matches nothing
+  // and that is a no-op, not an error.
+  await prisma.counselorAccount.updateMany({
+    where: { userId: user.id, digestOptOutAt: null },
+    data: { digestOptOutAt: now },
+  });
+
   return true;
 }

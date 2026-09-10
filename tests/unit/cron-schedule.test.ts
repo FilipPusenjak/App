@@ -63,26 +63,36 @@ describe("vercel.json", () => {
 describe("the daily job", () => {
   const src = readFileSync("app/api/cron/daily/route.ts", "utf8");
 
-  it("runs both the triage pass and the reminder pass", () => {
+  it("runs the triage, reminder and digest passes", () => {
     expect(src).toContain("runTriage");
     expect(src).toContain("runReminderPass");
+    expect(src).toContain("runDigestPass");
   });
 
-  it("isolates each job from the other's failure", () => {
-    // The whole risk of one invocation doing two things. A triage query that
+  it("computes triage before mailing anybody about it", () => {
+    // The digest reports what triage just produced. Running it first would
+    // mail yesterday's caseload every single day — correct-looking, always
+    // stale, and almost impossible to notice from the outside.
+    expect(src.indexOf('attempt("triage"')).toBeLessThan(
+      src.indexOf('attempt("digests"'),
+    );
+  });
+
+  it("isolates each job from the others' failure", () => {
+    // The whole risk of one invocation doing three things. A triage query that
     // throws must not mean nobody is reminded for a day, and a mail outage
     // must not stop caseloads being recomputed.
-    const triageAt = src.indexOf('attempt("triage"');
-    const remindersAt = src.indexOf('attempt("reminders"');
-    expect(triageAt).toBeGreaterThan(-1);
-    expect(remindersAt).toBeGreaterThan(-1);
+    for (const name of ["triage", "reminders", "digests"]) {
+      expect(src.indexOf(`attempt("${name}"`), `${name} is not wrapped`).toBeGreaterThan(-1);
+    }
     expect(src).toMatch(/try \{[\s\S]*?await job\(\)[\s\S]*?\} catch/);
   });
 
   it("reports what each job did rather than throwing", () => {
-    // A 500 tells the scheduler nothing about which half worked.
+    // A 500 tells the scheduler nothing about which part worked.
     expect(src).toMatch(/triage: triage\.ok/);
     expect(src).toMatch(/reminders: reminders\.ok/);
+    expect(src).toMatch(/digests: digests\.ok/);
   });
 
   it("is reachable only by the scheduler, and fails closed", () => {

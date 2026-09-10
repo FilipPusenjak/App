@@ -1033,6 +1033,26 @@ model CounselorAccount {
   /// scale with caseload, so an unbounded caseload is an unbounded bill.
   caseloadLimit Int @default(40)
 
+  /// When this counselor asked to stop receiving the triage digest.
+  ///
+  /// Its OWN column rather than User.remindersOptOutAt, which governs the
+  /// student check-in nudge. The two are different mail streams on different
+  /// cadences, and an account can hold both a caseload and a child's profile —
+  /// one timestamp could not say which of the two somebody stopped.
+  ///
+  /// One unsubscribe click still stops both, because that is what a person
+  /// means by it. Separate columns are about being able to REPRESENT the two
+  /// states, not about honouring an unsubscribe narrowly.
+  digestOptOutAt DateTime?
+
+  /// When the last digest actually went out.
+  ///
+  /// Written only after the provider accepts the message, which is what makes
+  /// the pass safe to run daily, to run twice, and to die halfway: a failed
+  /// send leaves this untouched and is retried tomorrow, and a successful one
+  /// cannot repeat inside the cooling-off window.
+  digestLastSentAt DateTime?
+
   links        CaseloadLink[]
   sessionPreps SessionPrep[]
   reads        CounselorReadLog[]
