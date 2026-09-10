@@ -19,6 +19,7 @@ test("a student's full journey", async ({ page }) => {
   await page.fill('input[name="name"]', "E2E Student");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.selectOption('select[name="countryOfOrigin"]', "US");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");

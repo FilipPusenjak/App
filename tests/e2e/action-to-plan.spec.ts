@@ -77,6 +77,7 @@ test("a recommended action becomes a plan, and the evaluation shows it", async (
   await page.fill('input[name="name"]', "E2E Loop");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', "e2e-password-123");
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.selectOption('select[name="countryOfOrigin"]', "US");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");
@@ -117,6 +118,7 @@ test("the plan form is still blank when reached directly", async ({ page }) => {
   await page.fill('input[name="name"]', "E2E Blank");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', "e2e-password-123");
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.selectOption('select[name="countryOfOrigin"]', "US");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");

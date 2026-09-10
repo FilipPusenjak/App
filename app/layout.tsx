@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito_Sans } from "next/font/google";
 import "./globals.css";
+import { SiteFooter } from "@/components/site-footer";
 
 /**
  * Nunito Sans — a warmer face than the system stack it replaces.
@@ -48,7 +49,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${nunitoSans.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-sans">{children}</body>
+      <body className="min-h-full flex flex-col font-sans">
+        {children}
+        <SiteFooter />
+      </body>
     </html>
   );
 }

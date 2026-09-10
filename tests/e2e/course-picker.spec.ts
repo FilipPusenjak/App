@@ -67,6 +67,7 @@ test("the course field offers the names we hold requirements for", async ({ page
     await page.fill('input[name="name"]', "E2E Picker");
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', "e2e-password-123");
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
     await page.selectOption('select[name="countryOfOrigin"]', "US");
     await page.getByRole("button", { name: "Create account" }).click();
     await page.waitForURL("**/dashboard");
@@ -113,6 +114,7 @@ test("a university with no researched courses says so without scolding", async (
   await page.fill('input[name="name"]', "E2E Picker None");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', "e2e-password-123");
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.selectOption('select[name="countryOfOrigin"]', "US");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");

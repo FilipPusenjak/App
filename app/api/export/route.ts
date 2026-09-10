@@ -31,6 +31,11 @@ export async function GET() {
         email: true,
         name: true,
         countryOfOrigin: true,
+        // Included because the export is meant to be everything this account
+        // holds about the person, and a date of birth it collected is part of
+        // that. Kept out of the evaluation snapshot for the opposite reason —
+        // see the note on User.dateOfBirth.
+        dateOfBirth: true,
         createdAt: true,
       },
     }),

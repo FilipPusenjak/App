@@ -51,6 +51,7 @@ test("the student switcher reflects a switch immediately, not just after a reloa
   await page.fill('input[name="name"]', "E2E Switcher");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard");
 

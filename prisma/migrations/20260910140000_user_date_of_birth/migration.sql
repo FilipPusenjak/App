@@ -1,0 +1,11 @@
+-- Date of birth, for the under-13 screen at signup.
+--
+-- Nullable with no backfill and no default. Every account created before the
+-- screen existed has none, and those are deliberately NOT blocked: locking
+-- somebody out of records they already own, under a rule that did not exist
+-- when they signed up, is a worse outcome than the one the rule prevents.
+--
+-- There is nothing to backfill from either. Grade level implies an age range
+-- but not a date, and inventing one would put a fabricated birthday in the row
+-- that a compliance question would later be answered from.
+ALTER TABLE "User" ADD COLUMN "dateOfBirth" TIMESTAMP(3);

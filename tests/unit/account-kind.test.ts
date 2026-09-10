@@ -12,6 +12,10 @@ const base = {
   name: "Sam Okafor",
   email: "Sam@Example.com",
   password: "a-real-password",
+  // Required on every signup now, counselor accounts included — a gate only
+  // students passed would be one radio button away from doing nothing. The
+  // rule itself is tested in tests/unit/age-gate.test.ts.
+  dateOfBirth: "1998-04-02",
 };
 
 describe("choosing an account kind", () => {

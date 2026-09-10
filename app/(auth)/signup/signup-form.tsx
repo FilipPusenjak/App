@@ -136,6 +136,30 @@ export function SignupForm() {
         )}
       </div>
 
+      {/* A NEUTRAL AGE SCREEN. It asks for a date and does not say what the
+          cut-off is, here or in the rejection — a form that announces the rule
+          is one that tells a twelve-year-old which year to type instead. Asked
+          of counselors too: a gate only students passed through would be one
+          you skip by picking the other radio button. */}
+      <div>
+        <label htmlFor="dateOfBirth" className="text-sm font-medium">
+          Date of birth
+        </label>
+        <input
+          id="dateOfBirth"
+          name="dateOfBirth"
+          type="date"
+          autoComplete="bday"
+          defaultValue={state?.values?.dateOfBirth}
+          className={fieldClass}
+        />
+        {state?.fieldErrors?.dateOfBirth && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+            {state.fieldErrors.dateOfBirth}
+          </p>
+        )}
+      </div>
+
       <div>
         <label htmlFor="password" className="text-sm font-medium">
           Password
@@ -239,6 +263,21 @@ export function SignupForm() {
             ? "Create counselor account"
             : "Create account"}
       </button>
+
+      {/* Acceptance sits under the button, not behind a checkbox. A checkbox
+          collects a click; this puts the terms in front of somebody at the
+          moment they act, which is what makes them binding — and it does not
+          add a field that a form-filler ticks without reading. */}
+      <p className="text-center text-xs text-zinc-500">
+        By creating an account you agree to the{" "}
+        <Link
+          href="/terms"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Terms of Service
+        </Link>
+        .
+      </p>
 
       <p className="text-center text-sm text-zinc-500">
         Already have an account?{" "}

@@ -15,6 +15,7 @@ async function signUpStudent(page: import("@playwright/test").Page, label: strin
   await page.fill('input[name="name"]', `E2E ${label}`);
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.getByRole("button", { name: "Create account" }).click();
   return email;
 }
@@ -29,6 +30,7 @@ async function signUpCounselor(
   await page.fill('input[name="name"]', `E2E ${label}`);
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="dateOfBirth"]', "1985-06-14");
   await page.fill('input[name="orgName"]', `${label} Admissions`);
   await page.getByRole("button", { name: "Create counselor account" }).click();
   return email;
@@ -85,6 +87,7 @@ test("a caseload cannot be minted by editing the form", async ({ page }) => {
   await page.fill('input[name="name"]', "E2E Tamper");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.evaluate(() => {
     for (const el of document.querySelectorAll('input[name="accountKind"]')) {
       (el as HTMLInputElement).value = "COUNSELOR_PLEASE";
@@ -106,6 +109,7 @@ test("the signup form asks for a practice name before opening a caseload", async
   await page.fill('input[name="name"]', "E2E NoOrg");
   await page.fill('input[name="email"]', `e2e-kind-noorg-${Date.now()}@example.test`);
   await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.getByRole("button", { name: "Create counselor account" }).click();
 
   await expect(

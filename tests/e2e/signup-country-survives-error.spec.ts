@@ -21,6 +21,8 @@ test("an unrelated validation error does not wipe a country already picked", asy
   // Deliberately too short: fails signupSchema's password rule, unrelated to
   // country.
   await page.fill('input[name="password"]', "short");
+  // Valid, so the password rule stays the ONLY thing this form fails on.
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   await page.selectOption('select[name="countryOfOrigin"]', "GB");
   await page.getByRole("button", { name: "Create account" }).click();
 

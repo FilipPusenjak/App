@@ -22,6 +22,9 @@ export type AuthFormState =
         name?: string;
         email?: string;
         accountKind?: string;
+        /** Echoed back so an unrelated failure does not wipe a date already
+         *  typed. Re-rendered as-is; the age rule runs again on resubmit. */
+        dateOfBirth?: string;
         orgName?: string;
         countryOfOrigin?: string;
       };
@@ -77,6 +80,7 @@ export async function signupAction(
   const password = String(formData.get("password") ?? "");
   const countryOfOrigin = String(formData.get("countryOfOrigin") ?? "");
   const orgName = String(formData.get("orgName") ?? "");
+  const dateOfBirth = String(formData.get("dateOfBirth") ?? "");
 
   // An unrecognised value becomes STUDENT rather than an error. The field is a
   // radio on a form anyone can post to, and the safe failure is the account
@@ -97,6 +101,7 @@ export async function signupAction(
     countryOfOrigin,
     accountKind,
     orgName,
+    dateOfBirth,
   });
   if (!parsed.success) {
     return {
@@ -106,7 +111,7 @@ export async function signupAction(
       // wipe a country the user already picked. See the comment on the
       // <select> in signup-form.tsx for why simply keeping the same prop
       // value isn't enough on its own.
-      values: { name, email, accountKind, orgName, countryOfOrigin },
+      values: { name, email, accountKind, orgName, countryOfOrigin, dateOfBirth },
     };
   }
 
@@ -133,6 +138,7 @@ export async function signupAction(
       // A counselor's own country is not a fact about anybody's application, so
       // the field is not asked for and not stored on that path.
       countryOfOrigin: isCounselor ? null : parsed.data.countryOfOrigin || null,
+      dateOfBirth: parsed.data.dateOfBirth,
       // Created here, at signup, and nowhere else. There is deliberately no way
       // for an existing account to grant itself one later: a caseload holds
       // other families' children, and self-service escalation into that is not

@@ -34,6 +34,24 @@ model User {
   // domestic-vs-international distinction is material to an evaluation. This
   // is what a new student inherits.
   countryOfOrigin String? // ISO code
+
+  /// Date of birth, collected at signup to screen out under-13s.
+  ///
+  /// See lib/validation/age.ts for why 13 and why a date rather than a yes/no.
+  /// It is NOT verification — no self-reported date could be — it is the
+  /// difference between not knowingly collecting from under-13s and not asking.
+  ///
+  /// NULLABLE, and every account created before the screen existed has none.
+  /// Those are not retroactively blocked: locking people out of records they
+  /// already own, on a rule that did not exist when they signed up, would be a
+  /// worse outcome than the one the rule prevents.
+  ///
+  /// NEVER REACHES THE MODEL. It is not in the evaluation snapshot and must not
+  /// be added to it: an evaluation judging a student against their targets has
+  /// no business knowing their birthday, and stageOutlook already reasons from
+  /// grade level, which is the age-shaped fact that IS relevant.
+  dateOfBirth DateTime?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

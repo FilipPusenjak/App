@@ -20,6 +20,7 @@ test("switching country of origin on the profile page sticks, including after a 
   await page.fill('input[name="name"]', "E2E Country");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
+  await page.fill('input[name="dateOfBirth"]', "2008-04-02");
   // The account default, set once at signup.
   await page.selectOption('select[name="countryOfOrigin"]', "US");
   await page.getByRole("button", { name: "Create account" }).click();

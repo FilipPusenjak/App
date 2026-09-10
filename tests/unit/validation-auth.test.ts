@@ -34,6 +34,10 @@ describe("signupSchema", () => {
     name: "Test Student",
     email: "new@example.com",
     password: "long-enough-password",
+    // Every signup now carries one — see tests/unit/age-gate.test.ts for the
+    // rule itself. Present here so these cases keep testing what they are
+    // named for rather than all failing on a missing date.
+    dateOfBirth: "2008-04-02",
   };
 
   it("normalizes email the same way login does", () => {

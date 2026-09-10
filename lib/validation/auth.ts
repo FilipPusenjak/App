@@ -3,6 +3,7 @@
 // the Credentials provider's authorize().
 import { z } from "zod";
 import { isValidCountryCode } from "@/lib/data/countries";
+import { AGE_MESSAGES, checkAge } from "./age";
 
 /**
  * Email addresses are stored lowercased, so every schema that looks one up
@@ -56,6 +57,17 @@ export const signupSchema = z
       })
       .optional(),
     orgName: z.string().trim().max(120).optional(),
+    /**
+     * Date of birth, screened against MINIMUM_AGE_YEARS.
+     *
+     * Required for EVERY account kind, not only students. A gate that applied
+     * to students alone would be one a twelve-year-old walks through by
+     * choosing "counselor" on the previous question, which is not a gate.
+     *
+     * Coerced from the form's string here so the rule below compares dates
+     * rather than parsing them.
+     */
+    dateOfBirth: z.coerce.date({ error: "Enter your date of birth." }),
   })
   .refine(
     (v) => v.accountKind !== "COUNSELOR" || (v.orgName ?? "").length > 0,
@@ -63,7 +75,18 @@ export const signupSchema = z
       error: "Tell us what your practice is called — students will see it.",
       path: ["orgName"],
     },
-  );
+  )
+  .superRefine((v, ctx) => {
+    // superRefine rather than refine: the message depends on WHICH way the
+    // date is unacceptable, and refine takes a fixed one.
+    const result = checkAge(v.dateOfBirth);
+    if (result.ok) return;
+    ctx.addIssue({
+      code: "custom",
+      message: AGE_MESSAGES[result.reason],
+      path: ["dateOfBirth"],
+    });
+  });
 
 /**
  * Setting a new password from a reset link.
