@@ -16,8 +16,16 @@
 // every plan carries a price id env var and why the setup doc tells you to make
 // the amounts match.
 
-/** Which surface a plan belongs to. The two are sold separately. */
-export type PlanAudience = "STUDENT" | "TUTOR";
+/**
+ * Which surface a plan belongs to. The three are sold separately.
+ *
+ * COUNSELOR and TUTOR are not two sizes of the same thing — see the note on
+ * CounselorAccount.type. They share an account table because they share the
+ * consent and caseload machinery, and nothing else: a counselor is buying
+ * triage across a caseload they cannot hold in their head, a test-prep tutor is
+ * buying justification for a student they already know they are seeing.
+ */
+export type PlanAudience = "STUDENT" | "TUTOR" | "COUNSELOR";
 
 export type Plan = {
   code: string;
@@ -99,7 +107,61 @@ export const TUTOR_50: Plan = {
   caseloadLimit: 50,
 };
 
-export const PLANS: Plan[] = [STUDENT_FREE, STUDENT_PLUS, TUTOR_20, TUTOR_50];
+/**
+ * The counselor bands.
+ *
+ * PRICES HERE ARE A STARTING POINT AND ALMOST CERTAINLY WRONG FOR YOUR MARKET.
+ * They are derived from LIST_PRICE_PER_LINK_USD in lib/counselor/economics.ts
+ * — the $12/active-link/month the margin arithmetic is written against — with a
+ * volume discount, landing at $9 and $8 a link. That is arithmetic, not a
+ * business decision, and the env overrides exist because the real number is the
+ * latter. Whatever you set, it must match the Stripe Price actually charged.
+ *
+ * Two bands rather than a per-seat meter, matching the tutor shape: a counselor
+ * needs to know what next month costs before they accept a student, and a
+ * metered bill cannot tell them that.
+ */
+export const COUNSELOR_20: Plan = {
+  code: "COUNSELOR_20",
+  audience: "COUNSELOR",
+  name: "Up to 20 students",
+  monthlyUsd: usd("COUNSELOR_20_PRICE_USD", 180),
+  stripePriceIdEnv: "STRIPE_PRICE_COUNSELOR_20",
+  summary: "For an independent practice, or a caseload you carry alongside other work.",
+  caseloadLimit: 20,
+};
+
+export const COUNSELOR_50: Plan = {
+  code: "COUNSELOR_50",
+  audience: "COUNSELOR",
+  name: "Up to 50 students",
+  monthlyUsd: usd("COUNSELOR_50_PRICE_USD", 400),
+  stripePriceIdEnv: "STRIPE_PRICE_COUNSELOR_50",
+  summary: "For a full caseload, where triage is doing real work.",
+  caseloadLimit: 50,
+};
+
+export const PLANS: Plan[] = [
+  STUDENT_FREE,
+  STUDENT_PLUS,
+  TUTOR_20,
+  TUTOR_50,
+  COUNSELOR_20,
+  COUNSELOR_50,
+];
+
+/** The counselor bands, smallest first — for rendering and for suggesting one. */
+export const COUNSELOR_BANDS: Plan[] = [COUNSELOR_20, COUNSELOR_50];
+
+/**
+ * The smallest counselor band that covers this many active students, or null
+ * when they are past the largest one and the answer is a conversation.
+ */
+export function counselorBandFor(activeStudents: number): Plan | null {
+  return (
+    COUNSELOR_BANDS.find((p) => (p.caseloadLimit ?? 0) >= activeStudents) ?? null
+  );
+}
 
 /** Plans a customer can actually buy — everything with a price to charge. */
 export const PURCHASABLE_PLANS = PLANS.filter((p) => p.stripePriceIdEnv !== "");

@@ -18,6 +18,7 @@ import {
   normalizeInviteCode,
 } from "@/lib/counselor/invite";
 import { linkScopeSchema } from "@/lib/validation/counselor";
+import { counselorStanding } from "@/lib/counselor/entitlement";
 
 const bodySchema = z.object({
   code: z.string().trim().min(1),
@@ -48,13 +49,18 @@ export async function POST(request: Request) {
 
   // The caseload limit is checked BEFORE redeeming, so a counselor at their
   // limit does not burn a student's single-use code to learn it.
-  const activeCount = await prisma.caseloadLink.count({
-    where: { counselorAccountId: account.id, status: "ACTIVE", endedAt: null },
-  });
-  if (activeCount >= account.caseloadLimit) {
+  //
+  // Against the ceiling actually in force — the higher of the account's stored
+  // floor and any band they have bought. Read from counselorStanding rather
+  // than from account.caseloadLimit directly, which is what this used to do and
+  // which ignored the subscription entirely.
+  const standing = await counselorStanding(account.id);
+  if (standing.atLimit) {
     return NextResponse.json(
       {
-        error: `This plan covers ${account.caseloadLimit} active students and you have ${activeCount}. Raise the plan before adding another.`,
+        error: standing.suggested
+          ? `Your plan covers ${standing.limit} active students and you have ${standing.active}. The ${standing.suggested.name.toLowerCase()} plan is $${standing.suggested.monthlyUsd} a month — raise it from Plan, then redeem this code again. It has not been used.`
+          : `Your plan covers ${standing.limit} active students and you have ${standing.active}, which is past the largest standard plan. Get in touch and we will sort out something that fits.`,
       },
       { status: 402 },
     );

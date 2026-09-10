@@ -107,8 +107,11 @@ export function effectivePlan(
     .filter((p): p is Plan => p !== null && p.audience === audience);
 
   if (live.length === 0) {
-    // Students always land on the free plan; there is no free tutor band, and
-    // null there is the honest answer rather than an invented one.
+    // Students always land on the free plan. There is no free tutor or
+    // counselor band, and null there is the honest answer rather than an
+    // invented one — a counselor with no subscription still has whatever
+    // caseloadLimit was set on their account by hand, which is a fact about
+    // the account rather than about a plan.
     return audience === "STUDENT" ? STUDENT_FREE : null;
   }
 

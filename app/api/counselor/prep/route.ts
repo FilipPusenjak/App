@@ -45,6 +45,7 @@ import {
   sessionPrepNarrativeSchema,
 } from "@/lib/validation/counselor";
 import { SOURCE_DATA_VERSION } from "@/lib/evaluation/tier-load";
+import { counselorStanding } from "@/lib/counselor/entitlement";
 
 export const maxDuration = 120;
 
@@ -86,13 +87,18 @@ export async function POST(request: Request) {
   // Caseload limit, server-side. Costs scale with caseload, so an unbounded
   // caseload is an unbounded bill, and a limit enforced only in the UI is not
   // a limit.
-  const activeCount = await prisma.caseloadLink.count({
-    where: { counselorAccountId: account.id, status: "ACTIVE", endedAt: null },
-  });
-  if (activeCount > account.caseloadLimit) {
+  //
+  // Strictly OVER, not at — unlike redeeming a code. A counselor whose caseload
+  // exactly fills their band is working within what they bought and must be
+  // able to prepare for every one of those students; it is the student past the
+  // ceiling that is unpaid for.
+  const standing = await counselorStanding(account.id);
+  if (standing.active > standing.limit) {
     return NextResponse.json(
       {
-        error: `This plan covers ${account.caseloadLimit} active students and you have ${activeCount}. Prep is paused until the caseload is inside the limit or the plan is raised.`,
+        error: standing.suggested
+          ? `Your plan covers ${standing.limit} active students and you have ${standing.active}. Prep is paused until the caseload is inside the limit, or the ${standing.suggested.name.toLowerCase()} plan is taken from Plan.`
+          : `Your plan covers ${standing.limit} active students and you have ${standing.active}, which is past the largest standard plan. Get in touch and we will sort out something that fits.`,
       },
       { status: 402 },
     );

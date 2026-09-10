@@ -54,14 +54,28 @@ export async function POST(request: Request) {
     );
   }
 
-  // A tutor band sold to somebody with no tutor account would take money for
-  // something they cannot use. Checked here rather than trusted from the client,
-  // because planCode arrives in the request body.
+  // A band sold to somebody who cannot use it would take money for nothing.
+  // Checked here rather than trusted from the client, because planCode arrives
+  // in the request body and the two products' bands cost different amounts.
   if (plan.audience === "TUTOR") {
     const account = await getCounselorAccount();
     if (!account || account.type !== "TEST_PREP_TUTOR") {
       return NextResponse.json(
         { error: "This plan is for tutor accounts." },
+        { status: 403 },
+      );
+    }
+  }
+
+  if (plan.audience === "COUNSELOR") {
+    const account = await getCounselorAccount();
+    // The mirror of the check above, and it excludes TEST_PREP_TUTOR for the
+    // same reason that one excludes everybody else: they share an account table
+    // but are different products, and a tutor buying a counselor band would get
+    // a ceiling that no route they use ever reads.
+    if (!account || account.type === "TEST_PREP_TUTOR") {
+      return NextResponse.json(
+        { error: "This plan is for counselor accounts." },
         { status: 403 },
       );
     }

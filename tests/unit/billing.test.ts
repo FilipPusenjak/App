@@ -23,12 +23,15 @@ import {
   type SubscriptionState,
 } from "@/lib/billing/entitlement";
 import {
+  COUNSELOR_20,
+  COUNSELOR_50,
   GRANTABLE_PLAN_CODES,
   PLANS,
   STUDENT_FREE,
   STUDENT_PLUS,
   TUTOR_20,
   TUTOR_50,
+  counselorBandFor,
   planByCode,
   plansFor,
 } from "@/lib/billing/plans";
@@ -274,6 +277,98 @@ describe("the plan catalogue and the bands cannot drift apart", () => {
     // "gives the free tier strictly less of everything" — not a spend ceiling.
     expect(STUDENT_PLUS.monthlyUsd).toBeGreaterThan(STUDENT_FREE.monthlyUsd);
     expect(TUTOR_50.caseloadLimit!).toBeGreaterThan(TUTOR_20.caseloadLimit!);
+  });
+});
+
+describe("the counselor bands are their own product", () => {
+  it("sells two bands, on their own audience", () => {
+    const sold = plansFor("COUNSELOR");
+    expect(sold.map((p) => p.code)).toEqual(["COUNSELOR_20", "COUNSELOR_50"]);
+    expect(sold.every((p) => p.monthlyUsd > 0)).toBe(true);
+  });
+
+  it("does not answer a counselor with a tutor band, or the reverse", () => {
+    // They share an account table and nothing else. A band bought for one
+    // product must not raise a ceiling the other product reads.
+    const tutorSub = sub({ planCode: "TUTOR_50" });
+    expect(effectivePlan([tutorSub], "COUNSELOR", NOW)).toBeNull();
+
+    const counselorSub = sub({ planCode: "COUNSELOR_50" });
+    expect(effectivePlan([counselorSub], "TUTOR", NOW)).toBeNull();
+    expect(effectivePlan([counselorSub], "STUDENT", NOW)).toBe(STUDENT_FREE);
+  });
+
+  it("gives a counselor with no band no plan, rather than inventing one", () => {
+    // Null is honest here: the ceiling then comes from the account's stored
+    // limit, which is a fact about the account and not about a plan.
+    expect(effectivePlan([], "COUNSELOR", NOW)).toBeNull();
+  });
+
+  it("orders the bands so the larger one costs more and covers more", () => {
+    expect(COUNSELOR_50.caseloadLimit!).toBeGreaterThan(
+      COUNSELOR_20.caseloadLimit!,
+    );
+    expect(COUNSELOR_50.monthlyUsd).toBeGreaterThan(COUNSELOR_20.monthlyUsd);
+  });
+
+  it("suggests the smallest band that actually covers the caseload", () => {
+    expect(counselorBandFor(1)?.code).toBe("COUNSELOR_20");
+    expect(counselorBandFor(20)?.code).toBe("COUNSELOR_20");
+    expect(counselorBandFor(21)?.code).toBe("COUNSELOR_50");
+    expect(counselorBandFor(50)?.code).toBe("COUNSELOR_50");
+    // Past the largest, the answer is a conversation rather than a band.
+    expect(counselorBandFor(51)).toBeNull();
+  });
+
+  it("refuses to sell a counselor band to somebody who cannot use it", () => {
+    // planCode arrives in the request body, so this cannot be left to the UI.
+    // $180 taken from a student for a ceiling no route they touch ever reads
+    // is the failure the tutor guard already existed to prevent.
+    const src = code(join(ROOT, "app", "api", "billing", "checkout", "route.ts"));
+    expect(src).toMatch(/plan\.audience === "COUNSELOR"/);
+    expect(src).toMatch(/getCounselorAccount/);
+    expect(src).toMatch(/This plan is for counselor accounts/);
+  });
+});
+
+describe("the counselor's refusal now has an answer", () => {
+  /**
+   * Both routes refused work and told the counselor to raise their plan, when
+   * there was no plan to raise and the ceiling was a hand-set column. These
+   * hold the two halves of the fix: the ceiling reads the subscription, and
+   * the refusal names what to do about it.
+   */
+  const links = code(join(ROOT, "app", "api", "counselor", "links", "route.ts"));
+  const prep = code(join(ROOT, "app", "api", "counselor", "prep", "route.ts"));
+
+  it("reads the ceiling from the plan, not from the raw column", () => {
+    for (const src of [links, prep]) {
+      expect(src).toMatch(/counselorStanding/);
+      // The bug being fixed: comparing against account.caseloadLimit ignores
+      // every band the counselor has actually paid for.
+      expect(src).not.toMatch(/account\.caseloadLimit/);
+    }
+  });
+
+  it("names a band the counselor can actually move to", () => {
+    for (const src of [links, prep]) {
+      expect(src).toMatch(/standing\.suggested/);
+    }
+  });
+
+  it("refuses a NEW student at the limit, but keeps prep for the ones held", () => {
+    // Deliberately different comparisons. Filling a band exactly is working
+    // within what was bought, so prep must keep running for those students;
+    // it is the student past the ceiling that is unpaid for.
+    expect(links).toMatch(/standing\.atLimit/);
+    expect(prep).toMatch(/standing\.active > standing\.limit/);
+  });
+
+  it("still checks the limit before burning a single-use invite code", () => {
+    const limitAt = links.indexOf("counselorStanding");
+    const redeemAt = links.indexOf("counselorInviteCode: code");
+    expect(limitAt).toBeGreaterThan(-1);
+    expect(redeemAt).toBeGreaterThan(limitAt);
   });
 });
 

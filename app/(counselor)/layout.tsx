@@ -19,6 +19,11 @@ const NAV = [
   { href: "/caseload", label: "This week" },
   { href: "/caseload/overview", label: "Overview" },
   { href: "/caseload/students", label: "Students" },
+  // Last, and plainly named. Both refusals in the API — no new student, no new
+  // prep — tell a counselor to raise their plan, so there has to be a standing
+  // way to reach it rather than only a link inside an error they may have
+  // dismissed.
+  { href: "/caseload/plan", label: "Plan" },
 ];
 
 export default async function CounselorLayout({

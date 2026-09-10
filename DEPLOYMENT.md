@@ -356,6 +356,8 @@ give each a **recurring monthly** price:
 | Plus (students) | $8 | Deep Reviews and plans projections, which the free plan does not include, and a shorter interval between check-ins |
 | Up to 20 students (tutors) | $29 | Caseload band of 20 |
 | Up to 50 students (tutors) | $49 | Caseload band of 50 |
+| Up to 20 students (counselors) | $180 | Caseload band of 20 |
+| Up to 50 students (counselors) | $400 | Caseload band of 50 |
 
 Copy each price's id — it looks like `price_1QxYz...`, **not** the product id
 (`prod_...`). Getting these two confused is the most common setup mistake, and
@@ -364,7 +366,12 @@ the symptom is a checkout that 400s.
 > The amounts above are what `lib/billing/plans.ts` *displays*. **Stripe holds
 > the amount actually charged.** If you price something differently in Stripe,
 > change it here too (or set `STUDENT_PLUS_PRICE_USD`, `TUTOR_20_PRICE_USD`,
-> `TUTOR_50_PRICE_USD`) or the app will quote a price it does not charge.
+> `TUTOR_50_PRICE_USD`, `COUNSELOR_20_PRICE_USD`, `COUNSELOR_50_PRICE_USD`) or
+> the app will quote a price it does not charge.
+>
+> The counselor amounts especially: they are derived from
+> `COUNSELOR_PRICE_PER_LINK_USD` with a volume discount, which is arithmetic
+> rather than a decision anybody made about this market.
 
 ### 5b — Add the webhook endpoint
 
@@ -388,6 +395,8 @@ after checkout grants nothing — it is just a redirect, and anyone can type it.
 | `STRIPE_PRICE_STUDENT_PLUS` | The `price_...` for Plus |
 | `STRIPE_PRICE_TUTOR_20` | The `price_...` for the 20-student band |
 | `STRIPE_PRICE_TUTOR_50` | The `price_...` for the 50-student band |
+| `STRIPE_PRICE_COUNSELOR_20` | The `price_...` for the 20-student counselor band |
+| `STRIPE_PRICE_COUNSELOR_50` | The `price_...` for the 50-student counselor band |
 | `APP_URL` | Already needed for password resets. Stripe returns customers here, so a wrong value sends a paying customer to the wrong host. |
 
 Live and test mode have **separate** prices and webhook secrets. Copying a test
