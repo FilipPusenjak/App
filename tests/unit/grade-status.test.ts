@@ -10,6 +10,7 @@
 // What these tests hold is that a stated answer is passed through AS a statement
 // and that the old guess is gone when one exists, because a prompt that says both
 // "they told you" and "work it out from the date" is the bug with extra words.
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildSnapshot } from "@/lib/evaluation/snapshot";
 import { buildDiff } from "@/lib/evaluation/diff";
@@ -17,6 +18,7 @@ import { renderSnapshot } from "@/lib/prompts/evaluation/render";
 import { PROMPT_VERSION } from "@/lib/prompts/evaluation";
 import {
   GRADE_STATUSES,
+  GRADE_STATUS_DEFAULT,
   GRADE_STATUS_LABELS,
   GRADE_STATUS_PROMPT,
 } from "@/lib/validation/enums";
@@ -68,9 +70,19 @@ describe("a stated answer is rendered as a fact", () => {
     expect(text).toContain("do not treat that year as still ahead of them");
   });
 
-  it("tells the model the student said it, so it stops re-deriving it", () => {
+  it("tells the model to take it as given, so it stops re-deriving it", () => {
     for (const status of GRADE_STATUSES) {
       expect(render(status)).toContain("treat it as fact");
+    }
+  });
+
+  it("does not claim the student said it, because they may not have", () => {
+    // The form pre-selects in-progress and existing rows were backfilled, so
+    // the value is often a default nobody typed. Better evidence than a
+    // calendar guess either way — but not a statement to attribute to them in
+    // a document they can read.
+    for (const status of GRADE_STATUSES) {
+      expect(render(status)).not.toMatch(/student stated|they stated|said so/i);
     }
   });
 
@@ -188,6 +200,44 @@ describe("the field the student actually fills in", () => {
 
   it("stays optional, so an existing profile still saves", () => {
     expect(profileSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("pre-selects being in the grade, which is the common case", () => {
+    // A student typing a grade into this app is overwhelmingly partway through
+    // it — the year is underway from late summer in the north and from January
+    // in the south. The student who just finished is one click from saying so.
+    expect(GRADE_STATUS_DEFAULT).toBe("in_progress");
+    const form = readFileSync("app/(app)/profile/profile-form.tsx", "utf8");
+    expect(form).toContain("GRADE_STATUS_DEFAULT");
+    // Falling back to "" would render "Not set" as the selection, which is the
+    // behaviour this default replaced.
+    expect(form).not.toMatch(/defaultValue=\{values\.gradeStatus \?\? ""\}/);
+  });
+
+  it("is a default rather than a season hardcoded into the prompt", () => {
+    // The distinction the whole field exists for. If the renderer ever assumed
+    // in-progress for an unanswered profile, the app would be back to guessing
+    // from the calendar — right in September, wrong the following June.
+    const src = readFileSync("lib/prompts/evaluation/render.ts", "utf8");
+    expect(src).not.toMatch(/GRADE_STATUS_DEFAULT/);
+    expect(render(null)).toContain("they did not say which");
+  });
+
+  it("backfills existing profiles without overwriting an answer", () => {
+    // The backfill asserts something true in September and false in June, so
+    // it is a one-time statement rather than a column default. What it must
+    // never do is reach a row that already carries an answer somebody gave.
+    const sql = readFileSync(
+      "prisma/migrations/20260910130000_grade_status_backfill/migration.sql",
+      "utf8",
+    );
+    expect(sql).toMatch(/"gradeStatus" IS NULL/);
+    expect(sql).toMatch(/"gradeLevel" IS NOT NULL/);
+    expect(sql).toMatch(/'in_progress'/);
+    // A grade nobody stated has nothing for a status to describe.
+    expect(sql).toMatch(/btrim\("gradeLevel"\)/);
+    // And it is an UPDATE, not a DEFAULT that would re-run every year.
+    expect(sql).not.toMatch(/ALTER +TABLE[\s\S]*DEFAULT/i);
   });
 
   it("offers exactly two answers, phrased from the student's side", () => {

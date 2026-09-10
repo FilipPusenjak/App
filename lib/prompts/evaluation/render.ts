@@ -157,7 +157,12 @@ export function describeLeadTime(
 function gradeStatusClause(status: string | null): string {
   const known = GRADE_STATUS_PROMPT[status as GradeStatus];
   if (known) {
-    return `${known}. The student stated this themselves, so treat it as fact and do not re-derive it from the date.`;
+    // "Recorded on the profile" rather than "the student said so", because the
+    // form pre-selects in-progress and existing rows were backfilled. Both are
+    // better evidence than a calendar guess, and neither is a statement the
+    // student definitely made — claiming otherwise would put words in their
+    // mouth in a document they can read.
+    return `${known}. This is recorded on their profile, so treat it as fact and do not re-derive it from the date.`;
   }
   return (
     "this is the grade the student is currently IN, or has JUST COMPLETED — they " +

@@ -6,6 +6,7 @@ import {
   CURRICULA,
   CURRICULUM_LABELS,
   GRADE_STATUSES,
+  GRADE_STATUS_DEFAULT,
   GRADE_STATUS_LABELS,
 } from "@/lib/validation/enums";
 import { COUNTRIES } from "@/lib/data/countries";
@@ -68,11 +69,17 @@ export function ProfileForm({ values }: { values: ProfileFormValues }) {
           error={fe.gradeStatus}
           hint="So an evaluation knows how much of the year is still ahead of you."
         >
+          {/* Defaults to "in it now" rather than to nothing. A student filling
+              this in during the school year has, overwhelmingly, just started
+              the grade they are typing — northern hemisphere or southern, the
+              year is underway either way. The one case it gets wrong is the
+              student who finished in the summer and has not begun the next
+              year, and they are one click from correcting it. */}
           <Select
-            key={values.gradeStatus ?? ""}
+            key={values.gradeStatus ?? GRADE_STATUS_DEFAULT}
             id="gradeStatus"
             name="gradeStatus"
-            defaultValue={values.gradeStatus ?? ""}
+            defaultValue={values.gradeStatus ?? GRADE_STATUS_DEFAULT}
           >
             <option value="">Not set</option>
             {GRADE_STATUSES.map((s) => (

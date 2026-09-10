@@ -12,6 +12,23 @@ import { z } from "zod";
  * so a date-based guess is wrong for a whole hemisphere of users at a time.
  */
 export const GRADE_STATUSES = ["in_progress", "completed"] as const;
+
+/**
+ * What the profile form pre-selects.
+ *
+ * A student typing a grade into this app is, overwhelmingly, in the middle of
+ * it: the year is underway in the northern hemisphere from late summer and in
+ * the southern from the start of the calendar year, so "in progress" is the
+ * right guess in almost every month for almost everybody. The exception is the
+ * student who finished in the summer and has not started the next year, and the
+ * field is right there to change.
+ *
+ * A DEFAULT, not an assumption baked into the prompt. That distinction is the
+ * whole point: the model is told what the profile says rather than told to work
+ * it out from the date, so this stays correctable by the one person who knows,
+ * and nothing downstream has a season hardcoded into it.
+ */
+export const GRADE_STATUS_DEFAULT: GradeStatus = "in_progress";
 export const gradeStatusSchema = z.enum(GRADE_STATUSES);
 export type GradeStatus = (typeof GRADE_STATUSES)[number];
 export const GRADE_STATUS_LABELS: Record<GradeStatus, string> = {
