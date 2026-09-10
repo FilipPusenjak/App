@@ -31,7 +31,11 @@ describe("the terms describe THIS product", () => {
   it("quotes no retention or age number as a literal", () => {
     // Belt and braces: the imports above are worth nothing if a literal was
     // also pasted into the prose beside them.
-    const prose = terms.replace(/^import[\s\S]*?;$/gm, "");
+    const prose = terms
+      .replace(/^import[\s\S]*?;$/gm, "")
+      // Section headings are numbered ("13. Contact"), and a section number is
+      // not a claim about the product.
+      .replace(/title="\d+\.[^"]*"/g, "");
     for (const n of [MINIMUM_AGE_YEARS, FREE_RESULT_DAYS, PAID_RESULT_DAYS]) {
       expect(prose, `${n} appears as a literal`).not.toMatch(
         new RegExp(`\\b${n}\\b(?![^<]*})`),
