@@ -156,7 +156,7 @@ test("the signup form asks for a practice name before opening a caseload", async
   page,
 }) => {
   await page.goto("/signup");
-  await page.getByRole("radio", { name: /counselor or tutor/i }).check();
+  await page.getByRole("radio", { name: /college counselor/i }).check();
   await page.fill('input[name="name"]', "E2E NoOrg");
   await page.fill('input[name="email"]', `e2e-kind-noorg-${Date.now()}@example.test`);
   await page.fill('input[name="password"]', PASSWORD);
