@@ -218,9 +218,16 @@ describe("a tutor cannot write to a student's record", () => {
   });
 
   it("never targets the narrative column of an artifact in an update", () => {
-    // A tutor may append their own note. The generated body — and the stopping
-    // notice inside it — is not theirs to edit, which is the point of it being
-    // immutable.
+    // A tutor owns two columns on an artifact: the note they append, and the
+    // date they record for having forwarded it. Everything else about the row is
+    // the engine's account of what it found — the generated body, the stopping
+    // notice inside it, the provenance and the cost — and none of it is theirs
+    // to edit, which is the point of it being immutable.
+    //
+    // An ALLOWLIST rather than a narrative-specific ban, so a future column is
+    // refused by default. The way this guarantee dies quietly is someone adding
+    // a field to an existing update because it was already there.
+    const TUTOR_OWNED = new Set(["tutorNote", "sharedWithGuardianAt"]);
     const src = code(join(ROOT, "app", "actions", "testprep.ts"));
     const updates = [
       ...src.matchAll(/progressArtifact\.update\(([\s\S]{0,400}?)\n\s{2}\}\)/g),
@@ -229,8 +236,33 @@ describe("a tutor cannot write to a student's record", () => {
     for (const u of updates) {
       const dataBlock = u.match(/data:\s*\{([^}]*)\}/)?.[1] ?? "";
       const keys = [...dataBlock.matchAll(/(\w+)\s*:/g)].map((k) => k[1]!);
-      expect(keys).toEqual(["tutorNote"]);
+      expect(keys.length).toBeGreaterThan(0);
+      expect(keys.filter((k) => !TUTOR_OWNED.has(k))).toEqual([]);
     }
+  });
+
+  it("writes the forwarded date only from the artifact's own action", () => {
+    // sharedWithGuardianAt records something the TUTOR did in their own email.
+    // Nothing in this product sends a briefing anywhere, so nothing else has
+    // standing to set that date — a route that set it would be claiming an act
+    // on the tutor's behalf that never happened.
+    // The value is CAPTURED rather than excluded with a lookahead: `\s*(?!true)`
+    // matches "sharedWithGuardianAt: true" happily by giving back a space, which
+    // is how this check passed a `select` it was supposed to allow and would
+    // have passed the write it exists to catch.
+    const offences: string[] = [];
+    for (const file of TESTPREP_SOURCES) {
+      if (file.endsWith(join("app", "actions", "testprep.ts"))) continue;
+      for (const m of code(file).matchAll(
+        /sharedWithGuardianAt\s*:\s*([^\s,}]+)/g,
+      )) {
+        // `: true` is a Prisma select — asking to READ the column. Anything
+        // else in that position is a value being written to it.
+        if (m[1] === "true") continue;
+        offences.push(`${file.replace(ROOT + "/", "")}: ${m[0]}`);
+      }
+    }
+    expect(offences).toEqual([]);
   });
 });
 

@@ -210,3 +210,55 @@ export async function appendArtifactNoteAction(
   revalidatePath("/students-testprep");
   return { ok: true, message: "Saved." };
 }
+
+/**
+ * Record that the tutor forwarded a briefing.
+ *
+ * NOTHING IS SENT BY THIS. The app has no channel to a student's family and this
+ * action does not open one — it writes a date onto a row. A briefing is written
+ * for the tutor, and passing it on is something they do in their own email, in
+ * their own words or by forwarding it unchanged.
+ *
+ * So this is the tutor's own bookkeeping, and it toggles: a misclick is an error
+ * about what they did last Tuesday, not a consent record, and it clears. The
+ * fields that are NOT toggleable are the ones about what somebody agreed to —
+ * studentConsentAt, guardianConsentAt, acknowledgedByTutorAt.
+ */
+export async function markBriefingForwardedAction(
+  _prev: TutorResult,
+  fd: FormData,
+): Promise<TutorResult> {
+  const id = idSchema.safeParse(String(fd.get("artifactId") ?? ""));
+  if (!id.success) return { error: "Which briefing?" };
+
+  const account = await requireCounselorAccount().catch(() => null);
+  if (!account) return { error: "This account is not a tutor account." };
+
+  const artifact = await prisma.progressArtifact.findFirst({
+    where: {
+      id: id.data,
+      caseloadLink: { ...readableLinkWhere(account.id), scope: "TEST_PREP_ONLY" },
+    },
+    select: { id: true, sharedWithGuardianAt: true, error: true },
+  });
+  if (!artifact) return { error: "Not found." };
+
+  // A discarded run has no briefing to forward. Refused rather than silently
+  // marked, because a row reading "forwarded" against an error is a lie about
+  // what this tutor did.
+  if (artifact.error) {
+    return { error: "That run was discarded, so there is nothing to forward." };
+  }
+
+  const forwarded = artifact.sharedWithGuardianAt === null;
+  await prisma.progressArtifact.update({
+    where: { id: artifact.id },
+    data: { sharedWithGuardianAt: forwarded ? new Date() : null },
+  });
+
+  revalidatePath("/students-testprep");
+  return {
+    ok: true,
+    message: forwarded ? "Marked as forwarded." : "No longer marked as forwarded.",
+  };
+}

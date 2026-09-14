@@ -10,6 +10,8 @@ import { handoffMessage, isEngagementComplete } from "@/lib/testprep/stopping";
 import { STOPPING_LABELS, type StoppingKind } from "@/lib/validation/testprep";
 import { AcknowledgeStopping } from "./acknowledge";
 import { RecordScore } from "./record-score";
+import { DraftBriefing } from "./draft-briefing";
+import { MarkForwarded } from "./mark-forwarded";
 
 /**
  * One student, and the two questions this product exists to answer: what are we
@@ -380,15 +382,17 @@ export default async function TutorStudentPage({
         )}
       </section>
 
-      {artifacts.length > 0 && (
-        <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
-          {/* Not "updates sent home". A briefing is written for the tutor, and
-              forwarding one is a thing they choose to do — so the heading names
-              the document, and the status below says whether they passed it on. */}
-          <h2 className="text-sm font-medium text-zinc-500">Progress briefings</h2>
+      {/* ── Briefings ─────────────────────────────────────────────────────── */}
+      <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
+        {/* Not "updates sent home". A briefing is written for the tutor, and
+            forwarding one is a thing they choose to do — so the heading names
+            the document, and the status below says whether they passed it on. */}
+        <h2 className="text-sm font-medium text-zinc-500">Progress briefings</h2>
+
+        {artifacts.length > 0 && (
           <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
             {artifacts.map((a) => (
-              <li key={a.id} className="flex flex-wrap gap-x-3">
+              <li key={a.id} className="flex flex-wrap items-center gap-x-3">
                 <span>
                   {a.periodStart.toLocaleDateString("en-US", { month: "short" })} –{" "}
                   {a.periodEnd.toLocaleDateString("en-US", {
@@ -398,16 +402,42 @@ export default async function TutorStudentPage({
                 </span>
                 <span className="text-zinc-400">
                   {a.error
-                    ? "failed"
+                    ? "discarded"
                     : a.sharedWithGuardianAt
-                      ? "you marked this forwarded"
-                      : "drafted, yours to forward or not"}
+                      ? "you sent this on"
+                      : "drafted, yours to send or not"}
                 </span>
+                {/* The reason a run was discarded, in full. It cost money and
+                    the tutor paid it; hiding why would make the check look
+                    like a glitch rather than the thing keeping them honest. */}
+                {a.error ? (
+                  <span className="basis-full text-xs text-amber-700 dark:text-amber-400">
+                    {a.error}
+                  </span>
+                ) : (
+                  <MarkForwarded
+                    artifactId={a.id}
+                    forwarded={a.sharedWithGuardianAt !== null}
+                  />
+                )}
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+
+        {testType && derived ? (
+          <DraftBriefing
+            linkId={link.id}
+            testTypeId={testType.id}
+            hasFiredSignal={signals.length > 0}
+          />
+        ) : (
+          <p className="mt-3 text-xs text-zinc-500">
+            A briefing needs a test and a target to report against, and this
+            student has neither yet.
+          </p>
+        )}
+      </section>
     </div>
   );
 }
