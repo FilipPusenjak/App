@@ -9,6 +9,7 @@ import { retakeGuidance } from "@/lib/testprep/allocation";
 import { handoffMessage, isEngagementComplete } from "@/lib/testprep/stopping";
 import { STOPPING_LABELS, type StoppingKind } from "@/lib/validation/testprep";
 import { AcknowledgeStopping } from "./acknowledge";
+import { RecordScore } from "./record-score";
 
 /**
  * One student, and the two questions this product exists to answer: what are we
@@ -340,6 +341,26 @@ export default async function TutorStudentPage({
               </li>
             ))}
           </ul>
+        )}
+
+        {/* The form lives INSIDE the sittings card rather than in a modal or a
+            separate page: recording a score is the routine act of this surface,
+            and a tutor typically does it with the student in front of them. */}
+        {testType && derived ? (
+          <RecordScore
+            linkId={link.id}
+            testTypeId={testType.id}
+            testName={testType.name}
+            sections={derived.schema.sections}
+          />
+        ) : (
+          // No test type seeded means no schema to range-check a score against,
+          // so there is nothing honest to render. Says what to do rather than
+          // showing a form that cannot work.
+          <p className="mt-3 text-xs text-zinc-500">
+            No tests are configured on this deployment, so a sitting cannot be
+            recorded yet. Seed them with scripts/seed-testprep.ts.
+          </p>
         )}
       </section>
 
