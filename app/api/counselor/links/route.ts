@@ -18,6 +18,7 @@ import {
   normalizeInviteCode,
 } from "@/lib/counselor/invite";
 import { linkScopeSchema } from "@/lib/validation/counselor";
+import { TEST_PREP_SCOPE } from "@/lib/validation/testprep";
 import { counselorStanding } from "@/lib/counselor/entitlement";
 
 const bodySchema = z.object({
@@ -46,6 +47,21 @@ export async function POST(request: Request) {
     );
   }
   const code = normalizeInviteCode(parsed.data.code);
+
+  // SCOPE IS CONSTRAINED BY WHAT THIS ACCOUNT IS, not by what it asked for.
+  //
+  // scope arrives in the request body, and a test-prep tutor posting
+  // scope: "FULL" would otherwise open a link to a student's grades, activities
+  // and essays — none of which a tutor engaged for one number has any business
+  // seeing. The tutor's own surface would not render it (listTutorLinks and
+  // readStudentThroughTutorLink both require TEST_PREP_ONLY), but that is the
+  // wrong place for this to fail: by then the STUDENT has already been shown a
+  // consent screen saying a test-prep tutor wants everything, and may have
+  // agreed to it.
+  //
+  // So it is narrowed here, server-side, before a code is spent.
+  const scope =
+    account.type === "TEST_PREP_TUTOR" ? TEST_PREP_SCOPE : parsed.data.scope;
 
   // The caseload limit is checked BEFORE redeeming, so a counselor at their
   // limit does not burn a student's single-use code to learn it.
@@ -115,7 +131,7 @@ export async function POST(request: Request) {
         where: { id: existing.id },
         data: {
           status: "PENDING",
-          scope: parsed.data.scope,
+          scope,
           invitedBy: "STUDENT",
           studentConsentAt: now,
           // Explicitly cleared. A guardian agreed to a grant that has since
@@ -133,7 +149,7 @@ export async function POST(request: Request) {
         studentUserId: profile.userId,
         studentProfileId: profile.id,
         status: "PENDING",
-        scope: parsed.data.scope,
+        scope,
         invitedBy: "STUDENT",
         studentConsentAt: now,
       },

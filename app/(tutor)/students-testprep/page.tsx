@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadRoster } from "@/lib/testprep/roster";
 import { EmptyIcon } from "@/components/ui/empty-icon";
+import { RedeemInvite } from "./redeem";
 
 /**
  * The tutor's students, alphabetically.
@@ -39,6 +40,7 @@ export default async function TutorStudentsPage() {
             both they and a parent or guardian have agreed. Until then you can
             see nothing about them, which is deliberate.
           </p>
+          <RedeemInvite />
         </section>
       ) : (
         <>
@@ -86,6 +88,18 @@ export default async function TutorStudentsPage() {
               </li>
             ))}
           </ul>
+
+          {/* Repeated below the roster rather than living only in the empty
+              state: adding the second student has to be as findable as adding
+              the first, and this is the tutor's only navigation. */}
+          <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
+            <h2 className="text-sm font-medium text-zinc-500">Add a student</h2>
+            <p className="mt-1 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+              They generate a code from their own settings and hand it to you.
+              You will see their scores and target schools, and nothing else.
+            </p>
+            <RedeemInvite />
+          </section>
         </>
       )}
     </div>

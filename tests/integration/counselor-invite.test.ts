@@ -225,6 +225,37 @@ describe.skipIf(!hasTestDb)("redeeming an invite code", () => {
     expect(link.scope).toBe("ACADEMIC_ONLY");
   });
 
+  it("narrows a test-prep tutor to TEST_PREP_ONLY, whatever they ask for", async () => {
+    // scope arrives in the request body. A tutor posting FULL would otherwise
+    // open a link to a student's grades, activities and essays — and worse, the
+    // STUDENT's consent screen would have asked them to agree to exactly that.
+    // The tutor's own surface would never render it, but by then the damage
+    // (a family agreeing to a grant nobody should have requested) is done.
+    await prisma.counselorAccount.update({
+      where: { id: counselorAccountId },
+      data: { type: "TEST_PREP_TUTOR" },
+    });
+
+    const student = await studentWithCode();
+    const response = await redeem(student.code, "FULL");
+    expect(response.status).toBe(200);
+
+    const link = await prisma.caseloadLink.findFirstOrThrow({
+      where: { counselorAccountId, studentProfileId: student.profile.id },
+    });
+    expect(link.scope).toBe("TEST_PREP_ONLY");
+  });
+
+  it("still lets a counselor have the scope they asked for", async () => {
+    // The narrowing is keyed on the account TYPE, not applied to everyone.
+    const student = await studentWithCode();
+    await redeem(student.code, "FULL");
+    const link = await prisma.caseloadLink.findFirstOrThrow({
+      where: { counselorAccountId, studentProfileId: student.profile.id },
+    });
+    expect(link.scope).toBe("FULL");
+  });
+
   it("does not burn a code when the caseload is already full", async () => {
     // Checked BEFORE redemption, so a counselor at their limit does not consume
     // a student's single-use code to find out.
