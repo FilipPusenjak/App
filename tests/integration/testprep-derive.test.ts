@@ -11,6 +11,7 @@
 // is broken in the way that is hardest to recover from — in front of a family.
 import { afterAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
+import { normalizeUniversity } from "@/lib/requirements/match";
 import {
   cleanupRun,
   createUserWithProfile,
@@ -76,7 +77,12 @@ async function scenario(input: {
   for (const s of input.schools) {
     const name = `${s.name} ${uniq()}`;
     const school = await prisma.school.create({
-      data: { name, country: "US" },
+      // normalizedName exactly as scripts/seed-testprep.ts writes it. The
+      // lookup is an indexed equality on this column, so a fixture that omits
+      // it builds rows nothing in production builds — and every target here
+      // would derive to "no school sets a bar" for a reason unrelated to what
+      // the test is about.
+      data: { name, country: "US", normalizedName: normalizeUniversity(name) },
     });
     await prisma.schoolTestPolicy.create({
       data: {
@@ -256,8 +262,13 @@ describe.skipIf(!hasTestDb)("deriving against real rows", () => {
     await deriveAndPersist(args);
 
     // The student adds a far more selective school: the engagement reopens.
+    const harderName = `Reach ${uniq()}`;
     const harder = await prisma.school.create({
-      data: { name: `Reach ${uniq()}`, country: "US" },
+      data: {
+        name: harderName,
+        country: "US",
+        normalizedName: normalizeUniversity(harderName),
+      },
     });
     await prisma.schoolTestPolicy.create({
       data: {
@@ -270,7 +281,7 @@ describe.skipIf(!hasTestDb)("deriving against real rows", () => {
       },
     });
     await prisma.targetSchool.create({
-      data: { profileId: student.profile.id, name: harder.name, country: "US" },
+      data: { profileId: student.profile.id, name: harderName, country: "US" },
     });
 
     const later = new Date("2026-11-01T00:00:00Z");

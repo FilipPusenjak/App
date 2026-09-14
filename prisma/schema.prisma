@@ -570,6 +570,21 @@ model School {
   /// US National Center for Education Statistics id, where one exists.
   ncesId  String? @unique
 
+  /// The name reduced to its canonical form, for matching a student's free text.
+  ///
+  /// A target school is whatever a student typed — "MIT", "Cambridge", "Duke
+  /// University" — and the seeded catalogue holds one official name each. An
+  /// exact match on `name` therefore resolves almost nothing, and a test-prep
+  /// target that resolves nothing silently has no school setting it, which
+  /// reads to a tutor as "this student has no bar to clear" rather than as a
+  /// lookup failure.
+  ///
+  /// Written by normalizeUniversity from lib/requirements/match — the same
+  /// canonicaliser the course-requirements pipeline already matches on, so the
+  /// two never disagree about what "Cambridge" means. Nullable for rows written
+  /// before it existed; the seed fills it and the lookup skips nulls.
+  normalizedName String?
+
   /// Used by the "schools like yours" rung of the widening ladder. Kept coarse
   /// on purpose: fine-grained attributes would let a caller narrow a cohort
   /// until it resolved to one person.
@@ -592,6 +607,8 @@ model School {
   /// One row per school per country — the same name recurs across countries.
   @@unique([name, country, region])
   @@index([country, region])
+  /// The lookup the test-prep target derivation runs on every student.
+  @@index([normalizedName, country])
 }
 
 /// The shared activity taxonomy.

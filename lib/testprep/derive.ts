@@ -28,6 +28,7 @@ import {
   standardRetakeIncrement,
   type FiredSignal,
 } from "./stopping";
+import { candidateUniversities } from "@/lib/requirements/resolve";
 
 export type DeriveResult = {
   target: DerivedTarget;
@@ -76,11 +77,30 @@ export async function loadPolicySchools(input: {
   });
   if (targets.length === 0) return { schools: [], sourceDataVersion: null };
 
-  // Resolved by name+country, the same pairing School is unique on.
+  // Resolved on the CANONICAL name, not the typed one.
+  //
+  // A target is free text — "MIT", "Cambridge", "Duke University" — and the
+  // catalogue holds one official name each, so an exact match resolves almost
+  // nothing. The failure is silent and reads backwards: a student whose list is
+  // entirely unresolved looks to a tutor like a student with no bar to clear,
+  // which is the one thing this product must never say by accident.
+  //
+  // candidateUniversities, the same resolver the course-requirements lookup
+  // uses, so the two never disagree about what a typed name means. It layers a
+  // curated alias table ("mit" -> "massachusetts institute technology") and a
+  // trailing acronym over the mechanical University-of-X rewrites; none of it
+  // is fuzzy. Country stays part of the match because a name alone is not
+  // unique globally.
+  const wanted = targets.flatMap((t) =>
+    candidateUniversities(t.name, t.country).map((normalizedName) => ({
+      normalizedName,
+      country: t.country,
+    })),
+  );
+  if (wanted.length === 0) return { schools: [], sourceDataVersion: null };
+
   const schools = await prisma.school.findMany({
-    where: {
-      OR: targets.map((t) => ({ name: t.name, country: t.country })),
-    },
+    where: { OR: wanted },
     select: {
       id: true,
       name: true,
