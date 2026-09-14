@@ -163,7 +163,8 @@ export { THRESHOLD_STATES };
 /* ── The one generated surface ───────────────────────────────────────────── */
 
 /**
- * The parent-facing artifact.
+ * The tutor's progress briefing — written for them, in language they can
+ * forward to a family unchanged if they choose to.
  *
  * Note what the model is NOT asked for: no composite it computed, no band, no
  * status. Those arrive already decided by lib/testprep and are passed through —
@@ -190,9 +191,10 @@ export const progressNarrativeSchema = z.object({
    * Required, every time, no exceptions.
    *
    * Practice tests are noisy, a score is one threshold among several, and
-   * clearing it is not an admission signal. A parent reading a rising number
-   * without this reads it as an admission forecast, which is exactly the
-   * misunderstanding this product exists to refuse.
+   * clearing it is not an admission signal. Anyone reading a rising number
+   * without this reads it as an admission forecast — and this is the paragraph
+   * that has to survive being forwarded, because by then nobody is there to
+   * add it.
    */
   whatThisDoesNotTellYou: z.string().trim().min(1).max(800),
 });

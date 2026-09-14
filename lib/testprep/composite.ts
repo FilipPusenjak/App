@@ -87,8 +87,8 @@ export function bestSectionScores(
  * `superscores` is the whole argument. A superscoring school reads the best
  * sections combined; a non-superscoring one reads the best SINGLE SITTING, and
  * handing it a composed number would overstate what it will actually see —
- * which, on a parent-facing artifact, is the kind of overstatement that ends an
- * engagement badly.
+ * which, in a briefing a tutor may forward, is the kind of overstatement that
+ * ends an engagement badly.
  */
 export function compositeAsSchoolSeesIt(
   attempts: { sectionScores: SectionScores; composite: number | null }[],

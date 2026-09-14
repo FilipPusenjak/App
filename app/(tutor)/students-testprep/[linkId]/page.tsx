@@ -382,7 +382,10 @@ export default async function TutorStudentPage({
 
       {artifacts.length > 0 && (
         <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
-          <h2 className="text-sm font-medium text-zinc-500">Updates sent home</h2>
+          {/* Not "updates sent home". A briefing is written for the tutor, and
+              forwarding one is a thing they choose to do — so the heading names
+              the document, and the status below says whether they passed it on. */}
+          <h2 className="text-sm font-medium text-zinc-500">Progress briefings</h2>
           <ul className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
             {artifacts.map((a) => (
               <li key={a.id} className="flex flex-wrap gap-x-3">
@@ -397,8 +400,8 @@ export default async function TutorStudentPage({
                   {a.error
                     ? "failed"
                     : a.sharedWithGuardianAt
-                      ? "shared"
-                      : "drafted, not sent"}
+                      ? "you marked this forwarded"
+                      : "drafted, yours to forward or not"}
                 </span>
               </li>
             ))}

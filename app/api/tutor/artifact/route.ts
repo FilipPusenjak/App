@@ -1,4 +1,8 @@
-// POST /api/tutor/artifact — draft one student's progress update for a parent.
+// POST /api/tutor/artifact — draft one student's progress briefing.
+//
+// Written FOR THE TUTOR, in language they can forward unchanged if they choose
+// to. The tool does not send anything to a family and does not decide what a
+// tutor tells their own client; see the header of lib/prompts/testprep/progress-v1.ts.
 //
 // The only route in the test-prep edition that calls a model, and it calls it
 // once. Target derivation, section allocation and the stopping engine all ran
@@ -6,10 +10,10 @@
 //
 // THE GATE THAT MATTERS is the mandatory stopping notice. When the engine has
 // fired, an artifact whose stoppingNotice is null is REFUSED and the tokens are
-// written off — because the alternative is a parent-facing document that
-// silently omits the one fact that would end the engagement, which is the exact
-// failure this product exists to refuse. The model is told twice; this is what
-// makes it true.
+// written off. Not to force a tutor's hand — what they do with the conclusion is
+// theirs — but because a briefing that quietly drops the one finding that would
+// end the engagement is the exact failure this product exists to refuse. The
+// model is told twice; this is what makes it true.
 import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
@@ -204,9 +208,9 @@ export async function POST(request: Request) {
   }
 
   /* ── The mandatory notice ───────────────────────────────────────────────
-     A signal fired and the artifact does not carry it. Refused outright: this
-     document goes to a parent paying by the hour, and one that omits the reason
-     to stop is worse than no document at all. */
+     A signal fired and the briefing does not carry it. Refused outright: a
+     briefing that reads as complete while omitting the reason to stop is worse
+     than no briefing, because the tutor has no way to tell it is missing. */
   if (
     artifactOmitsRequiredStoppingNotice({
       firedKinds: built.firedKinds,
@@ -216,7 +220,7 @@ export async function POST(request: Request) {
     const row = await prisma.progressArtifact.create({
       data: {
         ...base,
-        error: `A stopping signal (${built.firedKinds.join(", ")}) has fired and the update omitted it, so it was discarded. A parent-facing update must carry the reason to stop. This run still cost what it used — that cost is recorded here.`,
+        error: `A stopping signal (${built.firedKinds.join(", ")}) has fired and the briefing omitted it, so it was discarded. A briefing must carry what the engine concluded, whatever you decide to do about it. This run still cost what it used — that cost is recorded here.`,
       },
     });
     return NextResponse.json(
@@ -230,9 +234,9 @@ export async function POST(request: Request) {
   }
 
   /* ── The phrasing gate ──────────────────────────────────────────────────
-     Last line of defence on the rule that would hurt this family most. A
-     predicted score in a document a parent keeps becomes a promise the tutor
-     answers for months later. */
+     Last line of defence on the rule with the longest tail. A predicted score
+     that survives into something a tutor forwards becomes a promise they answer
+     for months later, in a conversation this product is not in. */
   const banned = findBannedPredictionPhrasing(parsed.data);
   if (banned.length > 0) {
     const row = await prisma.progressArtifact.create({

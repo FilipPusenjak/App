@@ -1,7 +1,8 @@
 // Assembling what the artifact's one model call is given.
 //
 // Everything numeric in here is already decided by the pure engines. The model's
-// entire job is to say it in English to a parent — it computes nothing, and the
+// entire job is to say it in English, plainly enough that the tutor can forward
+// the result without rewriting it — it computes nothing, and the
 // prompt tells it so repeatedly, because a model handed a score history and
 // asked for a progress report will otherwise start doing arithmetic.
 import { prisma } from "@/lib/db";
@@ -31,7 +32,7 @@ export type BuiltProgress = {
   firedKinds: StoppingKind[];
   rubricVersion: string;
   sourceDataVersion: string;
-  /** Passed through to the artifact row so the parent's copy carries the facts. */
+  /** Passed through to the artifact row, so a stored briefing carries its facts. */
   computed: {
     startingComposite: number | null;
     currentComposite: number | null;
@@ -95,15 +96,15 @@ export async function buildProgressContext(input: {
   ]);
 
   // Attempts inside the reporting period. The rest still count toward the
-  // superscore and the starting point — a parent's monthly update reports the
-  // month, but the standing it reports against is the whole history.
+  // superscore and the starting point — a monthly briefing reports the month,
+  // but the standing it reports against is the whole history.
   const inPeriod = allAttempts.filter(
     (a) => a.takenAt >= input.periodStart && a.takenAt <= input.periodEnd,
   );
 
   // The engagement's starting point is the FIRST attempt of any kind, which is
-  // usually the diagnostic. Not the first in this period — a parent comparing
-  // month three against month three has no idea whether the tutoring worked.
+  // usually the diagnostic. Not the first in this period — month three compared
+  // against month three says nothing about whether the tutoring worked.
   const first = allAttempts[0];
   const startingComposite =
     first !== undefined
@@ -141,9 +142,9 @@ export async function buildProgressContext(input: {
   );
 
   const status = targetStatus(currentComposite, derived.target);
-  // The retake advice, not the raw focus. A section named here reaches a parent
-  // as "what we are working on next", so it may only be named where a second
-  // sitting can actually bank it — see retakeGuidance.
+  // The retake advice, not the raw focus. A section named here reads as "what we
+  // are working on next" to whoever ends up with this, so it may only be named
+  // where a second sitting can actually bank it — see retakeGuidance.
   const retake = retakeGuidance({
     allocations: derived.allocations,
     bindingSuperscores,

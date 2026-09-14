@@ -1,9 +1,11 @@
-// The parent-facing artifact's guarantees, and the entitlement rules around it.
+// The progress briefing's guarantees, and the entitlement rules around it.
 //
 // This is the surface with the most hostile incentive structure in the product:
-// the tutor sends it monthly to the person who pays them. Every test here is
-// about a way the document could quietly start serving the tutor's revenue
-// instead of the family's understanding.
+// it summarises work billed by the hour, for the person billing it, in a
+// document they may forward to the person paying. Every test here is about a
+// way it could quietly start serving the tutor's revenue instead of the truth —
+// including the case where the briefing simply omits the conclusion and reads
+// perfectly well without it.
 import { describe, expect, it } from "vitest";
 import {
   STOPPING_KINDS,
@@ -221,6 +223,35 @@ describe("the prompt refuses what the model would otherwise supply", () => {
   it("tells the model it computes nothing", () => {
     expect(PROGRESS_SYSTEM_PROMPT).toMatch(/do not recompute/i);
     expect(PROGRESS_SYSTEM_PROMPT).toMatch(/already been computed/i);
+  });
+});
+
+describe("the briefing is addressed to the tutor, not to the family", () => {
+  // Not a wording preference. A tool that writes TO a parent puts itself between
+  // a tutor and their own client, and a tutor whose software argues with their
+  // invoice in front of the person paying it stops running the software — which
+  // takes the stopping engine out with it.
+  it("names the tutor as the reader and the family as a possible one", () => {
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(/briefing for a test-prep tutor/i);
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(/forward/i);
+  });
+
+  it("refuses to write it as a letter in the tutor's voice", () => {
+    // The failure mode of a forwardable document: the model writes "we worked
+    // on" and signs off, and the tutor is now forwarding something that claims
+    // to be from them and says things they did not say.
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(/do not open with a greeting/i);
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(/tutor's voice/i);
+  });
+
+  it("does not turn the stopping notice into an instruction to the tutor", () => {
+    // What the tutor does about a cleared bar is their call — they know things
+    // about this student the engine does not. What they cannot be handed is a
+    // briefing that reads as complete with the finding missing.
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(
+      /not you telling the tutor what to do|their call/i,
+    );
+    expect(PROGRESS_SYSTEM_PROMPT).toMatch(/leaves the conclusion out/i);
   });
 });
 
