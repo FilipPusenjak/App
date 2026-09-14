@@ -1,12 +1,20 @@
 // Which kind of account signup creates.
 //
 // The one field on this form that is a privilege decision rather than a
-// preference: STUDENT holds only its own data, COUNSELOR opens a caseload that
-// will hold other families' children under revocable grants. So the interesting
-// cases are not the happy paths — they are what happens when the field is
-// missing, empty, or something nobody put there on purpose.
+// preference: STUDENT holds only its own data; COUNSELOR and TUTOR each open a
+// professional surface that will hold other families' children under revocable
+// grants. So the interesting cases are not the happy paths — they are what
+// happens when the field is missing, empty, or something nobody put there on
+// purpose — and, since the two professional kinds are different products, that
+// each one lands in its own.
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_KINDS, signupSchema } from "@/lib/validation/auth";
+import {
+  ACCOUNT_KINDS,
+  ACCOUNT_TYPE_FOR_KIND,
+  PROFESSIONAL_KINDS,
+  isProfessionalKind,
+  signupSchema,
+} from "@/lib/validation/auth";
 
 const base = {
   name: "Sam Okafor",
@@ -19,8 +27,15 @@ const base = {
 };
 
 describe("choosing an account kind", () => {
-  it("offers exactly two, and no third", () => {
-    expect([...ACCOUNT_KINDS]).toEqual(["STUDENT", "COUNSELOR"]);
+  it("offers exactly three, and no fourth", () => {
+    expect([...ACCOUNT_KINDS]).toEqual(["STUDENT", "COUNSELOR", "TUTOR"]);
+  });
+
+  it("treats counselor and tutor as professional, and a student as not", () => {
+    expect([...PROFESSIONAL_KINDS]).toEqual(["COUNSELOR", "TUTOR"]);
+    expect(isProfessionalKind("COUNSELOR")).toBe(true);
+    expect(isProfessionalKind("TUTOR")).toBe(true);
+    expect(isProfessionalKind("STUDENT")).toBe(false);
   });
 
   it("creates a student account when the field is absent", () => {
@@ -42,23 +57,44 @@ describe("choosing an account kind", () => {
     expect(parsed.success && parsed.data.accountKind).toBe("COUNSELOR");
   });
 
-  it("refuses anything that is not one of the two", () => {
+  it("makes a tutor account only when it is asked for by name", () => {
+    const parsed = signupSchema.safeParse({
+      ...base,
+      accountKind: "TUTOR",
+      orgName: "Okafor Test Prep",
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.accountKind).toBe("TUTOR");
+  });
+
+  it("maps each professional kind to its own product, never the other's", () => {
+    // The bug this replaces: signup hardcoded INDEPENDENT, so choosing "tutor"
+    // silently produced a counselor and the tutor edition had no front door.
+    expect(ACCOUNT_TYPE_FOR_KIND.COUNSELOR).toBe("INDEPENDENT");
+    expect(ACCOUNT_TYPE_FOR_KIND.TUTOR).toBe("TEST_PREP_TUTOR");
+    expect(ACCOUNT_TYPE_FOR_KIND.COUNSELOR).not.toBe(ACCOUNT_TYPE_FOR_KIND.TUTOR);
+  });
+
+  it("refuses anything that is not one of the three", () => {
     for (const junk of ["", "counselor", "ADMIN", "STUDENT ", 1, null, true]) {
       const parsed = signupSchema.safeParse({ ...base, accountKind: junk });
       expect({ junk, ok: parsed.success }).toEqual({ junk, ok: false });
     }
   });
 
-  it("will not open a caseload without a name students can recognise", () => {
+  it("will not open a professional surface without a name students can recognise", () => {
     // A family deciding whether to grant access sees this name. An anonymous
-    // practice is a request they cannot evaluate.
-    for (const orgName of [undefined, "", "   "]) {
-      const parsed = signupSchema.safeParse({
-        ...base,
-        accountKind: "COUNSELOR",
-        orgName,
-      });
-      expect({ orgName, ok: parsed.success }).toEqual({ orgName, ok: false });
+    // practice is a request they cannot evaluate — and that holds for a tutor
+    // exactly as it does for a counselor.
+    for (const accountKind of PROFESSIONAL_KINDS) {
+      for (const orgName of [undefined, "", "   "]) {
+        const parsed = signupSchema.safeParse({ ...base, accountKind, orgName });
+        expect({ accountKind, orgName, ok: parsed.success }).toEqual({
+          accountKind,
+          orgName,
+          ok: false,
+        });
+      }
     }
   });
 

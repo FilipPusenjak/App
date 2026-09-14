@@ -48,12 +48,12 @@ export default async function Home() {
           // counselor who does not know this product has a caseload side will
           // not click "Get started" to find out.
           <p className="mt-6 text-sm text-zinc-500">
-            A counselor or tutor running a caseload?{" "}
+            A college counselor, or a test-prep tutor?{" "}
             <Link
               href="/signup"
               className="font-medium text-zinc-900 underline underline-offset-2 dark:text-zinc-100"
             >
-              Create a counselor account
+              Create a professional account
             </Link>{" "}
             — you see nothing about a student until they invite you and a parent
             or guardian agrees.

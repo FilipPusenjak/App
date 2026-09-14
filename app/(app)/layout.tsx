@@ -39,7 +39,11 @@ export default async function AppLayout({
   // Only the empty case redirects. A counselor who genuinely keeps their own
   // student profile still uses this app for it, and bouncing them would strand
   // that data behind a page nothing links to.
-  if (await isCounselorWithoutOwnStudent()) redirect("/caseload");
+  // To /start, not /caseload: the guard is correctly type-blind — a professional
+  // with no student profile, counselor or tutor alike — but the destination is
+  // not, and /start is the one place that decides which product by TYPE.
+  // Sending a tutor to /caseload works only by way of a second bounce.
+  if (await isCounselorWithoutOwnStudent()) redirect("/start");
 
   // There is no opt-in any more — a new account can never become
   // multi-student. This only stays true for an account that already holds

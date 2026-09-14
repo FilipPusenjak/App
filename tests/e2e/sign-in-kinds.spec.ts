@@ -1,10 +1,11 @@
-// Two products, one front door.
+// Three products, one front door.
 //
 // Signing up and signing in are the only places a person chooses which of these
 // they are, so this covers the whole of that choice in a real browser: that a
-// counselor lands on a caseload and a student on a dashboard, that signing back
-// in remembers which, and that the field deciding it cannot be talked into
-// handing out a caseload.
+// counselor lands on a caseload, a tutor on a roster, and a student on a
+// dashboard; that signing back in remembers which; that each professional
+// surface bounces the other product's account; and that the field deciding it
+// cannot be talked into handing out a caseload.
 import { expect, test } from "@playwright/test";
 
 const PASSWORD = "e2e-password-123";
@@ -26,13 +27,26 @@ async function signUpCounselor(
 ) {
   const email = `e2e-kind-counselor-${label}-${Date.now()}@example.test`;
   await page.goto("/signup");
-  await page.getByRole("radio", { name: /counselor or tutor/i }).check();
+  await page.getByRole("radio", { name: /college counselor/i }).check();
   await page.fill('input[name="name"]', `E2E ${label}`);
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', PASSWORD);
   await page.fill('input[name="dateOfBirth"]', "1985-06-14");
   await page.fill('input[name="orgName"]', `${label} Admissions`);
   await page.getByRole("button", { name: "Create counselor account" }).click();
+  return email;
+}
+
+async function signUpTutor(page: import("@playwright/test").Page, label: string) {
+  const email = `e2e-kind-tutor-${label}-${Date.now()}@example.test`;
+  await page.goto("/signup");
+  await page.getByRole("radio", { name: /test-prep tutor/i }).check();
+  await page.fill('input[name="name"]', `E2E ${label}`);
+  await page.fill('input[name="email"]', email);
+  await page.fill('input[name="password"]', PASSWORD);
+  await page.fill('input[name="dateOfBirth"]', "1985-06-14");
+  await page.fill('input[name="orgName"]', `${label} Test Prep`);
+  await page.getByRole("button", { name: "Create tutor account" }).click();
   return email;
 }
 
@@ -66,6 +80,43 @@ test("a counselor signs up and lands on a caseload", async ({ page }) => {
 
   // Signing back in returns them to the caseload rather than to a dashboard.
   await signIn(page, email);
+  await page.waitForURL("**/caseload");
+});
+
+test("a tutor signs up and lands on a roster, not a caseload", async ({ page }) => {
+  // The whole reason TUTOR exists as a kind. Before it, this radio created a
+  // counselor and the tutor edition had no front door.
+  const email = await signUpTutor(page, "t");
+  await page.waitForURL("**/students-testprep");
+  // exact: the roster's empty state is a second heading, "No students yet",
+  // and a substring match resolves to both.
+  await expect(
+    page.getByRole("heading", { name: "Students", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("t Test Prep")).toBeVisible();
+
+  // Signing back in returns them to the roster.
+  await signIn(page, email);
+  await page.waitForURL("**/students-testprep");
+});
+
+test("each professional surface bounces the other product's account", async ({
+  page,
+}) => {
+  // Same account table, different products. A tutor on /caseload would see a
+  // triage queue that was never theirs; a counselor on /students-testprep an
+  // empty roster that reads as broken.
+  await signUpTutor(page, "x");
+  await page.waitForURL("**/students-testprep");
+  await page.goto("/caseload");
+  await page.waitForURL("**/students-testprep");
+
+  // Signed out first: /signup redirects an authenticated account away, so the
+  // second signup would otherwise wait forever for a radio that never renders.
+  await page.context().clearCookies();
+  await signUpCounselor(page, "y");
+  await page.waitForURL("**/caseload");
+  await page.goto("/students-testprep");
   await page.waitForURL("**/caseload");
 });
 

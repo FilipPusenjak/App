@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { signIn, signOut } from "@/lib/auth";
 import {
   ACCOUNT_KINDS,
+  ACCOUNT_TYPE_FOR_KIND,
+  isProfessionalKind,
   loginSchema,
   signupSchema,
   type AccountKind,
@@ -128,27 +130,32 @@ export async function signupAction(
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  const isCounselor = parsed.data.accountKind === "COUNSELOR";
+  const kind = parsed.data.accountKind;
+  const isProfessional = isProfessionalKind(kind);
 
   await prisma.user.create({
     data: {
       name: parsed.data.name,
       email: normalizedEmail,
       passwordHash,
-      // A counselor's own country is not a fact about anybody's application, so
-      // the field is not asked for and not stored on that path.
-      countryOfOrigin: isCounselor ? null : parsed.data.countryOfOrigin || null,
+      // A professional's own country is not a fact about anybody's
+      // application, so the field is not asked for and not stored on that path.
+      countryOfOrigin: isProfessional ? null : parsed.data.countryOfOrigin || null,
       dateOfBirth: parsed.data.dateOfBirth,
       // Created here, at signup, and nowhere else. There is deliberately no way
       // for an existing account to grant itself one later: a caseload holds
       // other families' children, and self-service escalation into that is not
       // a feature.
-      ...(isCounselor
+      //
+      // The TYPE decides which product this row belongs to, and it is mapped
+      // from the form value rather than hardcoded — hardcoding INDEPENDENT here
+      // is exactly how the tutor edition spent months with no front door.
+      ...(isProfessional && kind !== "STUDENT"
         ? {
             counselorAccount: {
               create: {
                 orgName: parsed.data.orgName || null,
-                type: "INDEPENDENT",
+                type: ACCOUNT_TYPE_FOR_KIND[kind],
               },
             },
           }

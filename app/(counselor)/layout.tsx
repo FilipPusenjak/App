@@ -40,6 +40,10 @@ export default async function CounselorLayout({
   // rather than inapplicable.
   const account = await getCounselorAccount();
   if (!account) redirect("/dashboard");
+  // The mirror of the check in app/(tutor)/layout.tsx. A tutor reaching this
+  // URL is sent to their own surface rather than shown a triage queue that was
+  // never theirs: same account table, different product.
+  if (account.type === "TEST_PREP_TUTOR") redirect("/students-testprep");
 
   return (
     <div className="flex min-h-full flex-1 flex-col">

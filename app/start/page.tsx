@@ -16,10 +16,15 @@ export default async function StartPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // A counselor account lands on their caseload. Note this does NOT gate
-  // /dashboard: an account can hold both a caseload and their own student
-  // profiles — a tutor with a child of their own — and locking them out of one
-  // surface because they signed up through the other would be a trap.
-  const counselor = await getCounselorAccount();
-  redirect(counselor ? "/caseload" : "/dashboard");
+  // A professional account lands on its own product, decided by TYPE rather
+  // than by the mere existence of a CounselorAccount row — the two products
+  // share that table and nothing else, so "has a row" cannot say which one.
+  //
+  // Note this does NOT gate /dashboard: an account can hold both a caseload and
+  // their own student profiles — a tutor with a child of their own — and
+  // locking them out of one surface because they signed up through the other
+  // would be a trap.
+  const account = await getCounselorAccount();
+  if (!account) redirect("/dashboard");
+  redirect(account.type === "TEST_PREP_TUTOR" ? "/students-testprep" : "/caseload");
 }

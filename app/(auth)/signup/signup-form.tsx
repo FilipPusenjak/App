@@ -3,17 +3,18 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { signupAction, type AuthFormState } from "@/app/actions/auth";
+import type { AccountKind } from "@/lib/validation/auth";
 import { COUNTRIES } from "@/lib/data/countries";
 
 const fieldClass =
   "mt-1 w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200 dark:border-white/20 dark:bg-black/20 dark:focus:ring-white/10";
 
 /**
- * One of the two account kinds, as a real radio inside a real label.
+ * One of the account kinds, as a real radio inside a real label.
  *
- * Styled as a card but built on `<input type="radio">` rather than on two
- * buttons and a hidden field: arrow keys move between them, a screen reader
- * announces it as a choice with two options, and the value posts even if the
+ * Styled as a card but built on `<input type="radio">` rather than on buttons
+ * and a hidden field: arrow keys move between them, a screen reader announces
+ * it as a choice with three options, and the value posts even if the
  * JavaScript that draws the selected state never runs.
  */
 function KindOption({
@@ -61,10 +62,17 @@ export function SignupForm() {
   // Kept in React state as well as posted, because the fields below it change.
   // Seeded from the last submission so a validation error does not silently
   // drop someone back onto the student form.
-  const [kind, setKind] = useState<"STUDENT" | "COUNSELOR">(
-    state?.values?.accountKind === "COUNSELOR" ? "COUNSELOR" : "STUDENT",
+  const [kind, setKind] = useState<AccountKind>(
+    state?.values?.accountKind === "COUNSELOR" ||
+      state?.values?.accountKind === "TUTOR"
+      ? state.values.accountKind
+      : "STUDENT",
   );
   const counselor = kind === "COUNSELOR";
+  const tutor = kind === "TUTOR";
+  // Both professional kinds share the practice-name field, the consent notice
+  // and the fact that their own country is not asked for.
+  const professional = counselor || tutor;
 
   return (
     <form action={action} className="space-y-4" noValidate>
@@ -75,10 +83,15 @@ export function SignupForm() {
           promote itself into one would be an escalation path. */}
       <fieldset>
         <legend className="text-sm font-medium">What is this account for?</legend>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {/* Three, not two, and the third is not a variant of the second. A
+            counselor is bought for triage across a caseload; a test-prep tutor
+            for knowing what score to aim at and when to stop. One radio that
+            said "counselor or tutor" created a counselor every time, which is
+            how the tutor edition had no front door. */}
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
           <KindOption
             value="STUDENT"
-            checked={!counselor}
+            checked={!professional}
             onSelect={() => setKind("STUDENT")}
             title="A student"
             detail="You or your child. Private to you."
@@ -87,8 +100,15 @@ export function SignupForm() {
             value="COUNSELOR"
             checked={counselor}
             onSelect={() => setKind("COUNSELOR")}
-            title="A counselor or tutor"
-            detail="You run a caseload of students."
+            title="A college counselor"
+            detail="You run a caseload and need to know who needs you this week."
+          />
+          <KindOption
+            value="TUTOR"
+            checked={tutor}
+            onSelect={() => setKind("TUTOR")}
+            title="A test-prep tutor"
+            detail="You coach for a test and need to know the target, and when to stop."
           />
         </div>
       </fieldset>
@@ -183,7 +203,7 @@ export function SignupForm() {
           about different things. A counselor's own country is not a fact about
           anyone's application, and a practice name is not a fact about a
           student's. */}
-      {counselor ? (
+      {professional ? (
         <div>
           <label htmlFor="orgName" className="text-sm font-medium">
             Your practice or organization
@@ -244,7 +264,7 @@ export function SignupForm() {
         </div>
       )}
 
-      {counselor && (
+      {professional && (
         <p className="rounded-md bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-white/10 dark:text-zinc-300">
           You will see nothing about any student until they give you an invite
           code and both they and a parent or guardian agree. They can end that
@@ -261,7 +281,9 @@ export function SignupForm() {
           ? "Creating account…"
           : counselor
             ? "Create counselor account"
-            : "Create account"}
+            : tutor
+              ? "Create tutor account"
+              : "Create account"}
       </button>
 
       {/* Acceptance sits under the button, not behind a checkbox. A checkbox
