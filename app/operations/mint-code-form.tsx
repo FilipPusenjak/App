@@ -11,10 +11,14 @@ import { SubmitButton } from "@/components/ui/submit-button";
  *
  * Two shapes come out of the same form: a run code (one Deep Review,
  * Projection or Check-in) or a plan code (a real subscription for 30 days,
- * stacking if redeemed again before it lapses — see COMP_GRANT_DAYS). The one
- * field worth a second look either way is "days until it expires" — blank
- * means the CODE never expires, which is fine for a handful of testers but
- * worth noticing before minting fifty.
+ * stacking if redeemed again before it lapses — see COMP_GRANT_DAYS).
+ *
+ * EXPIRY IS THE FIELD WORTH A SECOND LOOK, and it takes either shape: a number
+ * of days for a tester code, or a calendar date for a batch tied to an event.
+ * Leaving both blank means the code never expires, which is fine for a handful
+ * of testers and worth noticing before minting fifty. Whichever was used, the
+ * date the code actually carries is confirmed under the codes after minting —
+ * an expiry is otherwise invisible until the day somebody is turned away.
  */
 export function MintCodeForm() {
   const [state, formAction] = useActionState<MintCodeResult, FormData>(
@@ -24,8 +28,27 @@ export function MintCodeForm() {
   const [kind, setKind] = useState<string>("DEEP_REVIEW");
   const isPlanKind = (GRANTABLE_PLAN_CODES as readonly string[]).includes(kind);
 
+  // The two expiry fields clear each other, so the "not both" rule is something
+  // the form makes hard rather than something the server only complains about.
+  const [days, setDays] = useState("");
+  const [on, setOn] = useState("");
+
+  /**
+   * The operator's timezone, read AT SUBMIT rather than held in state.
+   *
+   * It has to come from the browser — a date input carries no zone, and this
+   * component renders on the server first, where the only clock available is
+   * the server's. Reading it here rather than in an effect keeps it out of the
+   * render path entirely: there is nothing to hydrate, nothing to mismatch, and
+   * no state that exists only to be filled in a moment later.
+   */
+  function submit(fd: FormData) {
+    fd.set("tzOffset", String(new Date().getTimezoneOffset()));
+    formAction(fd);
+  }
+
   return (
-    <form action={formAction} className="space-y-3">
+    <form action={submit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Grants">
           <select
@@ -87,12 +110,33 @@ export function MintCodeForm() {
             />
           </Field>
         )}
-        <Field label="Expires in (days, blank = never)">
+        {/* TWO WAYS TO SAY THE SAME THING, because operators think both ways: a
+            tester code is "a fortnight", a code for an open house is "the day
+            after". Filling both in is refused rather than silently resolved —
+            see readExpiry. */}
+        <Field label="Expires in (days)">
           <input
             name="days"
             type="number"
             min={1}
             placeholder="never"
+            value={days}
+            onChange={(e) => {
+              setDays(e.target.value);
+              if (e.target.value) setOn("");
+            }}
+            className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
+          />
+        </Field>
+        <Field label="…or expires on (date)">
+          <input
+            name="expiresOn"
+            type="date"
+            value={on}
+            onChange={(e) => {
+              setOn(e.target.value);
+              if (e.target.value) setDays("");
+            }}
             className="w-full rounded-md border border-black/15 bg-white px-3 py-2 text-sm dark:border-white/20 dark:bg-white/5"
           />
         </Field>
@@ -123,6 +167,21 @@ export function MintCodeForm() {
               <li key={code}>{code}</li>
             ))}
           </ul>
+          {/* What the code actually carries, not what was typed. A date field
+              is invisible after the fact until the day somebody is turned
+              away, so it is confirmed here while the operator is still
+              looking. */}
+          <p className="mt-2 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+            {state.expiresAt
+              ? `Expires ${new Date(state.expiresAt).toLocaleString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}`
+              : "Never expires."}
+          </p>
           <p className="mt-2 text-xs text-emerald-700/80 dark:text-emerald-300/70">
             {state.isPlanKind
               ? "Redeemed at /settings/billing → “Have a code?” Grants the plan immediately for 30 days — it is not held back for later the way a run credit is."

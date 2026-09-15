@@ -21,6 +21,8 @@ export type MintCodeResult = {
   codes?: string[];
   /** Echoed back so the form knows whether to show run- or plan-shaped copy. */
   isPlanKind?: boolean;
+  /** ISO, or null for a code that never expires. Rendered under the codes. */
+  expiresAt?: string | null;
 };
 
 function positiveInt(raw: FormDataEntryValue | null, fallback: number): number | null {
@@ -65,15 +67,9 @@ export async function mintAccessCodeAction(
     return { error: "Mint at most 50 at a time." };
   }
 
-  const daysRaw = String(fd.get("days") ?? "").trim();
-  let expiresAt: Date | null = null;
-  if (daysRaw) {
-    const days = Number.parseInt(daysRaw, 10);
-    if (!Number.isFinite(days) || days < 1) {
-      return { error: "Days until expiry must be a positive number." };
-    }
-    expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-  }
+  const expiry = readExpiry(fd);
+  if ("error" in expiry) return { error: expiry.error };
+  const expiresAt = expiry.at;
 
   const note = String(fd.get("note") ?? "").trim() || null;
 
@@ -90,5 +86,82 @@ export async function mintAccessCodeAction(
   }
 
   revalidatePath("/operations");
-  return { ok: true, codes, isPlanKind };
+  return {
+    ok: true,
+    codes,
+    isPlanKind,
+    // Echoed back so the operator reads the date the code ACTUALLY carries
+    // rather than the one they meant to type. "Expires 31 Oct" under a freshly
+    // minted code is the only cheap check on a field that is otherwise
+    // invisible until the day it bites somebody.
+    expiresAt: expiresAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * When the codes expire: in N days, on a given date, or never.
+ *
+ * TWO FIELDS, ONE ANSWER, and both filled in is an error rather than a
+ * precedence rule. "Days wins over date" is the sort of thing that is true in
+ * the code and not in anybody's head, and the failure it produces — a code that
+ * dies on a date nobody chose — surfaces weeks later in front of whoever was
+ * handed it.
+ */
+function readExpiry(
+  fd: FormData,
+): { at: Date | null } | { error: string } {
+  const daysRaw = String(fd.get("days") ?? "").trim();
+  const onRaw = String(fd.get("expiresOn") ?? "").trim();
+
+  if (daysRaw && onRaw) {
+    return {
+      error: "Set a number of days or a date, not both.",
+    };
+  }
+
+  if (daysRaw) {
+    const days = Number.parseInt(daysRaw, 10);
+    if (!Number.isFinite(days) || days < 1) {
+      return { error: "Days until expiry must be a positive number." };
+    }
+    return { at: new Date(Date.now() + days * 24 * 60 * 60 * 1000) };
+  }
+
+  if (!onRaw) return { at: null };
+
+  // Strict, because a date input gives exactly this and anything else arrived
+  // from somewhere that is not the form.
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(onRaw);
+  if (!parts) return { error: "That is not a date the form can read." };
+  const [, y, m, d] = parts.map(Number) as [number, number, number, number];
+
+  // THE END OF THAT DAY WHERE THE OPERATOR IS, not where the server is.
+  //
+  // A date input carries no timezone, and a code minted from California for
+  // "31 October" that died at 5pm on the 31st would be the one failure this
+  // field can produce — during the event it was minted for. The browser sends
+  // its own offset; UTC is the fallback when it did not, which is late rather
+  // than early and so fails in the harmless direction.
+  const offset = tzOffsetMinutes(fd.get("tzOffset"));
+  const at = new Date(
+    Date.UTC(y, m - 1, d, 23, 59, 59, 999) + offset * 60_000,
+  );
+  if (!Number.isFinite(at.getTime())) {
+    return { error: "That is not a date the form can read." };
+  }
+  if (at.getTime() <= Date.now()) {
+    return { error: "That date has already passed." };
+  }
+  return { at };
+}
+
+/**
+ * The browser's timezone offset, in minutes behind UTC, as Date#getTimezoneOffset
+ * reports it. Clamped because it arrives from a form field: the real range is
+ * ±14 hours, and anything outside it is not a timezone.
+ */
+function tzOffsetMinutes(raw: FormDataEntryValue | null): number {
+  const n = Number.parseInt(String(raw ?? "").trim(), 10);
+  if (!Number.isFinite(n) || Math.abs(n) > 840) return 0;
+  return n;
 }
