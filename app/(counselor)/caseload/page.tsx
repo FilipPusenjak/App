@@ -80,33 +80,24 @@ export default async function CaseloadPage() {
             </ul>
           )}
 
-          {/* Below the list, never above it. This is retrospective and the list
-              is the job; a pattern about last term's advice must not be the
-              first thing a counselor reads on a Saturday morning. */}
+          {/* The patterns panel MOVED to /caseload/advice, where the rest of
+              the recommendation record now lives. The reasoning that kept it at
+              the foot of this screen — retrospective, and the list is the job —
+              argues harder for it not being on this screen at all, now that
+              there is somewhere else for it to go.
+
+              A line, not a panel: a counselor who has been declining most of
+              what gets drafted should be able to find that out from here
+              without it competing with the list. */}
           {patterns.length > 0 && (
-            <section className="rounded-lg border border-black/10 bg-white p-5 dark:border-white/15 dark:bg-white/5">
-              <h2 className="text-sm font-medium text-zinc-500">
-                Noticed across your caseload
-              </h2>
-              <p className="mt-0.5 text-xs text-zinc-500">
-                About the advice, not about you and not about the students.
-                Nothing here is a score, and nothing here is compared to another
-                counselor.
-              </p>
-              <ul className="mt-3 space-y-2">
-                {patterns.map((p, i) => (
-                  <li key={i} className="text-sm">
-                    <span className="text-zinc-700 dark:text-zinc-300">
-                      {p.observation}
-                    </span>{" "}
-                    {/* The counts are shown so a counselor can discount the
-                        observation themselves rather than take our word for
-                        how much it means. */}
-                    <span className="text-zinc-500">{p.detail}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <p className="text-sm text-zinc-500">
+              {patterns.length}{" "}
+              {patterns.length === 1 ? "pattern" : "patterns"} noticed across
+              your advice this term.{" "}
+              <Link href="/caseload/advice" className="underline hover:text-foreground">
+                Advice
+              </Link>
+            </p>
           )}
         </>
       )}

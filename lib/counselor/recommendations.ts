@@ -209,3 +209,99 @@ export async function loadRecommendationsForPrep(prepId: string) {
     },
   });
 }
+
+/* ── The advice log ────────────────────────────────────────────────────────
+   Every recommendation this counselor has made, across the caseload.
+
+   Until this existed the data was only visible inside one student's prep page,
+   which meant the column the header of this file calls the most interesting one
+   — DECLINED_BY_COUNSELOR, with the reason — was written down and never shown
+   back to the person who wrote it.
+
+   GROUPED BY WHAT HAPPENED TO THE ADVICE, never by student and never by any
+   measure of one. The counts below count recommendations; the moment one of
+   them counted students it would be the first column of a league table. */
+
+export type AdviceRow = {
+  id: string;
+  linkId: string;
+  studentName: string;
+  gradeLevel: string | null;
+  text: string;
+  /** The computed fact behind it, so a counselor can still trace an old call. */
+  basis: string;
+  source: string;
+  status: RecommendationStatus;
+  declineReason: string | null;
+  deliveredAt: Date | null;
+  createdAt: Date;
+};
+
+export type AdviceLog = {
+  /** Drafted, not yet decided on. The only group with anything to do. */
+  awaitingDecision: AdviceRow[];
+  delivered: AdviceRow[];
+  /** What a professional chose not to pass on, with why. */
+  declined: AdviceRow[];
+  /** What a student turned into a commitment of their own. */
+  acceptedByStudent: AdviceRow[];
+  total: number;
+};
+
+export async function loadAdviceLog(limit = 200): Promise<AdviceLog> {
+  const account = await requireCounselorPage();
+
+  const rows = await prisma.counselorRecommendation.findMany({
+    where: { caseloadLink: readableLinkWhere(account.id) },
+    // Newest first. A log is read from the top, and the only alternative
+    // orderings available here would be orderings of people.
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      text: true,
+      basis: true,
+      source: true,
+      status: true,
+      declineReason: true,
+      deliveredAt: true,
+      createdAt: true,
+      caseloadLink: {
+        select: {
+          id: true,
+          studentProfile: { select: { studentName: true, gradeLevel: true } },
+        },
+      },
+    },
+  });
+
+  const log: AdviceLog = {
+    awaitingDecision: [],
+    delivered: [],
+    declined: [],
+    acceptedByStudent: [],
+    total: rows.length,
+  };
+
+  for (const r of rows) {
+    const row: AdviceRow = {
+      id: r.id,
+      linkId: r.caseloadLink.id,
+      studentName: r.caseloadLink.studentProfile.studentName ?? "Unnamed student",
+      gradeLevel: r.caseloadLink.studentProfile.gradeLevel,
+      text: r.text,
+      basis: r.basis,
+      source: r.source,
+      status: r.status as RecommendationStatus,
+      declineReason: r.declineReason,
+      deliveredAt: r.deliveredAt,
+      createdAt: r.createdAt,
+    };
+    if (r.status === "PROPOSED") log.awaitingDecision.push(row);
+    else if (r.status === "DELIVERED") log.delivered.push(row);
+    else if (r.status === "DECLINED_BY_COUNSELOR") log.declined.push(row);
+    else if (r.status === "ACCEPTED_BY_STUDENT") log.acceptedByStudent.push(row);
+  }
+
+  return log;
+}

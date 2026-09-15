@@ -181,6 +181,12 @@ describe("nothing ranks students by how they are doing", () => {
       // a reasonable-sounding request that this rule exists to refuse.
       join(ROOT, "lib", "counselor", "overview.ts"),
       join(ROOT, "app", "(counselor)", "caseload", "overview", "page.tsx"),
+      // The two screens added after this rule was written. Both list rows that
+      // each belong to one student, which is exactly the shape that invites a
+      // "sort by how they are doing" column later.
+      join(ROOT, "lib", "counselor", "commitments.ts"),
+      join(ROOT, "app", "(counselor)", "caseload", "commitments", "page.tsx"),
+      join(ROOT, "app", "(counselor)", "caseload", "advice", "page.tsx"),
     ];
     for (const file of surfaces) {
       expect({ file, hit: RANKING_TERMS.test(code(file)) }).toEqual({
@@ -218,6 +224,31 @@ describe("nothing ranks students by how they are doing", () => {
     expect(sorts.length).toBeGreaterThan(0);
     for (const s of sorts) {
       expect(s).toMatch(/count|topSeverity|label/);
+    }
+  });
+
+  it("orders the commitments screen by date and the advice log by date", () => {
+    // Both are lists of rows that each belong to a student, so the ordering is
+    // the whole question. A date is a fact about the work; anything reaching
+    // for a measure of the person would have to appear here first.
+    for (const file of [
+      join(ROOT, "lib", "counselor", "commitments.ts"),
+      join(ROOT, "lib", "counselor", "recommendations.ts"),
+    ]) {
+      const src = code(file);
+      const orderings = [
+        ...src.matchAll(/orderBy:\s*([\s\S]{0,160}?)\n\s*(?:\}|take|select)/g),
+      ].map((m) => m[1]!);
+      expect({ file, count: orderings.length }).toEqual({
+        file,
+        count: orderings.length,
+      });
+      for (const o of orderings) {
+        expect({ file, o }).toEqual({
+          file,
+          o: expect.stringMatching(/dueDate|createdAt|generatedAt|deliveredAt/),
+        });
+      }
     }
   });
 

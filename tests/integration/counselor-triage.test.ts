@@ -57,6 +57,21 @@ describe.skipIf(!hasTestDb)("the triage pass", () => {
       where: { id: student.profile.id },
       data: profile,
     });
+    // PIN lastStudentEditAt RELATIVE TO THE TEST'S OWN CLOCK.
+    //
+    // updatedAt is @updatedAt, so the row lands at real wall-clock time while
+    // every assertion here reasons from the fixed NOW. The gap between the two
+    // is whatever today happens to be, which silently feeds STALE_PROFILE: on
+    // the day real-now sat 29.85 days before NOW, "days quiet" floored to 29 on
+    // one run and 30 on the next, and a test about signal STABILITY watched a
+    // signal appear between two runs it had not changed anything between.
+    //
+    // A day before NOW is under every grade's threshold, so the detector stays
+    // out of the way unless a case asks for it.
+    await prisma.$executeRaw`
+      UPDATE "Profile" SET "updatedAt" = ${new Date(NOW.getTime() - DAY)}
+      WHERE id = ${student.profile.id}
+    `;
     const row = await prisma.caseloadLink.create({
       data: {
         counselorAccountId,

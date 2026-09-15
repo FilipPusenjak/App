@@ -17,6 +17,11 @@ import { getCounselorAccount } from "@/lib/counselor/access";
 // for the job; the attention list is the job.
 const NAV = [
   { href: "/caseload", label: "This week" },
+  // Commitments before Advice, and both before the directory. The order is the
+  // order of the work: what is about to matter, then what I said about it, then
+  // the list of people. A directory is a lookup, not a starting point.
+  { href: "/caseload/commitments", label: "Commitments" },
+  { href: "/caseload/advice", label: "Advice" },
   { href: "/caseload/overview", label: "Overview" },
   { href: "/caseload/students", label: "Students" },
   // Last, and plainly named. Both refusals in the API — no new student, no new
