@@ -9,8 +9,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import {
   getAnthropicClient,
+  getCheckInModel,
   getFollowupEffort,
-  getFollowupModel,
 } from "@/lib/anthropic";
 import type { Effort } from "@/lib/evaluation/model-choice";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
@@ -162,9 +162,9 @@ export async function POST() {
     precedingAt: data.preceding?.createdAt ?? null,
   });
 
-  // The cheap model. Never named to the user — the interface says "Check-In",
-  // so routing can change without a pricing conversation.
-  const model = getFollowupModel() ?? "claude-sonnet-5";
+  // The full model unless an anchored follow-up model is configured — see
+  // getCheckInModel for why this is no longer a hardcoded cheaper one.
+  const model = getCheckInModel();
 
   // ── The cost ceiling, sized into the request ──────────────────────────────
   //
@@ -252,6 +252,17 @@ export async function POST() {
     usage.outputTokens += message.usage.output_tokens ?? 0;
     usage.cacheWriteTokens += message.usage.cache_creation_input_tokens ?? 0;
     usage.cacheReadTokens += message.usage.cache_read_input_tokens ?? 0;
+    // A REFUSAL IS FINAL, as it already is for the Deep Review. Without this it
+    // came back as empty text, failed the parse, and was retried with a
+    // correction appended — a second paid request for something the model had
+    // declined outright, and no more likely to succeed. Thrown rather than
+    // returned so both call sites handle it the way they handle any failure:
+    // the first attempt's catch records the run and refunds it; the retry's
+    // catch keeps the first failure. Opus 5.5 declines on a broader set of
+    // categories than Opus 5 did, which is what made this worth closing.
+    if (message.stop_reason === "refusal") {
+      throw new Error("The model declined to produce a check-in for this profile.");
+    }
     return message.content
       .map((block) => (block.type === "text" ? block.text : ""))
       .join("");

@@ -15,6 +15,7 @@ import {
   remainingBudget,
 } from "@/lib/cost-budget";
 import { estimateCost } from "@/lib/cost";
+import { DEFAULT_MODEL, getCheckInModel } from "@/lib/anthropic";
 import { CHECK_IN_SYSTEM_PROMPT } from "@/lib/prompts/tiers/check-in-v3";
 import { CHECK_IN_TOKEN_BUDGET } from "@/lib/evaluation/context/check-in";
 import { SYSTEM_PROMPT } from "@/lib/prompts/evaluation";
@@ -181,10 +182,13 @@ describe("the budgets leave room for the reviews they govern", () => {
       estimateInputTokens(CHECK_IN_SYSTEM_PROMPT) +
       estimateInputTokens("x".repeat(CHECK_IN_TOKEN_BUDGET * 4));
 
+    // Priced against the model check-ins ACTUALLY run on. This test pinned
+    // Sonnet by name, and would have gone on passing while the route moved to
+    // a model that left a full context 968 tokens — under real check-ins.
     const allowance = maxOutputTokensFor({
       budgetUsd: RUN_BUDGET_USD.CHECK_IN,
       inputTokens,
-      model: "claude-sonnet-5",
+      model: getCheckInModel(),
       cachesInput: false,
     });
     expect(
@@ -204,9 +208,33 @@ describe("the budgets leave room for the reviews they govern", () => {
     const asCacheWrite = maxOutputTokensFor({
       budgetUsd: RUN_BUDGET_USD.CHECK_IN,
       inputTokens,
-      model: "claude-sonnet-5",
+      model: getCheckInModel(),
     });
     expect(asCacheWrite).toBeLessThan(MIN_USEFUL_OUTPUT_TOKENS.CHECK_IN);
+  });
+
+  it("gives a full check-in on its current model at least the room Sonnet had", () => {
+    // The invariant the $0.07 raise exists to keep. Check-ins moved from
+    // Sonnet 5 to Opus 5.5, and a dearer model under an unchanged cap writes
+    // into less room. Measured at the worst-case context, where the margin is
+    // thinnest: under the old five cents this came to 968 tokens, below the
+    // largest check-in production has actually produced.
+    const inputTokens =
+      estimateInputTokens(CHECK_IN_SYSTEM_PROMPT) +
+      estimateInputTokens("x".repeat(CHECK_IN_TOKEN_BUDGET * 4));
+    const now = maxOutputTokensFor({
+      budgetUsd: RUN_BUDGET_USD.CHECK_IN,
+      inputTokens,
+      model: getCheckInModel(),
+      cachesInput: false,
+    });
+    const onSonnetAtTheOldCap = maxOutputTokensFor({
+      budgetUsd: 0.05,
+      inputTokens,
+      model: "claude-sonnet-5",
+      cachesInput: false,
+    });
+    expect(now).toBeGreaterThanOrEqual(onSonnetAtTheOldCap);
   });
 
   it("a Deep Review with its real system prompt keeps a wide margin", () => {
@@ -217,7 +245,7 @@ describe("the budgets leave room for the reviews they govern", () => {
     const allowance = maxOutputTokensFor({
       budgetUsd: RUN_BUDGET_USD.DEEP_REVIEW,
       inputTokens,
-      model: "claude-opus-5",
+      model: DEFAULT_MODEL,
     });
     expect(allowance).toBeGreaterThan(MIN_USEFUL_OUTPUT_TOKENS.DEEP_REVIEW * 2);
   });
@@ -236,9 +264,11 @@ describe("the budgets leave room for the reviews they govern", () => {
 });
 
 describe("the caps are the ones that were asked for", () => {
-  it("60 cents a review, 5 cents a check-in", () => {
+  it("60 cents a review, 7 cents a check-in", () => {
+    // The check-in was 5 cents while it ran on Sonnet 5. See the comment on
+    // RUN_BUDGET_USD.CHECK_IN for why it moved with the model.
     expect(RUN_BUDGET_USD.DEEP_REVIEW).toBe(0.6);
-    expect(RUN_BUDGET_USD.CHECK_IN).toBe(0.05);
+    expect(RUN_BUDGET_USD.CHECK_IN).toBe(0.07);
   });
 });
 

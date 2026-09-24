@@ -316,7 +316,7 @@ export default async function EvaluationsPage() {
                       {(() => {
                         const cost = formatUsd(estimateCost(e, e.model));
                         if (!cost) return null;
-                        const cache = cacheVerdict(e);
+                        const cache = cacheVerdict(e, e.model);
                         return (
                           <p className="mt-1 text-xs text-zinc-400">
                             {cost}

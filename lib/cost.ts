@@ -8,7 +8,16 @@
 // stale figure changes a displayed estimate rather than anything real.
 
 /** Per million tokens, in USD. Base input, then the cache multipliers. */
-type Price = { input: number; output: number };
+type Price = {
+  input: number;
+  output: number;
+  /**
+   * A cache read as a fraction of base input, when a model does not use the
+   * usual 0.1x. Opus 5.5 lists cache reads at $0.20 against $4 input — 0.05x —
+   * and the flat multiplier would book every cached read at double its price.
+   */
+  cacheReadMultiplier?: number;
+};
 
 /**
  * Standard list prices, deliberately NOT promotional ones.
@@ -25,6 +34,7 @@ type Price = { input: number; output: number };
  * ceiling, not a bill. The Anthropic Console is the ground truth.
  */
 const PRICES: Record<string, Price> = {
+  "claude-opus-5-5": { input: 4, output: 20, cacheReadMultiplier: 0.05 },
   "claude-opus-5": { input: 5, output: 25 },
   "claude-sonnet-5": { input: 3, output: 15 },
   "claude-haiku-4-5": { input: 1, output: 5 },
@@ -83,7 +93,9 @@ export function estimateCost(
   return (
     (inputTokens ?? 0) * perToken +
     (cacheWriteTokens ?? 0) * perToken * CACHE_WRITE_MULTIPLIER +
-    (cacheReadTokens ?? 0) * perToken * CACHE_READ_MULTIPLIER +
+    (cacheReadTokens ?? 0) *
+      perToken *
+      (price.cacheReadMultiplier ?? CACHE_READ_MULTIPLIER) +
     (outputTokens ?? 0) * (price.output / 1_000_000)
   );
 }
@@ -95,17 +107,24 @@ export function estimateCost(
  * which is the failure mode worth surfacing: it is indistinguishable from a
  * saving unless someone is looking at the two numbers separately.
  */
-export function cacheVerdict(usage: TokenUsage): {
+export function cacheVerdict(
+  usage: TokenUsage,
+  model: string | null | undefined,
+): {
   state: "hit" | "write-only" | "none";
   savedUsd: number | null;
 } {
   const read = usage.cacheReadTokens ?? 0;
   const write = usage.cacheWriteTokens ?? 0;
-  const perToken = 5 / 1_000_000;
+  // From the model that actually ran. This used to be a hardcoded $5, which
+  // was Opus 5's price and over-reported every saving once runs moved off it.
+  const price = PRICES[model ?? ""] ?? PRICES["claude-opus-5"]!;
+  const perToken = price.input / 1_000_000;
+  const readMultiplier = price.cacheReadMultiplier ?? CACHE_READ_MULTIPLIER;
 
   if (read > 0) {
-    // Paid 0.1x on these instead of 1x.
-    return { state: "hit", savedUsd: read * perToken * (1 - CACHE_READ_MULTIPLIER) };
+    // Paid the read multiplier on these instead of 1x.
+    return { state: "hit", savedUsd: read * perToken * (1 - readMultiplier) };
   }
   if (write > 0) {
     // Paid 2x on these and read none of it back — a loss, reported as one.

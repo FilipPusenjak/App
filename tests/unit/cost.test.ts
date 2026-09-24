@@ -62,7 +62,7 @@ describe("estimating what a run cost", () => {
 
 describe("what caching actually did to a run", () => {
   it("reports a genuine hit as a saving", () => {
-    const v = cacheVerdict({ ...NONE, cacheReadTokens: 12_000 });
+    const v = cacheVerdict({ ...NONE, cacheReadTokens: 12_000 }, "claude-opus-5");
     expect(v.state).toBe("hit");
     expect(v.savedUsd!).toBeGreaterThan(0);
   });
@@ -70,13 +70,13 @@ describe("what caching actually did to a run", () => {
   it("reports a write with no read as a LOSS, not a saving", () => {
     // The failure this whole change is about: paying 2x for an entry that
     // expires before anyone reads it.
-    const v = cacheVerdict({ ...NONE, cacheWriteTokens: 12_000 });
+    const v = cacheVerdict({ ...NONE, cacheWriteTokens: 12_000 }, "claude-opus-5");
     expect(v.state).toBe("write-only");
     expect(v.savedUsd!).toBeLessThan(0);
   });
 
   it("says nothing happened when caching was not used", () => {
-    const v = cacheVerdict({ ...NONE, inputTokens: 12_000 });
+    const v = cacheVerdict({ ...NONE, inputTokens: 12_000 }, "claude-opus-5");
     expect(v.state).toBe("none");
     expect(v.savedUsd).toBeNull();
   });
@@ -84,9 +84,43 @@ describe("what caching actually did to a run", () => {
   it("treats a run that both wrote and read as a hit", () => {
     // A partial hit still read something back, which is the useful signal.
     expect(
-      cacheVerdict({ ...NONE, cacheWriteTokens: 500, cacheReadTokens: 12_000 })
+      cacheVerdict({ ...NONE, cacheWriteTokens: 500, cacheReadTokens: 12_000 }, "claude-opus-5")
         .state,
     ).toBe("hit");
+  });
+});
+
+describe("Opus 5.5 is priced as itself", () => {
+  // Real token counts from a production Deep Review (20,761 in, 17,290 out),
+  // so the figures below are a run that actually happened, repriced.
+  const REVIEW = { ...NONE, inputTokens: 20_761, outputTokens: 17_290 };
+
+  it("prices a run at $4 in / $20 out per million", () => {
+    expect(estimateCost(REVIEW, "claude-opus-5-5")).toBeCloseTo(
+      20_761 * 4e-6 + 17_290 * 20e-6,
+      10,
+    );
+  });
+
+  it("costs a fifth less than the same run on Opus 5", () => {
+    const opus5 = estimateCost(REVIEW, "claude-opus-5")!;
+    const opus55 = estimateCost(REVIEW, "claude-opus-5-5")!;
+    expect(opus55 / opus5).toBeCloseTo(0.8, 10);
+  });
+
+  it("books a cache read at 0.05x, not the 0.1x most models use", () => {
+    // $0.20 against $4 input. The flat multiplier would have booked every
+    // cached read on this model at twice what it bills.
+    const read = { ...NONE, cacheReadTokens: 1_000_000 };
+    expect(estimateCost(read, "claude-opus-5-5")).toBeCloseTo(0.2, 10);
+    expect(estimateCost(read, "claude-opus-5")).toBeCloseTo(0.5, 10);
+  });
+
+  it("reports a cache saving against the model that ran, not a fixed $5", () => {
+    const hit = { ...NONE, cacheReadTokens: 1_000_000 };
+    // Saved 0.95 x $4 on Opus 5.5; 0.9 x $5 on Opus 5.
+    expect(cacheVerdict(hit, "claude-opus-5-5").savedUsd).toBeCloseTo(3.8, 10);
+    expect(cacheVerdict(hit, "claude-opus-5").savedUsd).toBeCloseTo(4.5, 10);
   });
 });
 

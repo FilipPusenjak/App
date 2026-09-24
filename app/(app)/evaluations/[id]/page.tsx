@@ -16,6 +16,7 @@ import {
   REQUIREMENT_FIELDS,
   REQUIREMENT_LABELS,
 } from "@/lib/validation/course-requirements";
+import { modelLabel } from "@/lib/model-label";
 
 /**
  * The band reading, or empty when this row has no computed snapshot.
@@ -302,9 +303,20 @@ export default async function EvaluationPage({
         </p>
       </div>
 
-      <p className="rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
-        All evaluations are run on <strong className="font-semibold text-foreground">Claude Opus 5</strong>.
-      </p>
+      {/* Read from the row, not asserted in copy. This used to be a fixed
+          "All evaluations are run on Claude Opus 5", which was false for every
+          follow-up routed to Sonnet and would have been false again for every
+          earlier row once the default moved to Opus 5.5. A sample has no model,
+          so it says nothing here and the sample banner below speaks for it. */}
+      {evaluation.model && (
+        <p className="rounded-lg border border-black/10 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-white/15 dark:bg-white/5 dark:text-zinc-400">
+          This evaluation was run on{" "}
+          <strong className="font-semibold text-foreground">
+            {modelLabel(evaluation.model)}
+          </strong>
+          .
+        </p>
+      )}
 
 
       {evaluation.isSample && (
