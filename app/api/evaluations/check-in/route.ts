@@ -162,8 +162,10 @@ export async function POST() {
     precedingAt: data.preceding?.createdAt ?? null,
   });
 
-  // The full model unless an anchored follow-up model is configured — see
-  // getCheckInModel for why this is no longer a hardcoded cheaper one.
+  // The follow-up model (Sonnet 5), or the full model when follow-ups are
+  // switched off — see getCheckInModel. Never named to the user: the
+  // interface says "Check-In", so routing can change without a pricing
+  // conversation.
   const model = getCheckInModel();
 
   // ── The cost ceiling, sized into the request ──────────────────────────────
@@ -258,8 +260,7 @@ export async function POST() {
     // declined outright, and no more likely to succeed. Thrown rather than
     // returned so both call sites handle it the way they handle any failure:
     // the first attempt's catch records the run and refunds it; the retry's
-    // catch keeps the first failure. Opus 5.5 declines on a broader set of
-    // categories than Opus 5 did, which is what made this worth closing.
+    // catch keeps the first failure.
     if (message.stop_reason === "refusal") {
       throw new Error("The model declined to produce a check-in for this profile.");
     }

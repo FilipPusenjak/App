@@ -9,12 +9,14 @@ import Anthropic from "@anthropic-ai/sdk";
  * Model id. Verified against the current Anthropic model list rather than
  * assumed — override in .env.local if you want a different one.
  *
- * Opus 5.5 replaced Opus 5 here. It is cheaper per token ($4/$20 against
- * $5/$25) on the same tokenizer, so a run of the same length costs a fifth
- * less. Two of its API differences touch a route like ours and neither bites:
- * thinking can no longer be disabled (nothing here disables it), and effort
- * defaults to "medium" rather than "high" (every call passes effort
- * explicitly, so the default is never reached).
+ * The full model: every first Deep Review, and every run the anchor cannot
+ * cover (see lib/evaluation/model-choice.ts). Opus 5.5 replaced Opus 5 here.
+ * It is cheaper per token ($4/$20 against $5/$25) on the same tokenizer, so a
+ * run of the same length costs a fifth less. Two of its API differences touch
+ * a route like ours and neither bites: thinking can no longer be disabled
+ * (nothing here disables it), and effort defaults to "medium" rather than
+ * "high" (every call passes effort explicitly, so the default is never
+ * reached).
  */
 export const DEFAULT_MODEL = "claude-opus-5-5";
 
@@ -49,22 +51,23 @@ export const DEFAULT_PROJECTION_EFFORT = "medium";
  * Model for follow-up evaluations — runs after the first, where the previous
  * scores are fed back in as an anchor.
  *
- * NULL BY DEFAULT: every evaluation runs on the full model. Each evaluation
- * page tells the student which model produced it, and a routing rule that
- * quietly handed their second review to a cheaper model made that sentence
- * something the app had to keep qualifying. One judge is simpler to state and
- * to trust, and at Opus 5.5 prices it costs less in total than the old
- * Opus-then-Sonnet split did.
+ * The anchor is what makes this safe rather than a way of quietly changing the
+ * judge: an anchored run reproduces a calibration the baseline model already
+ * set. See lib/evaluation/model-choice.ts for the rule, including the two
+ * cases that fall back to the baseline model.
  *
- * The routing is intact, not removed. Set ANTHROPIC_FOLLOWUP_MODEL to a model
- * id to hand anchored follow-ups to it again; see lib/evaluation/model-choice.ts
- * for when the anchor is intact enough for that to be safe.
+ * Stays on Sonnet 5 while the baseline moved to Opus 5.5. That is a pairing the
+ * anchor was built for — a strong model sets the calibration, a cheaper one
+ * reproduces it — and every evaluation page names the model its row actually
+ * ran on, so a student is never told otherwise.
  *
- * Counselor prep and the tutor briefing also read this, and fall back to their
- * own cheaper model when it is null — neither is an evaluation, and neither
- * moves with this setting.
+ * Also read by check-ins (see getCheckInModel), counselor prep and the tutor
+ * briefing, which is how all of those stay on Sonnet too.
+ *
+ * Set ANTHROPIC_FOLLOWUP_MODEL to "off" to run every evaluation on the full
+ * model.
  */
-export const DEFAULT_FOLLOWUP_MODEL: string | null = null;
+export const DEFAULT_FOLLOWUP_MODEL = "claude-sonnet-5";
 
 /**
  * Effort for follow-up evaluations. Deliberately the SAME as a baseline run:
@@ -84,11 +87,11 @@ export function getFollowupModel(): string | null {
 /**
  * The model a check-in runs on.
  *
- * The follow-up model when one is configured, and otherwise the FULL model —
- * not a hardcoded cheaper one. A check-in is an evaluation, and "off" has
- * always been documented as "run every evaluation on the full model"; the
- * route used to fall back to Sonnet instead, which made that promise false for
- * exactly the runs a student makes most often.
+ * The follow-up model — Sonnet 5 by default — and the FULL model when
+ * follow-ups are switched off, not a hardcoded cheaper one. A check-in is an
+ * evaluation, and "off" has always been documented as "run every evaluation on
+ * the full model"; the route used to fall back to Sonnet regardless, which made
+ * that promise false for exactly the runs a student makes most often.
  */
 export function getCheckInModel(): string {
   return getFollowupModel() ?? getModel();

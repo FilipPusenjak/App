@@ -72,9 +72,7 @@ describe("AI status", () => {
     vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "");
     const status = getAiStatus();
     expect(status.baselineModel).toBe("claude-opus-5-5");
-    // Null by default: every evaluation runs on the full model unless a
-    // follow-up model is configured. See DEFAULT_FOLLOWUP_MODEL.
-    expect(status.followupModel).toBeNull();
+    expect(status.followupModel).toBe("claude-sonnet-5");
   });
 
   it("shows a misconfigured override rather than hiding it", () => {

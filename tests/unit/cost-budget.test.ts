@@ -214,10 +214,10 @@ describe("the budgets leave room for the reviews they govern", () => {
   });
 
   it("gives a full check-in on its current model at least the room Sonnet had", () => {
-    // The invariant the $0.07 raise exists to keep. Check-ins moved from
-    // Sonnet 5 to Opus 5.5, and a dearer model under an unchanged cap writes
-    // into less room. Measured at the worst-case context, where the margin is
-    // thinnest: under the old five cents this came to 968 tokens, below the
+    // A guard on moving check-ins to a dearer model without moving this cap.
+    // The cap sets max_tokens, so a pricier model under the same dollars
+    // writes into less room. Measured at the worst-case context, where the
+    // margin is thinnest: Opus 5.5 at five cents came to 968 tokens, below the
     // largest check-in production has actually produced.
     const inputTokens =
       estimateInputTokens(CHECK_IN_SYSTEM_PROMPT) +
@@ -264,11 +264,9 @@ describe("the budgets leave room for the reviews they govern", () => {
 });
 
 describe("the caps are the ones that were asked for", () => {
-  it("60 cents a review, 7 cents a check-in", () => {
-    // The check-in was 5 cents while it ran on Sonnet 5. See the comment on
-    // RUN_BUDGET_USD.CHECK_IN for why it moved with the model.
+  it("60 cents a review, 5 cents a check-in", () => {
     expect(RUN_BUDGET_USD.DEEP_REVIEW).toBe(0.6);
-    expect(RUN_BUDGET_USD.CHECK_IN).toBe(0.07);
+    expect(RUN_BUDGET_USD.CHECK_IN).toBe(0.05);
   });
 });
 

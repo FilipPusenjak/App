@@ -34,16 +34,13 @@ import { estimateCost, type TokenUsage } from "./cost";
 export const RUN_BUDGET_USD = {
   DEEP_REVIEW: envBudget("DEEP_REVIEW_BUDGET_USD", 0.6),
   /**
-   * Raised from $0.05 when check-ins moved from Sonnet 5 to Opus 5.5.
-   *
-   * The ceiling sets max_tokens, so a pricier model under the same dollar cap
-   * gets less room to write in. At $0.05 a 4,500-token check-in would have
-   * dropped from about 2,400 output tokens to 1,600 — against a largest real
-   * check-in of 1,359, thinking included, with profiles only getting longer.
-   * $0.07 restores the room Sonnet had. A typical check-in costs about $0.04
-   * on Opus 5.5, so this is headroom for the long one, not a higher bill.
+   * Sized for Sonnet 5, which check-ins run on. The ceiling sets max_tokens, so
+   * it is tied to the model's price: moving check-ins to a dearer model under
+   * this cap would leave a full-context check-in less room than real ones use
+   * (Opus 5.5 at five cents: 968 tokens, against a largest real check-in of
+   * 1,359). A test pins that the current model keeps at least Sonnet's room.
    */
-  CHECK_IN: envBudget("CHECK_IN_BUDGET_USD", 0.07),
+  CHECK_IN: envBudget("CHECK_IN_BUDGET_USD", 0.05),
   /**
    * One counselor session prep.
    *

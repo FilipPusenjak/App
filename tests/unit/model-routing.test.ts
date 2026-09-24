@@ -1,9 +1,8 @@
 // Which model an evaluation runs on, and what it is called on screen.
 //
-// Two rules that have to hold together. Every evaluation runs on the full
-// model unless a follow-up model is deliberately configured — and the page
-// names the model a row ACTUALLY ran on, so it stays true for rows written
-// under an earlier default.
+// Two rules that have to hold together. The full model is Opus 5.5 and the
+// cheap tier stays on Sonnet 5 — and the page names the model a row ACTUALLY
+// ran on, since a student's reviews are now written by two different models.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_MODEL,
@@ -17,11 +16,11 @@ afterEach(() => {
 });
 
 describe("which model a check-in runs on", () => {
-  it("runs on the full model when no follow-up model is configured", () => {
+  it("runs on Sonnet 5 by default", () => {
     vi.stubEnv("ANTHROPIC_MODEL", "");
     vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "");
-    expect(getFollowupModel()).toBeNull();
-    expect(getCheckInModel()).toBe(DEFAULT_MODEL);
+    expect(getFollowupModel()).toBe("claude-sonnet-5");
+    expect(getCheckInModel()).toBe("claude-sonnet-5");
   });
 
   it("runs on the full model when follow-ups are switched off", () => {
@@ -33,15 +32,16 @@ describe("which model a check-in runs on", () => {
   });
 
   it("follows an explicitly configured follow-up model", () => {
-    // The routing is intact, not removed — configuring it brings it back.
-    vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "claude-sonnet-5");
-    expect(getCheckInModel()).toBe("claude-sonnet-5");
+    vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "claude-haiku-4-5");
+    expect(getCheckInModel()).toBe("claude-haiku-4-5");
   });
 
-  it("follows an overridden full model", () => {
+  it("does not move with the full model", () => {
+    // Moving the baseline to Opus 5.5 is what this test guards against
+    // dragging the cheap tier along with it.
     vi.stubEnv("ANTHROPIC_MODEL", "claude-opus-5");
     vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "");
-    expect(getCheckInModel()).toBe("claude-opus-5");
+    expect(getCheckInModel()).toBe("claude-sonnet-5");
   });
 
   it("defaults the full model to Opus 5.5", () => {

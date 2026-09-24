@@ -133,12 +133,23 @@ d("a check-in the model declines", () => {
     expect(row.inputTokens).toBe(4_000);
   });
 
-  it("runs on the full model, not a hardcoded cheaper one", async () => {
-    // A check-in is an evaluation, and with no follow-up model configured
-    // every evaluation runs on the full model. The route used to fall back to
-    // Sonnet here regardless.
+  it("runs on Sonnet 5 by default, as check-ins always have", async () => {
     vi.stubEnv("ANTHROPIC_MODEL", "");
     vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "");
+    await studentWithNews();
+
+    await POST();
+
+    expect(stub.requests[0]?.model).toBe("claude-sonnet-5");
+    vi.unstubAllEnvs();
+  });
+
+  it("runs on the full model when follow-ups are switched off", async () => {
+    // "off" has always meant every evaluation on the full model, and a
+    // check-in is an evaluation. The route used to fall back to Sonnet here
+    // regardless, which made that false.
+    vi.stubEnv("ANTHROPIC_MODEL", "");
+    vi.stubEnv("ANTHROPIC_FOLLOWUP_MODEL", "off");
     await studentWithNews();
 
     await POST();
