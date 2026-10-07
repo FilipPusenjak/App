@@ -90,9 +90,12 @@ export default function PrivacyPage() {
             send us about something the AI wrote.
           </p>
           <p>
-            <Strong>Billing:</Strong> if you subscribe, Stripe handles payment.
-            We store your Stripe customer and subscription identifiers and the
-            plan status, never your card details.
+            <Strong>Billing:</Strong> if you subscribe on the website, Stripe
+            handles payment; in the app, Apple or Google does. We store the
+            subscription identifiers and the plan status, never your card
+            details. For an in-app purchase we give Apple or Google a random
+            code for your account, so a purchase can be matched to it without
+            either of them learning who you are.
           </p>
           <p>
             <Strong>Security records:</Strong> failed sign-in counts and
@@ -156,7 +159,12 @@ export default function PrivacyPage() {
               <Strong>Anthropic</Strong> — the AI provider, as described above.
             </li>
             <li>
-              <Strong>Stripe</Strong> — payments, if you subscribe.
+              <Strong>Stripe</Strong> — payments, if you subscribe on the
+              website.
+            </li>
+            <li>
+              <Strong>Apple and Google</Strong> — payments, if you subscribe in
+              the iPhone or Android app.
             </li>
             <li>
               <Strong>Resend</Strong> — sends password-reset emails, and
@@ -225,9 +233,11 @@ export default function PrivacyPage() {
             <Strong>export all of it</Strong> from your settings, and{" "}
             <Strong>delete your account</Strong> from your settings. Deleting
             removes your account, profiles, evaluations and scores from our
-            database and cancels any subscription; it is not a hidden or
-            deactivated state. Stripe keeps its own payment records as the law
-            requires.
+            database and cancels a subscription bought on the website; it is
+            not a hidden or deactivated state. A subscription bought in the App
+            Store or Google Play can only be cancelled there, and the app tells
+            you so before you delete. Stripe, Apple and Google keep their own
+            payment records as the law requires.
           </p>
           <p>
             Depending on where you live you may have further rights — for

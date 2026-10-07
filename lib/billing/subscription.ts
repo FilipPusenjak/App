@@ -93,6 +93,8 @@ export type BillingSummary = {
   cancelAtPeriodEnd: boolean;
   /** True once this account has a Stripe customer, so the portal is reachable. */
   hasCustomer: boolean;
+  /** Who sold the subscription being described — where to manage it. */
+  provider: string | null;
 };
 
 /**
@@ -138,5 +140,6 @@ export async function loadBillingSummary(
     currentPeriodEnd: describing?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: describing?.cancelAtPeriodEnd ?? false,
     hasCustomer: user.stripeCustomerId !== null,
+    provider: describing?.provider ?? null,
   };
 }

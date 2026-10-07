@@ -20,7 +20,7 @@ export const metadata = {
   title: "Terms of Service — CourseChart",
 };
 
-const UPDATED = "10 September 2026";
+const UPDATED = "7 October 2026";
 
 export default function TermsPage() {
   return (
@@ -143,12 +143,17 @@ export default function TermsPage() {
 
         <Section title="7. Paid plans">
           <p>
-            Paid plans are billed monthly in advance through Stripe. We never
-            see or store your card details.
+            Paid plans are billed monthly in advance. On the website, payment
+            goes through Stripe. In the iPhone or Android app, it goes through
+            the App Store or Google Play, under their terms, and renews
+            automatically until you cancel it in your App Store or Google Play
+            subscription settings at least 24 hours before the period ends.
+            Refunds for those are handled by Apple or Google. We never see or
+            store your card details either way.
           </p>
           <p>
-            You can cancel at any time from your billing settings; cancelling
-            takes as few clicks as subscribing did. Your plan then runs to the
+            A plan bought on the website can be cancelled at any time from your
+            billing settings; cancelling takes as few clicks as subscribing did. Your plan then runs to the
             end of the period you have already paid for, and is not renewed. We
             do not pro-rate partial months.
           </p>

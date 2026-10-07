@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
+import { useInNativeApp } from "@/lib/native-app-client";
 
 // Shared by all three buttons below: none of them go through the SubmitButton
 // component (they POST via fetch, not a <form> action), so the focus-visible
@@ -46,8 +47,20 @@ export function CheckoutButton({
   planCode: string;
   label: string;
 }) {
+  // Inside the iOS or Android app a Stripe checkout is not allowed — the
+  // stores require their own purchase flow for digital plans. The student plan
+  // is sold through it (store-purchase.tsx); tutor and counselor plans are
+  // not sold in the app at all. Checked here as well as by the pages, so no
+  // page can put a Stripe button in the app by forgetting to.
+  const inApp = useInNativeApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (inApp) {
+    return (
+      <p className="text-sm text-zinc-500">This plan isn&apos;t sold in the app.</p>
+    );
+  }
 
   return (
     <div>
@@ -95,11 +108,19 @@ export function CheckoutButton({
  * telling somebody it worked and leaving a stale "0 credits" on screen.
  */
 export function RedeemCodeForm() {
+  // A code that unlocks paid features is exactly what Apple's 3.1.1 rules out
+  // inside an app, and Play's payments policy is no friendlier. Codes keep
+  // working on the web, and what they grant then shows up in the app.
+  const inApp = useInNativeApp();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  if (inApp) {
+    return <p className="text-sm text-zinc-500">Codes can&apos;t be redeemed in the app.</p>;
+  }
 
   return (
     <form
@@ -175,8 +196,19 @@ export function RedeemCodeForm() {
 }
 
 export function PortalButton() {
+  // Stripe's portal can start or change a paid plan, which the stores do not
+  // allow from inside an app. Managing a web subscription happens on the web.
+  const inApp = useInNativeApp();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (inApp) {
+    return (
+      <p className="text-sm text-zinc-500">
+        This plan was bought on the CourseChart website and is managed there.
+      </p>
+    );
+  }
 
   return (
     <div>

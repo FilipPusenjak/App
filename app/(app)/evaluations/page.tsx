@@ -3,6 +3,7 @@ import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
 import { requireUserId } from "@/lib/session";
 import { hasAiConsent } from "@/lib/ai-consent";
+import { nativePlatform } from "@/lib/native-app";
 import { quotaStandings } from "@/lib/billing/quota-account";
 import { notOnPlanMessage } from "@/lib/billing/quota";
 import {
@@ -77,6 +78,8 @@ export default async function EvaluationsPage() {
     quotaStandings(userId),
     hasAiConsent(userId),
   ]);
+  // Codes are web-only — see RedeemCodeForm — so the app never offers one.
+  const platform = await nativePlatform();
 
   // Told BEFORE the click that costs one, not after. The button already
   // surfaces this on refusal, but a fresh free account has no way to know a
@@ -144,7 +147,7 @@ export default async function EvaluationsPage() {
             href="/settings/billing"
             className="shrink-0 inline-flex items-center justify-center rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            Upgrade or enter a code
+            {platform === null ? "Upgrade or enter a code" : "See Plus"}
           </Link>
         </section>
       )}

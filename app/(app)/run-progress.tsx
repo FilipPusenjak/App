@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useInNativeApp } from "@/lib/native-app-client";
 import { usePathname, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -221,6 +222,8 @@ function RunBanner({
   failure: Failure | null;
   onDismiss: () => void;
 }) {
+  // Codes are web-only (see RedeemCodeForm), so the app never offers one.
+  const inApp = useInNativeApp();
   if (!run && !outcome && !failure) return null;
 
   return (
@@ -265,7 +268,7 @@ function RunBanner({
                 href="/settings/billing"
                 className="font-medium text-zinc-900 underline dark:text-zinc-100"
               >
-                Upgrade or enter a code
+                {inApp ? "See Plus" : "Upgrade or enter a code"}
               </Link>
             )}
             <DismissButton onClick={onDismiss} />

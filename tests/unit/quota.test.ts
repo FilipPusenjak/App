@@ -127,7 +127,8 @@ describe("when a run is allowed", () => {
         "2026-07-05T12:00:00.000Z",
       );
       expect(decision.message).toContain("July 5");
-      expect(decision.message).toMatch(/code/i);
+      expect(decision.message).toMatch(/Settings → Plan/);
+      expect(decision.message).not.toMatch(/code/i);
     }
   });
 
@@ -184,7 +185,11 @@ describe("a run the plan does not include", () => {
     expect(decision.reason).toBe("not-on-plan");
     expect(decision.nextAvailableAt).toBeNull();
     expect(decision.message).toMatch(/Plus/);
-    expect(decision.message).toMatch(/code/i);
+    expect(decision.message).toMatch(/Settings → Plan/);
+    // Never "enter a code": the apps show this sentence too, and a code that
+    // unlocks paid features is not allowed there (Apple 3.1.1). The web plan
+    // page offers the code box itself.
+    expect(decision.message).not.toMatch(/code/i);
     // No invented far-future date dressed up as a schedule.
     expect(decision.message).not.toMatch(/\b20\d\d\b/);
   });

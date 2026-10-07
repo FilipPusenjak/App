@@ -6,6 +6,9 @@ import { plansFor, stripePriceIdFor, type Plan } from "@/lib/billing/plans";
 import { isStripeConfigured } from "@/lib/billing/stripe";
 import { CheckoutButton, PortalButton, RedeemCodeForm } from "./buttons";
 import { quotaStandings } from "@/lib/billing/quota-account";
+import { nativePlatform, type NativePlatform } from "@/lib/native-app";
+import { STORE_MANAGE_URL, storeProductConfig } from "@/lib/billing/iap";
+import { StorePurchase } from "./store-purchase";
 
 /**
  * What this account is on, and how to change it.
@@ -19,11 +22,15 @@ export default async function BillingPage() {
   const userId = await requireUserId().catch(() => null);
   if (!userId) redirect("/login");
 
-  const [summary, standings] = await Promise.all([
+  const [summary, standings, platform] = await Promise.all([
     loadBillingSummary(userId, "STUDENT"),
     quotaStandings(userId),
+    nativePlatform(),
   ]);
-  const configured = isStripeConfigured();
+  // Inside the app, Plus is sold by the App Store or Google Play rather than
+  // Stripe, so "configured" means the store, which is always there.
+  const configured = platform !== null || isStripeConfigured();
+  const storeProvider = platform === "ios" ? "APPLE" : platform === "android" ? "GOOGLE" : null;
   const plans = plansFor("STUDENT");
 
   return (
@@ -50,6 +57,10 @@ export default async function BillingPage() {
             plan={plan}
             current={summary.plan?.code === plan.code}
             configured={configured}
+            platform={platform}
+            heldFromThisStore={
+              summary.plan?.code === plan.code && summary.provider === storeProvider
+            }
           />
         ))}
       </div>
@@ -75,7 +86,25 @@ export default async function BillingPage() {
           . You keep everything you paid for until then.
         </p>
       )}
-      {summary.hasCustomer && configured && (
+      {/* Bought in a store, looked at on the web: the store is the only place
+          it can be changed, so say which and where. In the app, the plan card
+          above carries the store's own manage button instead. */}
+      {platform === null &&
+        (summary.provider === "APPLE" || summary.provider === "GOOGLE") && (
+          <p className="max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+            Your plan was bought in{" "}
+            {summary.provider === "APPLE" ? "the App Store" : "Google Play"}, so
+            it is changed or cancelled there —{" "}
+            <a
+              href={STORE_MANAGE_URL[summary.provider]}
+              className="underline underline-offset-2"
+            >
+              manage your subscription
+            </a>
+            .
+          </p>
+        )}
+      {summary.hasCustomer && isStripeConfigured() && (
         <div>
           <PortalButton />
           <p className="mt-1.5 text-xs text-zinc-500">
@@ -118,7 +147,7 @@ export default async function BillingPage() {
                     <strong className="font-medium text-zinc-900 dark:text-zinc-100">
                       Plus
                     </strong>
-                    , or with a code
+                    {platform === null && ", or with a code"}
                   </span>
                 ) : (
                   <span className="text-zinc-600 dark:text-zinc-400">
@@ -140,22 +169,26 @@ export default async function BillingPage() {
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-zinc-500">
-          A code is only spent when the schedule would otherwise say no, so
-          redeeming one early never wastes it.
-        </p>
+        {platform === null && (
+          <p className="mt-3 text-xs text-zinc-500">
+            A code is only spent when the schedule would otherwise say no, so
+            redeeming one early never wastes it.
+          </p>
+        )}
       </section>
 
       {/* The code box, directly under the plans — the two ways past a limit
-          belong next to each other. */}
-      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
-        <h2 className="text-sm font-medium text-zinc-500">Have a code?</h2>
-        <p className="mt-0.5 mb-3 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
-          Codes add a single Deep Review or plans projection to this account.
-          They are not a plan and do not change what you are charged.
-        </p>
-        <RedeemCodeForm />
-      </section>
+          belong next to each other. Not in the app: see RedeemCodeForm. */}
+      {platform === null && (
+        <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+          <h2 className="text-sm font-medium text-zinc-500">Have a code?</h2>
+          <p className="mt-0.5 mb-3 max-w-2xl text-sm text-zinc-600 dark:text-zinc-400">
+            Codes add a single Deep Review or plans projection to this account.
+            They are not a plan and do not change what you are charged.
+          </p>
+          <RedeemCodeForm />
+        </section>
+      )}
 
       {/* Said plainly rather than rendered as a dead button. A checkout button
           that does nothing is worse than none: somebody presses it, nothing
@@ -200,13 +233,20 @@ function PlanCard({
   plan,
   current,
   configured,
+  platform,
+  heldFromThisStore,
 }: {
   plan: Plan;
   current: boolean;
   configured: boolean;
+  platform: NativePlatform | null;
+  heldFromThisStore: boolean;
 }) {
   const priceId = stripePriceIdFor(plan);
   const purchasable = configured && priceId !== null && !current;
+  // In the app, the paid plan is offered through the store — or, when it is
+  // already held from this store, managed there.
+  const storeSold = platform !== null && plan.monthlyUsd > 0;
 
   return (
     <section
@@ -224,19 +264,35 @@ function PlanCard({
           </span>
         )}
       </div>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">
-        {plan.monthlyUsd === 0 ? "Free" : `$${plan.monthlyUsd}`}
-        {plan.monthlyUsd > 0 && (
-          <span className="text-sm font-normal text-zinc-500">/mo</span>
-        )}
-      </p>
+      {/* In the app a paid plan's price is the store's, in the buyer's own
+          currency, and StorePurchase shows it. Ours is USD and would be wrong
+          anywhere else — and Apple rejects a price the sheet will not charge. */}
+      {!(platform !== null && plan.monthlyUsd > 0) && (
+        <p className="mt-1 text-2xl font-semibold tabular-nums">
+          {plan.monthlyUsd === 0 ? "Free" : `$${plan.monthlyUsd}`}
+          {plan.monthlyUsd > 0 && (
+            <span className="text-sm font-normal text-zinc-500">/mo</span>
+          )}
+        </p>
+      )}
       <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         {plan.summary}
       </p>
-      {purchasable && (
+      {storeSold && (!current || heldFromThisStore) ? (
         <div className="mt-4">
-          <CheckoutButton planCode={plan.code} label={`Upgrade to ${plan.name}`} />
+          <StorePurchase
+            platform={platform}
+            products={storeProductConfig()}
+            current={heldFromThisStore}
+          />
         </div>
+      ) : (
+        purchasable &&
+        platform === null && (
+          <div className="mt-4">
+            <CheckoutButton planCode={plan.code} label={`Upgrade to ${plan.name}`} />
+          </div>
+        )
       )}
     </section>
   );

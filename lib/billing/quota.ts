@@ -214,9 +214,10 @@ export function checkQuota(input: {
  * What a blocked run says.
  *
  * Names the date rather than a countdown, because "available on 14 March" is
- * something somebody can plan around and "available in 9 days" is not. Mentions
- * the code box, since that is the other way through and it is on the same page
- * as the upgrade.
+ * something somebody can plan around and "available in 9 days" is not. Points
+ * at the plan page but not at codes: this is shown inside the apps as well, and
+ * see notOnPlanMessage for why codes are not offered there. The web plan page
+ * still offers its code box.
  */
 export function refusalMessage(kind: RunKind, nextAvailableAt: Date): string {
   const when = nextAvailableAt.toLocaleDateString("en-US", {
@@ -225,7 +226,7 @@ export function refusalMessage(kind: RunKind, nextAvailableAt: Date): string {
   });
   return (
     `Your next ${RUN_LABELS[kind]} is available on ${when}. ` +
-    `You can also upgrade in Settings → Plan, or enter a code there if you have one.`
+    `You can also upgrade in Settings → Plan.`
   );
 }
 
@@ -238,9 +239,12 @@ export function refusalMessage(kind: RunKind, nextAvailableAt: Date): string {
  * things that will.
  */
 export function notOnPlanMessage(kind: RunKind): string {
+  // No mention of codes. This sentence is also shown inside the iOS and
+  // Android apps, where a code that unlocks paid features is not allowed
+  // (Apple 3.1.1); the web plan page, where codes work, offers the box itself.
   return (
     `${RUN_LABELS[kind]}s are part of the Plus plan. ` +
-    `You can upgrade in Settings → Plan, or enter a code there if you have one.`
+    `You can upgrade in Settings → Plan.`
   );
 }
 

@@ -32,3 +32,17 @@ describe("telling the app from a browser", () => {
     expect(config).toMatch(/appendUserAgent:\s*"CourseChartApp"/);
   });
 });
+
+describe("the web and native halves of each plugin", () => {
+  it("are on the same version range", async () => {
+    // The web page calls the plugin through @capacitor/core; the native side
+    // answers from the copy bundled in mobile/. A drift between them is a
+    // purchase sheet that fails only on a phone.
+    const { readFileSync } = await import("node:fs");
+    const web = JSON.parse(readFileSync("package.json", "utf8")).dependencies;
+    const native = JSON.parse(readFileSync("mobile/package.json", "utf8")).dependencies;
+    for (const name of ["@capacitor/core", "@capgo/native-purchases"]) {
+      expect(web[name], name).toBe(native[name]);
+    }
+  });
+});

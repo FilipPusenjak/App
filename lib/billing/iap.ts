@@ -42,6 +42,17 @@ export function planCodeForStoreProduct(
   return productId === ours ? STUDENT_PLUS.code : null;
 }
 
+/** What the in-app purchase screen needs to find the product in each store. */
+export function storeProductConfig() {
+  const ids = storeProductIds();
+  return {
+    appleProductId: ids.apple,
+    googleProductId: ids.google,
+    // A Play subscription is bought through one of its base plans.
+    googleBasePlanId: process.env.GOOGLE_BASE_PLAN_STUDENT_PLUS?.trim() || "monthly",
+  };
+}
+
 /** The app's identifier in both stores. Fixed: see mobile/capacitor.config.ts. */
 export const APP_BUNDLE_ID = "app.coursechart";
 

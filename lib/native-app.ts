@@ -10,8 +10,9 @@
 // this decides what to SHOW, never what anybody may DO. Hiding a checkout link
 // from the app is fine; refusing a checkout because of this header is not.
 import { headers } from "next/headers";
+import { NATIVE_APP_MARKER } from "./native-app-marker";
 
-export const NATIVE_APP_MARKER = "CourseChartApp";
+export { NATIVE_APP_MARKER };
 
 export type NativePlatform = "ios" | "android";
 

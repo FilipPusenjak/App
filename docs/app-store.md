@@ -1,7 +1,7 @@
 # Publishing CourseChart to the App Store and Google Play
 
 This is what is already done in code, what only the account owner can do,
-and the open decision. Steps are in order.
+and how in-app purchase is set up. Steps are in order.
 
 ## Already done in code
 
@@ -16,6 +16,7 @@ and the open decision. Steps are in order.
 | Offline screen instead of a blank WebView | `mobile/www/offline.html` |
 | Encryption export compliance | `ITSAppUsesNonExemptEncryption = false` in `Info.plist` |
 | Server can tell it is inside the app | `lib/native-app.ts` (user-agent marker `CourseChartApp`) |
+| In-app purchase of Student Plus, verified server-side | see "In-app purchase" below |
 
 Sign in with Apple is **not** required: Apple only requires it when an app
 offers third-party sign-in, and CourseChart uses email and password only.
@@ -27,6 +28,8 @@ The app is a native shell that loads the live site (`server.url` in
 bundled into the app. Two things follow from that:
 
 - **Every web deploy reaches app users immediately**, with no store review.
+  That includes the purchase screen. A change to the native side (a new
+  plugin, the icon, the config) still needs a new build and store review.
   Good for fixes. It also means a broken deploy breaks the app.
 - **Apple guideline 4.2**: an app that only wraps a website can be rejected
   ("not sufficiently different from a mobile web browsing experience"). The
@@ -105,29 +108,61 @@ item goes in, so check each one against the form:
 Answers that are the same for every row: no tracking, no advertising, no data
 sold, data encrypted in transit, users can request deletion (in-app).
 
-## The open decision: payments
+## In-app purchase (Student Plus)
 
-Paid plans are sold through Stripe (`/settings/billing`). The stores' rules on
-that are:
+Inside the apps, Student Plus is sold through the App Store and Google Play
+(Apple 3.1.1, Play payments policy). On the web it stays on Stripe. All three
+write the same `Subscription` table, so a plan bought anywhere works everywhere.
 
-- **Apple 3.1.1**: subscriptions that unlock features in the app must use
-  in-app purchase. **United States storefront only:** apps may also include a
-  button or link to buy on the web. **Apple 3.1.3(b)**: an app may let people
-  use a subscription they bought elsewhere only if that subscription is also
-  sold through in-app purchase.
-- **Google Play**: digital subscriptions use Play Billing, with
-  alternative/external billing programs available in some regions.
+What the code does:
+- **Buy / Restore / Manage** on Settings → Plan when running in the app
+  (`app/(app)/settings/billing/store-purchase.tsx`), with the price fetched
+  from the store and Apple's required subscription disclosure.
+- Stripe checkout, the Stripe portal and access-code redemption are hidden in
+  the app. **Tutor and counselor plans are not sold in the app**; their buy
+  buttons say so.
+- Each receipt is verified on the server, and a purchase is tied to its
+  account by a random token signed into the receipt: Apple
+  (`/api/billing/iap/apple`, plus `/notifications`), Google
+  (`/api/billing/iap/google`, plus `/notifications`).
+- Deleting an account with a live store subscription warns that it must be
+  cancelled in the store, because the server can't cancel it.
 
-The options:
+### Owner setup — Apple
+1. App Store Connect → Agreements, Tax, and Banking: sign the **Paid Apps**
+   agreement and add bank and tax details. Purchases fail until this is done.
+2. Join the **App Store Small Business Program** (15% instead of 30%).
+3. Create a subscription group, with an auto-renewable subscription whose
+   product ID is **`app.coursechart.plus.monthly`**, one month, priced to
+   match $8. A different ID can be used if `APPLE_PRODUCT_STUDENT_PLUS` is set
+   to it in Vercel.
+4. App Information → App Store Server Notifications: set both Production and
+   Sandbox URLs to `https://www.coursechart.app/api/billing/iap/apple/notifications`,
+   **Version 2**.
+5. Set **`APPLE_APP_ID`** in Vercel to the numeric Apple ID shown on App
+   Information. Without it only sandbox purchases are accepted.
+6. In Xcode → Signing & Capabilities, add **In-App Purchase**.
+7. To test: create a Sandbox tester (Users and Access → Sandbox) and buy from a
+   TestFlight build.
 
-1. **Hide all purchasing inside the app** (using `lib/native-app.ts`). Free
-   features work, and paid accounts keep what they paid for. This is the
-   least work, but a paid feature that can't be bought in the app is
-   exactly what 3.1.3(b) restricts, so it carries rejection risk.
-2. **US-only external purchase link on iOS**, plus hiding purchasing
-   elsewhere. This follows the current US rule, but ties iOS availability
-   to the US storefront.
-3. **Add in-app purchase on iOS and Play Billing on Android.** This is the
-   fully compliant route and the most work: native purchase plugins,
-   server-side receipt checks, and a way to reconcile them with the Stripe
-   plans. Apple takes 15% (Small Business Program) to 30%.
+### Owner setup — Google
+1. Play Console → Monetize → Subscriptions: create subscription
+   **`student_plus`** with base plan **`monthly`**, auto-renewing, priced to match.
+   (`GOOGLE_PRODUCT_STUDENT_PLUS` and `GOOGLE_BASE_PLAN_STUDENT_PLUS` override.)
+2. Google Cloud: create a service account and a JSON key. In Play Console →
+   Users and permissions, invite its email with "View financial data" and
+   "Manage orders and subscriptions". Put the whole JSON in
+   **`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`** (Vercel, sensitive).
+3. Real-time developer notifications: create a Pub/Sub topic, grant
+   `google-play-developer-notifications@system.gserviceaccount.com` the
+   Publisher role on it, and enter it in Play Console → Monetization setup.
+   Add a **push** subscription to
+   `https://www.coursechart.app/api/billing/iap/google/notifications` with
+   authentication enabled, using a service account. Set that account's email
+   as **`GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT`**. Without it, every push is
+   refused.
+4. To test: add license testers (Play Console → Settings → License testing) and
+   install from the closed test track.
+
+The plugin version must match between `package.json` and `mobile/package.json`;
+a test checks this.

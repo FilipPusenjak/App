@@ -409,7 +409,17 @@ export default async function SettingsPage() {
             keeping records of payments taken.
           </li>
         </ul>
-        <DeleteAccountForm email={user.email} />
+        <DeleteAccountForm
+          email={user.email}
+          storeSubscription={
+            !billing.cancelAtPeriodEnd &&
+            (billing.provider === "APPLE" || billing.provider === "GOOGLE") &&
+            billing.currentPeriodEnd !== null &&
+            billing.currentPeriodEnd > new Date()
+              ? billing.provider
+              : null
+          }
+        />
       </section>
     </div>
   );
