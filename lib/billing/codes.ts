@@ -166,6 +166,7 @@ export async function redeemCode(input: {
             planCode: plan.code,
             stripeSubscriptionId: syntheticId,
             stripeCustomerId: "comp",
+            provider: "COMP",
             status: "canceled",
             currentPeriodEnd: expiresAt,
             cancelAtPeriodEnd: true,

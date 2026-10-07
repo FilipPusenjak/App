@@ -38,6 +38,7 @@ export async function userIdsWithPaidAccess(now: Date): Promise<Set<string>> {
       status: true,
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
+      provider: true,
     },
   });
 
@@ -64,6 +65,7 @@ export async function loadSubscriptionStates(
       status: true,
       currentPeriodEnd: true,
       cancelAtPeriodEnd: true,
+      provider: true,
     },
   });
   return rows;
@@ -119,6 +121,7 @@ export async function loadBillingSummary(
         status: true,
         currentPeriodEnd: true,
         cancelAtPeriodEnd: true,
+        provider: true,
       },
     }),
   ]);

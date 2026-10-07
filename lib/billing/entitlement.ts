@@ -56,7 +56,23 @@ export type SubscriptionState = {
   status: string;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
+  /** STRIPE when absent. See STORE_EXPIRY_GRACE_MS for why it matters. */
+  provider?: string;
 };
+
+/**
+ * How long past its stated expiry a store subscription keeps access.
+ *
+ * Apple and Google always state when a subscription period ends, and a row
+ * they wrote is only as current as the last notification that reached us. If
+ * the one saying "expired" is lost, a Stripe-style "active means active" rule
+ * would grant the plan forever. So for a store row the expiry date is binding
+ * whatever the status says — with a few days' slack, because a renewal is
+ * charged at the end of the period and its notice can arrive after it.
+ */
+export const STORE_EXPIRY_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
+const STORE_PROVIDERS = new Set(["APPLE", "GOOGLE"]);
 
 /**
  * Does this subscription entitle the holder to its plan right now?
@@ -70,6 +86,19 @@ export function subscriptionGrantsAccess(
   sub: SubscriptionState,
   now: Date,
 ): boolean {
+  if (sub.provider && STORE_PROVIDERS.has(sub.provider)) {
+    if (!sub.currentPeriodEnd) return false;
+    if (sub.currentPeriodEnd.getTime() + STORE_EXPIRY_GRACE_MS <= now.getTime()) {
+      return false;
+    }
+    // Inside the period (or its slack): a refund or revocation still ends it
+    // at once, which the store expresses as canceled with the revocation date.
+    if ((DEAD_STATUSES as readonly string[]).includes(sub.status)) {
+      return sub.currentPeriodEnd > now;
+    }
+    return true;
+  }
+
   if ((DEAD_STATUSES as readonly string[]).includes(sub.status)) {
     // Even a canceled subscription keeps the plan until the period it paid for
     // has actually run out. Stripe sets status to canceled the moment somebody

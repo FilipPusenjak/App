@@ -161,6 +161,17 @@ model User {
   /// sets it back to null. See lib/ai-consent.ts.
   aiConsentAt DateTime?
 
+  /// The UUID this account is known by to Apple and Google.
+  ///
+  /// Sent with every in-app purchase (Apple's appAccountToken, Google's
+  /// obfuscatedExternalAccountId) and signed back to us inside the store's
+  /// receipt. That is what ties a purchase to THIS account: a receipt whose
+  /// token is somebody else's is refused, and a renewal notice that arrives
+  /// with no row yet is matched to its account by it. Random rather than
+  /// derived from the id, so the stores never hold anything that identifies
+  /// the person. Null until the first purchase is started.
+  iapAccountToken String? @unique
+
   contentReports ContentReport[]
 }
 
@@ -221,7 +232,18 @@ model Subscription {
   /// somebody paid for it.
   planCode String
 
+  /// Who sold it: STRIPE (the web), APPLE or GOOGLE (in-app purchase in the
+  /// native apps), or COMP (granted by an access code). Every entitlement rule
+  /// reads status and currentPeriodEnd the same way whichever it is; this says
+  /// where to send somebody to manage it, and which notifications may change it.
+  provider String @default("STRIPE")
+
+  /// The seller's own id for this subscription, despite the column's name —
+  /// kept rather than renamed because it is the unique key every existing
+  /// Stripe and comp row is found by. Stripe: sub_…. Comp: comp_<user>_<plan>.
+  /// Apple: apple_<originalTransactionId>. Google: google_<purchaseToken hash>.
   stripeSubscriptionId String  @unique
+  /// "comp", "apple" or "google" for rows Stripe never saw.
   stripeCustomerId     String
   /// The Stripe Price this subscription bills against, kept for support: it is
   /// the field that answers "what were they actually charged" a year later.
