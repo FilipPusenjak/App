@@ -160,6 +160,43 @@ model User {
   /// "when did they agree" is the question anyone checking it asks. Withdrawing
   /// sets it back to null. See lib/ai-consent.ts.
   aiConsentAt DateTime?
+
+  contentReports ContentReport[]
+}
+
+/// Somebody flagging AI-generated content from inside the app.
+///
+/// Google Play requires that apps generating content with AI let users report
+/// offensive output "without needing to exit the app", and it is worth having
+/// regardless: the model writes about teenagers, and the person reading it is
+/// the first to know when it said something it should not have.
+///
+/// Points at its target by kind + id rather than by foreign key, because the
+/// four kinds live in four tables and the retention sweep may delete a
+/// narrative long before anyone gets round to reading the report. The report
+/// outlives the prose; the reporter's own words say what was wrong with it.
+///
+/// Cascades from the reporter: deleting an account deletes what it reported,
+/// like everything else it wrote.
+model ContentReport {
+  id             String @id @default(cuid())
+  reporterUserId String
+  reporter       User   @relation(fields: [reporterUserId], references: [id], onDelete: Cascade)
+
+  /// EVALUATION | PROJECTION | SESSION_PREP | PROGRESS_ARTIFACT
+  kind     String
+  targetId String
+
+  /// OFFENSIVE | HARMFUL | INACCURATE | OTHER
+  reason  String
+  details String?
+
+  createdAt  DateTime  @default(now())
+  /// Set from /operations once somebody has looked at it.
+  resolvedAt DateTime?
+
+  @@index([resolvedAt, createdAt])
+  @@index([kind, targetId])
 }
 
 /// A paid plan an account holds, mirrored from Stripe.

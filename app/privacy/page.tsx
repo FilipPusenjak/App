@@ -86,7 +86,8 @@ export default function PrivacyPage() {
           </p>
           <p>
             <Strong>What the service produces:</Strong> evaluations, check-ins,
-            projections and the scores extracted from them.
+            projections and the scores extracted from them, and any report you
+            send us about something the AI wrote.
           </p>
           <p>
             <Strong>Billing:</Strong> if you subscribe, Stripe handles payment.

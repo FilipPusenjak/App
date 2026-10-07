@@ -13,6 +13,7 @@ import {
 } from "@/lib/validation/counselor";
 import { GeneratePrepButton } from "./generate-prep-button";
 import { PrepBody } from "./prep-body";
+import { ReportContent } from "@/components/report-content";
 
 /**
  * One student, opened deliberately from the attention list.
@@ -169,6 +170,9 @@ export default async function StudentPage({
           narrative={narrative.data}
           recommendations={recommendations}
         />
+      )}
+      {narrative?.success && latest && (
+        <ReportContent kind="SESSION_PREP" targetId={latest.id} />
       )}
 
       {!latest && (

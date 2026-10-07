@@ -10,6 +10,14 @@ import {
   worstCasePerLinkUsd,
 } from "@/lib/counselor/economics";
 import { MintCodeForm } from "./mint-code-form";
+import { prisma } from "@/lib/db";
+import { resolveContentReportAction } from "@/app/actions/content-report";
+import {
+  REPORT_KIND_LABELS,
+  REPORT_REASON_LABELS,
+  type ReportKind,
+  type ReportReason,
+} from "@/lib/content-report";
 
 /**
  * Does the per-link price cover what a caseload actually costs to run?
@@ -18,7 +26,8 @@ import { MintCodeForm } from "./mint-code-form";
  * at once, and it exists to answer a pricing question rather than a performance
  * one. It carries no student data of any kind — no names, no profiles, no
  * signals — because a cost report has no business holding any, and an operator
- * is not a party to any consent grant.
+ * is not a party to any consent grant. The content-report queue keeps to that:
+ * it shows what a reporter wrote and the ids to look up, never the content.
  *
  * notFound() rather than a 403 for a non-operator: an internal screen should not
  * confirm its own existence to someone who may not read it.
@@ -29,7 +38,15 @@ export default async function OperationsPage() {
 
   const now = new Date();
   const { from } = monthWindow(now);
-  const rows = await loadCaseloadCosts(now);
+  const [rows, reports, resolvedCount] = await Promise.all([
+    loadCaseloadCosts(now),
+    prisma.contentReport.findMany({
+      where: { resolvedAt: null },
+      orderBy: { createdAt: "asc" },
+      take: 100,
+    }),
+    prisma.contentReport.count({ where: { resolvedAt: { not: null } } }),
+  ]);
 
   const totals = rows.reduce(
     (acc, r) => ({
@@ -166,6 +183,67 @@ export default async function OperationsPage() {
         <div className="mt-4">
           <MintCodeForm />
         </div>
+      </section>
+
+      {/* Reports of AI-generated content, from the "Report this" control under
+          every evaluation, projection, prep and briefing. Shows what the
+          REPORTER wrote and where to look, not the content itself — the page
+          stays free of student data, and the ids are enough to find the row. */}
+      <section className="mt-10 rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold">Reported AI content</h2>
+        <p className="mt-0.5 text-sm text-zinc-500">
+          {reports.length === 0
+            ? "Nothing open."
+            : `${reports.length} open, oldest first.`}{" "}
+          {resolvedCount > 0 && `${resolvedCount} resolved.`}
+        </p>
+        {reports.length > 0 && (
+          <ul className="mt-4 space-y-3 text-sm">
+            {reports.map((r) => (
+              <li
+                key={r.id}
+                className="rounded-lg border border-black/10 p-3 dark:border-white/10"
+              >
+                <div className="flex flex-wrap items-baseline gap-x-3">
+                  <span className="font-medium">
+                    {REPORT_KIND_LABELS[r.kind as ReportKind] ?? r.kind}
+                  </span>
+                  <span className="text-zinc-500">
+                    {REPORT_REASON_LABELS[r.reason as ReportReason] ?? r.reason}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {r.createdAt.toLocaleString("en-US", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                </div>
+                {r.details && (
+                  <p className="mt-1 whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">
+                    {r.details}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-zinc-500">
+                  <span>
+                    target <code className="font-mono">{r.targetId}</code>
+                  </span>
+                  <span>
+                    reporter <code className="font-mono">{r.reporterUserId}</code>
+                  </span>
+                  <form action={resolveContentReportAction}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-black/15 px-2 py-1 font-medium hover:bg-black/5 dark:border-white/20 dark:hover:bg-white/10"
+                    >
+                      Mark resolved
+                    </button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   );

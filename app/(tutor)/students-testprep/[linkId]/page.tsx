@@ -12,6 +12,7 @@ import { AcknowledgeStopping } from "./acknowledge";
 import { RecordScore } from "./record-score";
 import { DraftBriefing } from "./draft-briefing";
 import { MarkForwarded } from "./mark-forwarded";
+import { ReportContent } from "@/components/report-content";
 
 /**
  * One student, and the two questions this product exists to answer: what are we
@@ -415,10 +416,15 @@ export default async function TutorStudentPage({
                     {a.error}
                   </span>
                 ) : (
-                  <MarkForwarded
-                    artifactId={a.id}
-                    forwarded={a.sharedWithGuardianAt !== null}
-                  />
+                  <>
+                    <MarkForwarded
+                      artifactId={a.id}
+                      forwarded={a.sharedWithGuardianAt !== null}
+                    />
+                    <span className="basis-full">
+                      <ReportContent kind="PROGRESS_ARTIFACT" targetId={a.id} />
+                    </span>
+                  </>
                 )}
               </li>
             ))}

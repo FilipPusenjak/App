@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { findOwnedProjection } from "@/lib/ownership";
 import { parseStoredProjection } from "@/lib/validation/projection";
 import { getRubricById } from "@/lib/rubrics";
+import { ReportContent } from "@/components/report-content";
 
 function Card({
   title,
@@ -325,6 +326,10 @@ export default async function ProjectionPage({
                 ))}
               </ul>
             </Card>
+          )}
+
+          {!projection.isSample && (
+            <ReportContent kind="PROJECTION" targetId={projection.id} />
           )}
         </>
       )}

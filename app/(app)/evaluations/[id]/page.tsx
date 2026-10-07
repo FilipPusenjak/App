@@ -17,6 +17,7 @@ import {
   REQUIREMENT_LABELS,
 } from "@/lib/validation/course-requirements";
 import { modelLabel } from "@/lib/model-label";
+import { ReportContent } from "@/components/report-content";
 
 /**
  * The band reading, or empty when this row has no computed snapshot.
@@ -904,6 +905,14 @@ export default async function EvaluationPage({
             ))}
           </ul>
         </Card>
+      )}
+
+      {/* Anything the model wrote can be flagged without leaving the app — a
+          Google Play requirement for AI-generated content, and the fastest
+          way to hear that it said something it should not have. A sample was
+          not written by a model, so there is nothing to report. */}
+      {!evaluation.isSample && (
+        <ReportContent kind="EVALUATION" targetId={evaluation.id} />
       )}
     </div>
   );
