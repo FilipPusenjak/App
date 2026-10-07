@@ -1,0 +1,3 @@
+# The native iOS/Android shells are built locally in Xcode and Android
+# Studio, never on Vercel.
+mobile/

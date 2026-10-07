@@ -165,3 +165,18 @@ export function CourseMark({
     </div>
   );
 }
+
+/**
+ * The sextant alone, white on nothing.
+ *
+ * For Android's adaptive icon, which wants the glyph and its background as
+ * separate layers so the launcher can mask them into a circle, squircle or
+ * teardrop. The background layer is MARK_GRADIENT; this is the other one.
+ */
+export function MarkGlyph({ size = VIEW }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${VIEW} ${VIEW}`}>
+      {SEXTANT}
+    </svg>
+  );
+}
