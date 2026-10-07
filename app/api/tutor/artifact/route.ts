@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { hasAiConsent, studentConsentRequired } from "@/lib/ai-consent";
 import {
   getAnthropicClient,
   getFollowupEffort,
@@ -87,6 +88,8 @@ export async function POST(request: Request) {
   if (!link) {
     return NextResponse.json({ error: "No access to that student." }, { status: 404 });
   }
+  // The student's permission, not the tutor's — see lib/ai-consent.ts.
+  if (!(await hasAiConsent(link.studentUserId))) return studentConsentRequired();
 
   const periodEnd =
     typeof body?.periodEnd === "string" ? new Date(body.periodEnd) : new Date();

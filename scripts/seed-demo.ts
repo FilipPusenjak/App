@@ -985,6 +985,9 @@ async function seedStudent(s: DemoStudent, accountId: string, passwordHash: stri
       passwordHash,
       name: s.name,
       countryOfOrigin: s.country,
+      // Allowed, so the counselor demo's prep button works end to end. A real
+      // student is asked; these are fictional.
+      aiConsentAt: new Date(),
     },
   });
 

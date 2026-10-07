@@ -297,6 +297,13 @@ export function SignupForm() {
           className="underline underline-offset-2 hover:text-foreground"
         >
           Terms of Service
+        </Link>{" "}
+        and have read the{" "}
+        <Link
+          href="/privacy"
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Privacy Policy
         </Link>
         .
       </p>

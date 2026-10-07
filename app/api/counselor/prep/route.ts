@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { hasAiConsent, studentConsentRequired } from "@/lib/ai-consent";
 import {
   getAnthropicClient,
   getFollowupEffort,
@@ -83,6 +84,11 @@ export async function POST(request: Request) {
       { status: 404 },
     );
   }
+
+  // The STUDENT's permission, not the counselor's: this sends the student's
+  // data to the AI provider, and agreeing to share with a counselor is not
+  // agreeing to that — see lib/ai-consent.ts.
+  if (!(await hasAiConsent(link.studentUserId))) return studentConsentRequired();
 
   // Caseload limit, server-side. Costs scale with caseload, so an unbounded
   // caseload is an unbounded bill, and a limit enforced only in the UI is not

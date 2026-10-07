@@ -34,6 +34,7 @@ import {
   toChartPoint,
 } from "@/lib/evaluation/chart-point";
 import { getCurrentUser } from "@/lib/session";
+import { hasAiConsent, ownConsentRequired } from "@/lib/ai-consent";
 import { getProfileWithRelations } from "@/lib/ownership";
 import { evaluationRateLimiter } from "@/lib/rate-limit";
 import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
@@ -317,6 +318,10 @@ export async function POST(request: Request) {
   if (!user?.id) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
+
+  // Permission to send the profile to the AI provider, before anything else
+  // is counted or spent — see lib/ai-consent.ts.
+  if (!(await hasAiConsent(user.id))) return ownConsentRequired();
 
   // 2. Clear out any abandoned run first, so a previously-interrupted
   // evaluation doesn't linger as "pending" once this one replaces it.

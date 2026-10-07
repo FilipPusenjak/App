@@ -221,6 +221,26 @@ d("drafting a progress briefing", () => {
     expect((row.narrative as Record<string, unknown>).computed).toBeTruthy();
   });
 
+  it("refuses without the STUDENT's permission to use AI, whatever the tutor's", async () => {
+    // The tutor's own row has allowed it (the fixture default). That must not
+    // count: it is the student's data going to the provider.
+    const { student, link, testType } = await scenario({ score: SCORE_WORTH_RETAKING });
+    await prisma.user.update({
+      where: { id: student.user.id },
+      data: { aiConsentAt: null },
+    });
+
+    const response = await post({ linkId: link.id, testTypeId: testType.id });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.code).toBe("STUDENT_AI_CONSENT_REQUIRED");
+    expect(created).not.toHaveBeenCalled();
+    expect(
+      await prisma.progressArtifact.count({ where: { studentUserId: student.user.id } }),
+    ).toBe(0);
+  });
+
   it("never sends anything, so a fresh briefing is not marked forwarded", async () => {
     const { student, link, testType } = await scenario({ score: SCORE_WORTH_RETAKING });
     await post({ linkId: link.id, testTypeId: testType.id });

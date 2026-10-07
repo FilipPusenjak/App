@@ -11,6 +11,8 @@ import {
 import { deletePlanAction, markPlanDoneAction } from "@/app/actions/plan";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { RunProjectionButton } from "./run-projection-button";
+import { requireUserId } from "@/lib/session";
+import { hasAiConsent } from "@/lib/ai-consent";
 
 function monthYear(d: Date | null) {
   if (!d) return null;
@@ -36,10 +38,11 @@ function Card({
 }
 
 export default async function PlansPage() {
-  const [profile, plans, projections] = await Promise.all([
+  const [profile, plans, projections, aiConsented] = await Promise.all([
     getProfileWithRelations(),
     getOwnedPlannedItems(),
     getOwnedProjections(),
+    requireUserId().then(hasAiConsent),
   ]);
 
   const noPlans = plans.length === 0;
@@ -63,6 +66,7 @@ export default async function PlansPage() {
         <RunProjectionButton
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
+          aiConsented={aiConsented}
         />
       </div>
 

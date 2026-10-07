@@ -12,6 +12,8 @@ import { getAiStatus } from "@/lib/ai-status";
 import { getDeploymentInfo } from "@/lib/deployment-info";
 import { getOwnedProfiles } from "@/lib/ownership";
 import { DeleteAccountForm } from "./delete-account-form";
+import { AiConsentToggle } from "./ai-consent-toggle";
+import { prisma } from "@/lib/db";
 import {
   getRetentionPolicy,
   grandfatheredBefore,
@@ -35,6 +37,13 @@ export default async function SettingsPage() {
   ]);
 
   const ai = getAiStatus();
+  const aiConsentAt =
+    (
+      await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { aiConsentAt: true },
+      })
+    )?.aiConsentAt ?? null;
   // This account's own window, not the deployment's — the two tiers keep prose
   // for different lengths, and showing somebody the other one's date would be
   // worse than showing nothing.
@@ -169,6 +178,24 @@ export default async function SettingsPage() {
             </div>
           </>
         )}
+      </section>
+
+      {/* The permission itself, where it can be taken back. The panel on the
+          run buttons is where it is GIVEN; this is the other half, and the
+          privacy policy promises it is here. */}
+      <section className="rounded-xl border border-black/10 bg-white p-5 shadow-sm dark:border-white/15 dark:bg-white/5">
+        <h2 className="text-lg font-semibold">Sharing with our AI provider</h2>
+        <p className="mt-0.5 text-sm text-zinc-500">
+          {aiConsentAt
+            ? `Allowed since ${aiConsentAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Your profile is sent to Anthropic when you, or a counselor or tutor you invited, run an AI feature.`
+            : "Not allowed. Nothing about you is sent to Anthropic, and reviews, check-ins, projections, and AI prep by a counselor or tutor are off until you allow it."}{" "}
+          <Link href="/privacy" className="underline underline-offset-2">
+            What is sent
+          </Link>
+        </p>
+        <div className="mt-3">
+          <AiConsentToggle allowed={Boolean(aiConsentAt)} />
+        </div>
       </section>
 
       {/* Which build is answering. Without this, "the deployment is X" and

@@ -1,6 +1,7 @@
 "use client";
 
 import { Spinner } from "@/components/ui/spinner";
+import { useAiConsentGate } from "@/components/ai-consent-panel";
 import { useRunProgress } from "../run-progress";
 
 /**
@@ -11,11 +12,18 @@ import { useRunProgress } from "../run-progress";
 export function RunProjectionButton({
   disabled,
   disabledReason,
+  aiConsented,
 }: {
   disabled?: boolean;
   disabledReason?: string;
+  /** Whether this account has allowed its data to go to the AI provider. */
+  aiConsented: boolean;
 }) {
   const { run, busy, failure, start } = useRunProgress();
+  const { gate, panel } = useAiConsentGate(aiConsented);
+  const project = gate(() => start({ kind: "PROJECTION", url: "/api/project" }));
+
+  if (panel) return panel;
 
   return (
     // Full width on a phone, where a primary action floating mid-row reads as
@@ -24,7 +32,7 @@ export function RunProjectionButton({
     <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
       <button
         type="button"
-        onClick={() => start({ kind: "PROJECTION", url: "/api/project" })}
+        onClick={project}
         disabled={busy || disabled}
         title={disabled ? disabledReason : undefined}
         className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 sm:py-2 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"

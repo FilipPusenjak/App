@@ -1,6 +1,7 @@
 "use client";
 
 import { Spinner } from "@/components/ui/spinner";
+import { useAiConsentGate } from "@/components/ai-consent-panel";
 import { useRunProgress } from "../run-progress";
 
 /**
@@ -23,17 +24,25 @@ export function RunEvaluationButton({
   disabledReason,
   /** True once a real evaluation exists, so a check-in has something to read. */
   canFollowUp = false,
+  /** Whether this account has allowed its data to go to the AI provider. */
+  aiConsented,
 }: {
   disabled?: boolean;
   disabledReason?: string;
   canFollowUp?: boolean;
+  aiConsented: boolean;
 }) {
   const { run, busy, failure, start } = useRunProgress();
+  const { gate, panel } = useAiConsentGate(aiConsented);
 
-  const runReview = () =>
-    start({ kind: "DEEP_REVIEW", url: "/api/evaluate", body: { full: false } });
-  const runCheckIn = () =>
-    start({ kind: "CHECK_IN", url: "/api/evaluations/check-in" });
+  const runReview = gate(() =>
+    start({ kind: "DEEP_REVIEW", url: "/api/evaluate", body: { full: false } }),
+  );
+  const runCheckIn = gate(() =>
+    start({ kind: "CHECK_IN", url: "/api/evaluations/check-in" }),
+  );
+
+  if (panel) return panel;
 
   return (
     // Full width on a phone, where a primary action floating at the right edge

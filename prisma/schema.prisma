@@ -150,6 +150,16 @@ model User {
   /// that succeeded is never repeated within the cooling-off window. A cron
   /// that fires twice, or a job that dies halfway, cannot mail anybody twice.
   remindersLastSentAt DateTime?
+
+  /// When the account holder allowed their data to be sent to the AI provider.
+  ///
+  /// Null means not allowed, and every route that calls a model on this
+  /// account's data refuses — including a counselor's prep and a tutor's
+  /// briefing, which send THIS student's data on someone else's click. A
+  /// timestamp rather than a boolean for the same reason as remindersOptOutAt:
+  /// "when did they agree" is the question anyone checking it asks. Withdrawing
+  /// sets it back to null. See lib/ai-consent.ts.
+  aiConsentAt DateTime?
 }
 
 /// A paid plan an account holds, mirrored from Stripe.

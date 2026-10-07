@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { hasAiConsent, ownConsentRequired } from "@/lib/ai-consent";
 import {
   getAnthropicClient,
   getCheckInModel,
@@ -55,6 +56,9 @@ export async function POST() {
   if (!user) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
+  // Asked even though a quiet fortnight never reaches the model: the student
+  // cannot know in advance which kind of check-in they are about to run.
+  if (!(await hasAiConsent(user.id))) return ownConsentRequired();
 
   const data = await loadForTier("CHECK_IN");
 

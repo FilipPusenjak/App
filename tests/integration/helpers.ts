@@ -18,13 +18,22 @@ export function makeRunTag(fileLabel: string) {
  * A user + profile, ready to hang resume items / scores / targets off.
  * The password hash is a placeholder — these tests never log in through
  * the real auth flow (the e2e test covers that).
+ *
+ * Has already allowed AI features unless told otherwise, so tests about what a
+ * route does with a run are not all secretly tests of the consent refusal —
+ * tests/integration/ai-consent.test.ts is where that is tested.
  */
-export async function createUserWithProfile(runTag: string, label: string) {
+export async function createUserWithProfile(
+  runTag: string,
+  label: string,
+  opts: { aiConsent?: boolean } = {},
+) {
   const user = await prisma.user.create({
     data: {
       email: `${runTag}-${label}@example.test`,
       name: `Test ${label}`,
       passwordHash: "not-a-real-hash",
+      aiConsentAt: opts.aiConsent === false ? null : new Date(),
       profiles: { create: {} },
     },
     include: { profiles: true },

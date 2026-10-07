@@ -21,10 +21,9 @@ export function SiteFooter() {
         <Link href="/terms" className="hover:text-foreground">
           Terms
         </Link>
-        {/* Privacy belongs beside Terms and is deliberately NOT linked yet:
-            app/privacy does not exist, and a footer link to a 404 is worse
-            than an absent one — it reads as a policy that was written and then
-            lost. Add the link in the same change that adds the page. */}
+        <Link href="/privacy" className="hover:text-foreground">
+          Privacy
+        </Link>
       </div>
     </footer>
   );

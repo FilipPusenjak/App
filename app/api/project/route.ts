@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
+import { hasAiConsent, ownConsentRequired } from "@/lib/ai-consent";
 import { getProfileWithRelations, getOwnedPlannedItems } from "@/lib/ownership";
 import { projectionRateLimiter } from "@/lib/rate-limit";
 import { authorizeRun, refundFailedRun } from "@/lib/billing/quota-account";
@@ -167,6 +168,7 @@ export async function POST() {
   if (!user?.id) {
     return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   }
+  if (!(await hasAiConsent(user.id))) return ownConsentRequired();
 
   const limit = await projectionRateLimiter.check(user.id);
   if (!limit.ok) {

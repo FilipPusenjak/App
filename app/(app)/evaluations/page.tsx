@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cacheVerdict, estimateCost, formatUsd } from "@/lib/cost";
 import { getOwnedEvaluations, getProfileWithRelations } from "@/lib/ownership";
 import { requireUserId } from "@/lib/session";
+import { hasAiConsent } from "@/lib/ai-consent";
 import { quotaStandings } from "@/lib/billing/quota-account";
 import { notOnPlanMessage } from "@/lib/billing/quota";
 import {
@@ -69,10 +70,12 @@ export default async function EvaluationsPage() {
   // evaluation is shown as failed-with-a-reason rather than "pending" forever.
   await failStalePendingEvaluations();
 
-  const [profile, evaluations, standings] = await Promise.all([
+  const userId = await requireUserId();
+  const [profile, evaluations, standings, aiConsented] = await Promise.all([
     getProfileWithRelations(),
     getOwnedEvaluations(),
-    quotaStandings(await requireUserId()),
+    quotaStandings(userId),
+    hasAiConsent(userId),
   ]);
 
   // Told BEFORE the click that costs one, not after. The button already
@@ -127,6 +130,7 @@ export default async function EvaluationsPage() {
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
           canFollowUp={canFollowUp}
+          aiConsented={aiConsented}
         />
       </div>
 
