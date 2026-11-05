@@ -92,9 +92,13 @@ Both stores need:
 - **Age rating questionnaire**. The app is for ages 13 and up (`lib/validation/age.ts`).
   Don't put it in Apple's Kids category, and don't target under-13s on
   Google Play; either would bring in children's-app rules the app isn't built for.
-- **A reviewer login.** Apple reviewers have to sign in. Create a student
-  account with a filled-in profile and AI consent already given, and enter its
-  credentials in App Review Information. Do the same in Play Console → App access.
+- **A reviewer login.** Done: `appreview@coursechart-review.invalid` exists in
+  production with a filled-in fictional profile (the same one as the
+  screenshots), a completed Deep Review and AI permission already given. Its
+  password was handed over directly and is not in the repository — reset it
+  with `npm run set-password` if lost. Enter both in App Review Information
+  (Sign-in information) and Play Console → App content → App access. The
+  `.invalid` domain means nothing can ever be emailed to it.
 
 ### 6. Privacy declarations
 Fill these in from `/privacy`. The stores' own wording decides which box each
