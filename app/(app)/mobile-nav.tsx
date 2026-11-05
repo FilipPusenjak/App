@@ -15,9 +15,14 @@ import { NavLink } from "./nav-links";
 export function MobileNav({
   nav,
   userEmail,
+  brand = "CourseChart",
+  homeHref = "/dashboard",
 }: {
-  nav: { href: string; label: string }[];
+  nav: { href: string; label: string; exact?: boolean }[];
   userEmail: string;
+  /** What the bar is titled — the counselor and tutor surfaces show the org. */
+  brand?: string;
+  homeHref?: string;
 }) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
 
@@ -25,10 +30,10 @@ export function MobileNav({
     <details ref={detailsRef} className="group sm:hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
         <Link
-          href="/dashboard"
+          href={homeHref}
           className="min-w-0 truncate text-sm font-semibold"
         >
-          CourseChart
+          {brand}
         </Link>
         <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-black/15 px-2.5 py-1.5 text-sm font-medium dark:border-white/20">
           Menu
@@ -57,6 +62,7 @@ export function MobileNav({
           <NavLink
             key={item.href}
             href={item.href}
+            exact={item.exact}
             // Generous hit targets: these are the primary navigation on a
             // touch screen, where a 14px text link is not a target.
             className="rounded-md px-2 py-2.5 text-sm text-zinc-600 hover:bg-black/5 dark:text-zinc-300 dark:hover:bg-white/10"

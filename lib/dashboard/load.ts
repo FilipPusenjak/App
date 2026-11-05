@@ -289,7 +289,12 @@ function buildNextSteps(
         c.status === "PROPOSED"
           ? "Proposed in your last review — accept it to start tracking, or decline."
           : "You committed to this.",
-      meta: c.dueDate ? `by ${c.dueDate.toISOString().slice(0, 10)}` : null,
+      // The same form the review page uses ("due Nov 12, 2026"). UTC, because
+      // a due date is stored as a day, and a viewer west of UTC would
+      // otherwise see the day before.
+      meta: c.dueDate
+        ? `by ${c.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`
+        : null,
       commitmentId: c.id,
       status: c.status,
     });

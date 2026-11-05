@@ -1,0 +1,308 @@
+{
+  "stageOutlook": {
+    "stageLabel": "Final year — Grade 12, early in the application season",
+    "whatMattersNow": "Your record is now largely fixed. What still moves an application is presenting the strongest true version of it: an essay set that explains why you do machine learning in a way only you could write, recommenders who can describe specific work, and finishing the lab project you are part of. New activities started now cannot show depth before applications close, so do not add any.",
+    "onTrack": "ahead",
+    "assessment": "For a final-year student you are clearly ahead of the university-bound cohort. Sixteen months in a university computer vision group with a named acknowledgement, a club you have led for two years and measurably grown, a state-level first place and a steady job are each uncommon in your year; having all four is rare. The record already tells one story — computing, building things, bringing other people in — and it is evidenced rather than asserted. What is not yet visible is anything you led in the research itself: the lab work so far is data preparation and one script, which is real but supporting work.",
+    "reachableNow": [
+      "Ask Dr. Reyes-Whitfield whether they will write a recommendation, and give them a one-page note of what you did and when",
+      "Finish and document the de-duplication script so it is something you can show, not just describe",
+      "Write the essay that connects the library workshop and the lab: why you want more people building with machine learning"
+    ],
+    "notYetExpected": [
+      "First-author research or a publication of your own — not a reasonable expectation in high school",
+      "Final application decisions and financial aid outcomes",
+      "Anything that only begins at university, such as declaring into a specific CS concentration"
+    ]
+  },
+  "systemScores": [
+    {
+      "rubricId": "us-holistic",
+      "systemLabel": "United States — holistic review",
+      "readinessScore": 62,
+      "gradeRelativeScore": 88,
+      "assessment": "Under holistic review this is a strong, coherent profile without a national-level spike. Rigor and results are high, leadership has numbers behind it, and the lab placement is genuine exposure to research. Against the people applying to the most selective computer science programmes, though, many will also show top scores, research contact and leadership, so you sit in the upper-middle of that pool rather than at its top. Essays and recommendations are not in this profile and can move a holistic outcome substantially."
+    }
+  ],
+  "schoolFits": [
+    {
+      "schoolName": "Duke University",
+      "course": "Computer Science B.S.",
+      "rubricUsed": "us-holistic",
+      "selectivity": "extremely_selective",
+      "fitScore": 46,
+      "classification": "reach",
+      "classificationReason": "Duke admits a small fraction of an already strong applicant pool, and being fully qualified is nowhere near sufficient there. Your profile is competitive in the sense of belonging in that pool, but nothing in it yet separates you from the many applicants with similar grades, scores and activities, which makes it a reach for anyone at your level.",
+      "assessment": "Your strongest assets here are the lab placement and the Girls Who Code growth, because they show initiative with consequences — the dimension that separates qualified applicants at this tier. The SAT is solid but will not distinguish you. The decision will turn on what the record cannot show: whether your essays make the computer vision work and the library workshop feel like one person's direction rather than a list.",
+      "keyRisks": [
+        "No distinctive spike beyond state level",
+        "Essays and recommendations unassessed"
+      ]
+    },
+    {
+      "schoolName": "Georgia Institute of Technology",
+      "course": "Computer Science B.S.",
+      "rubricUsed": "us-holistic",
+      "selectivity": "extremely_selective",
+      "fitScore": 55,
+      "classification": "reach",
+      "classificationReason": "Computer science at Georgia Tech turns away a great many well-qualified applicants, and as an out-of-state applicant you are likely judged against an even narrower bar. I am not certain how much in-state preference applies to this course, so I have taken the more cautious tier; check it.",
+      "assessment": "Georgia Tech reads technical substance closely, which favours you: AP Calculus BC and Physics C this year, a 5 in Computer Science A, a detector-building first place and real code in a research group are exactly the kind of evidence a technical institute values. You are a stronger fit here than at Duke, but still below the bar as things stand, mainly because of how competitive the out-of-state pool for this course is.",
+      "keyRisks": [
+        "Out-of-state applicant to a heavily oversubscribed course",
+        "Senior-year grades in BC Calculus and Physics C still to come"
+      ]
+    },
+    {
+      "schoolName": "University of Michigan-Ann Arbor",
+      "course": "Computer Science B.S.E.",
+      "rubricUsed": "us-holistic",
+      "selectivity": "highly_selective",
+      "fitScore": 62,
+      "classification": "match",
+      "classificationReason": "Michigan's engineering computer science programme turns away many well-qualified applicants, but your grades, course load, testing and technical activities place you inside the competitive range rather than below it. It is the most realistic of your three targets, though still far from a certainty.",
+      "assessment": "Your profile lines up well with what an engineering school looks for: demanding maths and physics, measurable technical output and sustained leadership. You are genuinely competitive here. The honest caveat is that a match is not a safety — nothing on your list is a school whose bar you clear comfortably, and that is the most important gap in your plan right now.",
+      "keyRisks": [
+        "Out-of-state applicant",
+        "Competitive engineering admission"
+      ]
+    }
+  ],
+  "itemAssessments": [
+    {
+      "itemRef": "R1",
+      "itemTitle": "AP Calculus BC",
+      "helpfulness": "high",
+      "foundationalValue": "moderate",
+      "compoundsInto": "This is the mathematical base for machine learning coursework in your first year at university, and a strong result makes placement out of introductory calculus likely to be possible — check each school's policy.",
+      "verdict": "The right course for a computer science applicant and expected at this level of selectivity. It strengthens the transcript; it will not distinguish you on its own, because most applicants to these programmes take it.",
+      "howToStrengthen": "Keep the senior-year grade at the level of your earlier record. Mid-year reports go to colleges, and a dip in the hardest course you are taking would be noticed.",
+      "bestFor": []
+    },
+    {
+      "itemRef": "R2",
+      "itemTitle": "AP Physics C: Mechanics",
+      "helpfulness": "high",
+      "foundationalValue": "moderate",
+      "compoundsInto": "Calculus-based physics is the strongest signal of quantitative rigor your school offers, and it matters most for the two engineering-oriented programmes on your list.",
+      "verdict": "Taking Physics C alongside BC Calculus in your final year shows you are taking the hardest available path rather than coasting toward applications. That reads well at every target, especially the engineering school.",
+      "howToStrengthen": "As with BC Calculus, the job now is to hold the grade. If a teacher from this course knows your work well, they are a strong candidate for a recommendation.",
+      "bestFor": [
+        "Georgia Institute of Technology",
+        "University of Michigan-Ann Arbor"
+      ]
+    },
+    {
+      "itemRef": "R3",
+      "itemTitle": "First place, NC Science Olympiad (Detector Building)",
+      "helpfulness": "high",
+      "foundationalValue": "low",
+      "compoundsInto": "As a final-year student this is now a finished result rather than a foundation. Its value is as external validation of hands-on technical ability.",
+      "verdict": "A state-level first place is real external validation, and Detector Building specifically shows you can build and calibrate hardware, not just write code. It is your clearest competitive result, though state level is below what would count as a spike at the most selective programmes.",
+      "howToStrengthen": "Describe what you actually built and how you calibrated it in one or two lines on the application, so a reader understands the engineering rather than just the placing.",
+      "bestFor": [
+        "Georgia Institute of Technology",
+        "University of Michigan-Ann Arbor"
+      ]
+    },
+    {
+      "itemRef": "R4",
+      "itemTitle": "AP Computer Science A",
+      "helpfulness": "moderate",
+      "foundationalValue": "low",
+      "compoundsInto": "The course itself is behind you; the 5 on the exam is the lasting evidence.",
+      "verdict": "A 5 confirms what the rest of your record already shows. For an applicant whose activities are this computing-heavy, the course is expected rather than distinguishing — its absence would be noticed more than its presence.",
+      "howToStrengthen": "Nothing more to do here. Let the lab and club work carry the computing story.",
+      "bestFor": []
+    },
+    {
+      "itemRef": "R5",
+      "itemTitle": "Undergraduate lab assistant, computer vision group (UNC)",
+      "helpfulness": "high",
+      "foundationalValue": "high",
+      "compoundsInto": "Sixteen months in a university lab with a named acknowledgement can become the most specific recommendation in your file, and the start of a research relationship you could continue in summers.",
+      "verdict": "Genuine research exposure, sustained over a long time and with evidence attached. Be accurate about what it is: data labelling, cleaning and one de-duplication script are supporting work, not leading a project. That is the normal entry point for a high-school student and still uncommon in your year.",
+      "howToStrengthen": "Ask your supervisor for a recommendation now, before deadlines crowd it, and describe the de-duplication script precisely — what problem it solved and what it changed for the dataset.",
+      "bestFor": [
+        "Duke University",
+        "Georgia Institute of Technology",
+        "University of Michigan-Ann Arbor"
+      ]
+    },
+    {
+      "itemRef": "R6",
+      "itemTitle": "Weekend shifts, Foster's Market",
+      "helpfulness": "moderate",
+      "foundationalValue": "low",
+      "compoundsInto": "Already sustained for well over a year; its value is in what it says about how you manage your time.",
+      "verdict": "Ten hours a week of paid work for twenty months, alongside a research placement and a demanding course load, is evidence of responsibility that holistic readers value. It is unrelated to computing, and that is fine — it is not filler.",
+      "howToStrengthen": "List it plainly with the hours. If the job affects what else you could do, the additional information section is the place to say so in one sentence.",
+      "bestFor": []
+    },
+    {
+      "itemRef": "R7",
+      "itemTitle": "Co-president, Girls Who Code chapter",
+      "helpfulness": "high",
+      "foundationalValue": "moderate",
+      "compoundsInto": "The library workshop is the part of this that is yours — something you started outside school. It is your best material for an essay about why you do this.",
+      "verdict": "Leadership with consequences: growing a chapter from 11 to 34 members over two years and opening a public Saturday workshop is measurable impact, not a title. This is one of the two strongest items in your profile.",
+      "howToStrengthen": "Make sure the application states the growth and the workshop in numbers. Before you graduate, hand the workshop to a younger member so it outlasts you.",
+      "bestFor": [
+        "Duke University",
+        "Georgia Institute of Technology",
+        "University of Michigan-Ann Arbor"
+      ]
+    }
+  ],
+  "analysis": {
+    "strengths": [
+      {
+        "title": "A real research placement, with evidence",
+        "detail": "Sixteen months in a university computer vision group, named in a workshop paper's acknowledgements, is exposure to how research is actually done. It is supporting work, and you should describe it that way, but it is sustained and it is checkable.",
+        "relevantTo": [
+          "Duke University",
+          "Georgia Institute of Technology",
+          "University of Michigan-Ann Arbor"
+        ]
+      },
+      {
+        "title": "Leadership you can measure",
+        "detail": "Growing a Girls Who Code chapter from 11 to 34 members and starting a public library workshop shows initiative with results. Admissions readers look for exactly this: what changed because you were involved.",
+        "relevantTo": [
+          "Duke University",
+          "Georgia Institute of Technology",
+          "University of Michigan-Ann Arbor"
+        ]
+      },
+      {
+        "title": "The hardest course load available, with results to match",
+        "detail": "A 4.3 weighted GPA, BC Calculus and Physics C in your final year, a 5 in Computer Science A and a 1510 SAT. Your school offers 22 APs and you are taking the demanding end of them.",
+        "relevantTo": []
+      },
+      {
+        "title": "A coherent story",
+        "detail": "Lab work, a computing club, detector building and your stated goal of machine learning research all point the same way. The narrative is evidenced by the record rather than asserted.",
+        "relevantTo": []
+      }
+    ],
+    "weaknesses": [
+      {
+        "title": "No school on your list that you clear comfortably",
+        "detail": "All three targets are highly or extremely selective computer science programmes, and two are reaches. A list with no school where your profile is comfortably competitive is the biggest risk in your application plan — bigger than anything in the profile itself.",
+        "severity": "significant"
+      },
+      {
+        "title": "No distinctive spike beyond state level",
+        "detail": "Your strongest results are a state first place and supporting research work. At the most selective programmes many applicants show similar evidence, so the record alone will not separate you. Your essays will have to do that work.",
+        "severity": "moderate"
+      },
+      {
+        "title": "Your role in the research is supporting, not leading",
+        "detail": "Describe the lab work accurately. Overstating it is a real risk because a recommendation from the lab will describe what you actually did.",
+        "severity": "minor"
+      }
+    ],
+    "actions": [
+      {
+        "title": "Add at least two schools where you are comfortably competitive",
+        "detail": "Include your in-state options. Look for programmes where your grades and course load clear the academic bar with room to spare, and check their computer science admission routes, which sometimes differ from general admission.",
+        "effort": "medium",
+        "impact": "high",
+        "timeframe": "This week",
+        "appliesTo": []
+      },
+      {
+        "title": "Secure the lab recommendation",
+        "detail": "Ask Dr. Reyes-Whitfield directly, and give them a one-page summary of what you did, when, and what the de-duplication script changed. A specific letter from a research supervisor is worth more than another activity.",
+        "effort": "low",
+        "impact": "high",
+        "timeframe": "Within two weeks",
+        "appliesTo": [
+          "Duke University",
+          "Georgia Institute of Technology",
+          "University of Michigan-Ann Arbor"
+        ]
+      },
+      {
+        "title": "Write the essay that connects the workshop and the lab",
+        "detail": "Your most distinctive material is the link between bringing new people into computing and doing machine learning yourself. Write about one specific moment from the Saturday workshop, not a summary of your activities.",
+        "effort": "high",
+        "impact": "high",
+        "timeframe": "Before your earliest deadline",
+        "appliesTo": [
+          "Duke University",
+          "Georgia Institute of Technology",
+          "University of Michigan-Ann Arbor"
+        ]
+      },
+      {
+        "title": "Hold your senior-year grades",
+        "detail": "Mid-year reports go to colleges. BC Calculus and Physics C are the hardest courses you have taken; keeping those grades at your usual level protects everything else in the file.",
+        "effort": "medium",
+        "impact": "medium",
+        "timeframe": "Through January",
+        "appliesTo": []
+      }
+    ],
+    "gaps": [
+      {
+        "title": "A balanced school list",
+        "detail": "There is no school on your list whose bar you clear comfortably. This is fixable now and is the most valuable change you can make this month.",
+        "timing": "now",
+        "appliesTo": []
+      },
+      {
+        "title": "A recommendation from outside school",
+        "detail": "Your research supervisor has not yet been asked. Ask early; they will be writing for others too.",
+        "timing": "now",
+        "appliesTo": [
+          "Duke University",
+          "Georgia Institute of Technology",
+          "University of Michigan-Ann Arbor"
+        ]
+      },
+      {
+        "title": "A finished, showable piece of your own work",
+        "detail": "Documenting the de-duplication script, or the workshop curriculum, gives readers something concrete. Worth doing only if it can be finished in weeks, not months.",
+        "timing": "now",
+        "appliesTo": []
+      }
+    ],
+    "verifyThese": [
+      "Each school's application deadlines and early-application options for this cycle",
+      "Each school's current standardized testing policy",
+      "How computer science admission works at each school — whether you apply directly to the major or to the college",
+      "Whether Georgia Tech applies a higher bar to out-of-state applicants for computer science",
+      "AP credit and placement policies for BC Calculus and Physics C at each school"
+    ],
+    "proposedCommitments": [
+      {
+        "description": "Ask Dr. Reyes-Whitfield for a recommendation and send them a one-page summary of your lab work",
+        "targetRung": null,
+        "dueInWeeks": 2
+      },
+      {
+        "description": "Add two schools where you are comfortably competitive to your list, including an in-state option",
+        "targetRung": null,
+        "dueInWeeks": 1
+      },
+      {
+        "description": "Write a full first draft of your main essay about the Saturday library workshop",
+        "targetRung": null,
+        "dueInWeeks": 3
+      }
+    ]
+  },
+  "overview": {
+    "headline": "A strong, coherent computer science profile — with a school list that has no safety net",
+    "summary": "You are clearly ahead of most university-bound students in your year: the hardest courses your school offers, a 1510 SAT, sixteen months in a university computer vision lab, a state first place, and leadership you can measure. Against applicants to the most selective computer science programmes, that places you in the upper-middle of the pool rather than at its top, because many of them show similar evidence and nothing here yet reaches national level. Duke and Georgia Tech are reaches; Michigan is a realistic match. The most important thing to fix is not in your profile at all: add schools you clear comfortably, then put your effort into the recommendation from your lab and an essay that connects the library workshop to why you want to do machine learning.",
+    "overallScore": 62,
+    "gradeRelativeScore": 88,
+    "gradeContext": "The two numbers answer different questions. 88 says you are well ahead of the ordinary university-bound cohort in Grade 12 — top grades in the hardest courses plus several sustained commitments with real results. 62 measures you against the self-selected pool applying to computer science at Duke, where strong records are the norm, so the same profile lands in the upper-middle rather than near the top.",
+    "changeSinceLast": "This is your first evaluation, so there is nothing to compare it with yet.",
+    "narrativeCoherence": {
+      "score": 82,
+      "assessment": "Your activities, coursework and goal tell one story: computing, building things, and bringing others in. It is evidenced, not asserted. The missing piece is your own voice explaining why — which is the job of the essays."
+    }
+  }
+}

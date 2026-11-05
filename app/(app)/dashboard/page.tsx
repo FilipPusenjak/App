@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getOwnedProfiles } from "@/lib/ownership";
 import { studentLabel } from "@/lib/students";
 import { loadDashboard } from "@/lib/dashboard/load";
-import { describeMovement } from "@/lib/dashboard/summary";
+import { describeMovement, type ScoreMove } from "@/lib/dashboard/summary";
 import { BAND_MEANINGS, PACE_LABELS } from "@/lib/dashboard/standing";
 import { CommitmentControls } from "@/components/evaluation/commitment-controls";
 import {
@@ -28,6 +28,10 @@ export default async function DashboardPage() {
   ]);
   const multiStudent = profiles.length > 1;
   const { latest, gaps } = data;
+  const notes = scoreNotes(data.overallMove, data.gradeRelativeMove);
+  const carriedNotes = data.carriedScores
+    ? scoreNotes(data.carriedScores.overallMove, data.carriedScores.gradeRelativeMove)
+    : null;
   // Whether a Deep Review is reachable at all, and what is in the way — the
   // same rule the Evaluations page disables its button with.
   const ready = canRunEvaluation(data.counts);
@@ -85,18 +89,23 @@ export default async function DashboardPage() {
               produced this evaluation — and a band is never converted into a
               score, or a score into a band, to make the layout uniform. */}
           {latest.standing.kind === "percentile" && (
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Score
-                label="Readiness for your targets"
-                value={latest.standing.readiness}
-                note={describeMovement(data.overallMove)}
-              />
-              <Score
-                label="Compared to your year"
-                value={latest.standing.forYourYear}
-                note={describeMovement(data.gradeRelativeMove)}
-              />
-            </div>
+            <>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <Score
+                  label="Readiness for your targets"
+                  value={latest.standing.readiness}
+                  note={notes.overall}
+                />
+                <Score
+                  label="Compared to your year"
+                  value={latest.standing.forYourYear}
+                  note={notes.gradeRelative}
+                />
+              </div>
+              {notes.shared && (
+                <p className="mt-2 text-xs text-zinc-500">{notes.shared}</p>
+              )}
+            </>
           )}
 
           {latest.standing.kind === "band" && (
@@ -173,14 +182,17 @@ export default async function DashboardPage() {
                 <Score
                   label="Readiness for your targets"
                   value={data.carriedScores.reading.readiness}
-                  note={describeMovement(data.carriedScores.overallMove)}
+                  note={carriedNotes!.overall}
                 />
                 <Score
                   label="Compared to your year"
                   value={data.carriedScores.reading.forYourYear}
-                  note={describeMovement(data.carriedScores.gradeRelativeMove)}
+                  note={carriedNotes!.gradeRelative}
                 />
               </div>
+              {carriedNotes!.shared && (
+                <p className="mt-2 text-xs text-zinc-500">{carriedNotes!.shared}</p>
+              )}
               {/* The US/UK split survives the carry-forward. Losing it was the
                   worst part of the scores disappearing: a single blended
                   number is the flattening this app exists to refuse. */}
@@ -431,7 +443,8 @@ function Score({
 }: {
   label: string;
   value: number | null;
-  note: string;
+  /** Omitted when the pair shares one note — see ScorePairNote. */
+  note?: string;
 }) {
   return (
     <div>
@@ -442,9 +455,22 @@ function Score({
           <span className="ml-1 text-base font-normal text-zinc-400">/100</span>
         )}
       </p>
-      <p className="mt-1 text-xs text-zinc-500">{note}</p>
+      {note && <p className="mt-1 text-xs text-zinc-500">{note}</p>}
     </div>
   );
+}
+
+/**
+ * The notes under a pair of scores, said once when they say the same thing.
+ *
+ * On a first evaluation both scores carry the identical "this is the baseline"
+ * sentence, and printing it twice, one under the other on a phone, reads as a
+ * rendering mistake rather than information.
+ */
+function scoreNotes(overall: ScoreMove, gradeRelative: ScoreMove) {
+  const a = describeMovement(overall);
+  const b = describeMovement(gradeRelative);
+  return a === b ? { overall: undefined, gradeRelative: undefined, shared: a } : { overall: a, gradeRelative: b, shared: null };
 }
 
 /**

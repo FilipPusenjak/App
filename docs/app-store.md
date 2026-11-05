@@ -79,10 +79,14 @@ Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` (iOS) and `versionName` /
 `versionCode` (Android) for each upload.
 
 ### 5. Store listings
+Ready-to-paste copy, the review notes, the age-rating answers and the
+screenshot set are in **docs/store-listing.md**; the images are in
+`mobile/store/`.
+
 Both stores need:
 - **App name, subtitle/short description, full description**
-- **Screenshots**: iPhone 6.9" (Apple's required size) and Android phone.
-  Take them from the running app on a simulator or emulator.
+- **Screenshots**: done — iPhone 6.9", iPad 13" (required, since the app runs
+  on iPad) and Android phone, in `mobile/store/screenshots/`.
 - **Privacy policy URL**: https://www.coursechart.app/privacy
 - **Support URL** (Apple requires one): a page or `mailto:` that someone answers
 - **Age rating questionnaire**. The app is for ages 13 and up (`lib/validation/age.ts`).

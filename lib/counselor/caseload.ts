@@ -195,26 +195,5 @@ export async function loadCaseloadDirectory(): Promise<DirectoryRow[]> {
     .sort((a, b) => a.studentName.localeCompare(b.studentName));
 }
 
-/**
- * How a signal's basis reads to a professional in a hurry.
- *
- * Rendered beside every signal as INSPECTABLE rather than hidden behind a
- * disclosure, because the counselor has to vet what they are about to repeat.
- * Returns the raw pairs rather than prose: a counselor reading
- * `daysOverdue: 40` can check it against what they remember, where a sentence
- * saying "significantly overdue" gives them nothing to check.
- */
-export function describeBasis(
-  basis: Record<string, unknown>,
-): { key: string; value: string }[] {
-  const SKIP = new Set(["signal"]);
-  return Object.entries(basis)
-    .filter(([k, v]) => !SKIP.has(k) && v != null && v !== "")
-    .map(([key, value]) => ({
-      key: key
-        .replace(/([A-Z])/g, " $1")
-        .replace(/^./, (c) => c.toUpperCase())
-        .trim(),
-      value: Array.isArray(value) ? value.join(", ") : String(value),
-    }));
-}
+export { describeBasis } from "./basis";
+

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { MobileNav } from "@/app/(app)/mobile-nav";
+import { NavLink } from "@/app/(app)/nav-links";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { logoutAction } from "@/app/actions/auth";
@@ -15,7 +17,7 @@ import { caseloadStanding } from "@/lib/testprep/entitlement";
  * are aiming at and when to stop, which is why this surface leads with students
  * and their targets rather than with a queue.
  */
-const NAV = [
+const NAV: { href: string; label: string; exact?: boolean }[] = [
   { href: "/students-testprep", label: "Students" },
 ];
 
@@ -40,20 +42,33 @@ export default async function TutorLayout({
   return (
     <div className="flex min-h-full flex-1 flex-col">
       <header className="border-b border-black/10 bg-surface dark:border-white/15">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-6">
+        {/* Phone: the same disclosure the student app uses. Seven links in a
+            row ran off the side of a phone and scrolled the whole page
+            sideways. */}
+        <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:hidden">
+          <MobileNav
+            nav={NAV}
+            userEmail={user.email ?? ""}
+            brand={account.orgName ?? "Test prep"}
+            homeHref="/students-testprep"
+          />
+        </div>
+        <div className="mx-auto hidden w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex sm:px-6">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1">
             <span className="text-sm font-semibold tracking-tight">
               {account.orgName ?? "Test prep"}
             </span>
-            <nav className="flex gap-4">
+            <nav className="flex flex-wrap gap-x-4 gap-y-1">
               {NAV.map((item) => (
-                <Link
+                <NavLink
                   key={item.href}
                   href={item.href}
+                  exact={item.exact}
                   className="text-sm text-zinc-600 transition-colors hover:text-foreground dark:text-zinc-400"
+                  activeClassName="font-medium text-zinc-900 dark:text-white"
                 >
                   {item.label}
-                </Link>
+                </NavLink>
               ))}
             </nav>
           </div>

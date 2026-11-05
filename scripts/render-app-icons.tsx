@@ -1,4 +1,5 @@
-// Renders the native app's icon and splash sources from the brand mark.
+// Renders the native app's icon and splash sources from the brand mark, and
+// the two images Google Play's listing needs on top of screenshots.
 //
 //   npx tsx scripts/render-app-icons.tsx && (cd mobile && npm run assets)
 //
@@ -15,11 +16,18 @@ import { ImageResponse } from "next/og";
 import { CourseMark, MARK_GRADIENT, MarkGlyph } from "@/lib/brand/mark";
 
 const OUT = join(process.cwd(), "mobile", "assets");
+const STORE = join(process.cwd(), "mobile", "store");
 
-async function render(name: string, el: React.ReactElement, w: number, h: number) {
+async function render(
+  name: string,
+  el: React.ReactElement,
+  w: number,
+  h: number,
+  dir = OUT,
+) {
   const res = new ImageResponse(el, { width: w, height: h });
-  writeFileSync(join(OUT, name), Buffer.from(await res.arrayBuffer()));
-  console.log(`wrote mobile/assets/${name} (${w}x${h})`);
+  writeFileSync(join(dir, name), Buffer.from(await res.arrayBuffer()));
+  console.log(`wrote ${join(dir, name).replace(process.cwd() + "/", "")} (${w}x${h})`);
 }
 
 /** The mark centred on a plain field, for the launch screen. */
@@ -66,6 +74,38 @@ async function main() {
   // at about a fifth of it so it survives the crop to a phone's aspect ratio.
   await render("splash.png", splash("#ffffff", 560), 2732, 2732);
   await render("splash-dark.png", splash("#09090b", 560), 2732, 2732);
+
+  // Google Play listing: a 512x512 icon (Play rounds it itself) and the
+  // 1024x500 feature graphic shown at the top of the store page. Play crops
+  // the graphic's edges on some surfaces, so everything sits well inside it.
+  mkdirSync(STORE, { recursive: true });
+  await render("play-icon-512.png", <CourseMark size={512} rounded={false} />, 512, 512, STORE);
+  await render(
+    "play-feature-graphic.png",
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 56,
+        background: MARK_GRADIENT,
+        color: "#ffffff",
+      }}
+    >
+      <MarkGlyph size={260} />
+      <div style={{ display: "flex", flexDirection: "column", maxWidth: 560 }}>
+        <div style={{ fontSize: 76, fontWeight: 700, letterSpacing: -1 }}>CourseChart</div>
+        <div style={{ fontSize: 34, marginTop: 12, lineHeight: 1.25, opacity: 0.92 }}>
+          An honest read on where you stand for university
+        </div>
+      </div>
+    </div>,
+    1024,
+    500,
+    STORE,
+  );
 }
 
 main().catch((err) => {

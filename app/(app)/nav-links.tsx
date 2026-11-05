@@ -23,6 +23,7 @@ import { usePathname } from "next/navigation";
  */
 export function NavLink({
   href,
+  exact = false,
   className = "",
   activeClassName = "font-semibold text-zinc-900 dark:text-white",
   children,
@@ -30,11 +31,13 @@ export function NavLink({
   href: string;
   className?: string;
   activeClassName?: string;
+  /** Light up only on this exact URL — for a section root other sections sit under. */
+  exact?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const active =
-    href === "/dashboard"
+    exact || href === "/dashboard"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`);
 
