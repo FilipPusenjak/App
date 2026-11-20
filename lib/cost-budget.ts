@@ -65,6 +65,15 @@ export const RUN_BUDGET_USD = {
    * variable cost.
    */
   PROGRESS_ARTIFACT: envBudget("PROGRESS_ARTIFACT_BUDGET_USD", 0.08),
+  /**
+   * One batch call shortening application-document descriptions.
+   *
+   * Up to ten short descriptions, each under 150 characters, from facts the
+   * student typed. A generation makes at most three such calls (the batch, a
+   * retry for anything over its limit, a retry for anything the fidelity check
+   * rejected), so a whole list costs at most three times this.
+   */
+  DOCUMENT_COMPRESSION: envBudget("DOCUMENT_COMPRESSION_BUDGET_USD", 0.05),
 } as const;
 
 function envBudget(name: string, fallback: number): number {
@@ -251,4 +260,6 @@ export const MIN_USEFUL_OUTPUT_TOKENS = {
    * options, no discussion points and no reasoning — just a report.
    */
   PROGRESS_ARTIFACT: 800,
+  /** Ten descriptions of under 150 characters, with JSON around them. */
+  DOCUMENT_COMPRESSION: 600,
 } as const;

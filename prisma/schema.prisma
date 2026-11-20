@@ -25,8 +25,8 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id              String   @id @default(cuid())
-  email           String   @unique
+  id              String  @id @default(cuid())
+  email           String  @unique
   passwordHash    String
   name            String?
   // The account's DEFAULT home country, set at signup. Each student profile
@@ -52,8 +52,8 @@ model User {
   /// grade level, which is the age-shaped fact that IS relevant.
   dateOfBirth DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Brute-force protection. Stored on the user rather than in memory so the
   // limit actually holds across serverless instances and restarts.
@@ -458,19 +458,23 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  resumeItems      ResumeItem[]
-  testScores       TestScore[]
-  targetSchools    TargetSchool[]
-  evaluations      Evaluation[]
-  plannedItems     PlannedItem[]
-  projections      Projection[]
-  commitments      Commitment[]
-  digests          ProfileDigest[]
+  resumeItems          ResumeItem[]
+  testScores           TestScore[]
+  targetSchools        TargetSchool[]
+  evaluations          Evaluation[]
+  plannedItems         PlannedItem[]
+  projections          Projection[]
+  commitments          Commitment[]
+  digests              ProfileDigest[]
   /// Counselor access GRANTED on this student. Read-only by construction — a
   /// link carries no write path to any field on this model.
-  caseloadLinks    CaseloadLink[]
-  developments     Development[]
-  discoveryConsent DiscoveryConsent?
+  caseloadLinks        CaseloadLink[]
+  developments         Development[]
+  discoveryConsent     DiscoveryConsent?
+  honors               Honor[]
+  applicationDocuments ApplicationDocument[]
+  documentGenerations  DocumentGenerationLog[]
+  savedResumeContact   SavedResumeContact?
 
   @@index([userId])
   @@index([schoolId])
@@ -605,6 +609,29 @@ model ResumeItem {
   /// group at the time.
   startGrade          Int?
   endGrade            Int?
+
+  // --- Common App fields --------------------------------------------------
+  // What the Common App's Activities section asks for and the rest of the
+  // profile did not already hold. The application document builder
+  // (lib/documents) reads them; when one is missing it ASKS the student and
+  // writes the answer back here, so the profile gets more complete as a side
+  // effect rather than the gap being papered over in a document.
+  //
+  // `org` is the organization name and `hoursPerWeek` the hours — both already
+  // existed. All optional: nothing elsewhere depends on them.
+
+  /// One of COMMON_APP_ACTIVITY_TYPES in lib/documents/limits.ts.
+  commonAppType String?
+  /// The student's own title. Null means none — never filled in for them.
+  positionTitle String?
+  /// Which of grades 9-12 (13 = post-graduate) the activity ran in.
+  gradeLevels   Int[]    @default([])
+  /// SCHOOL_YEAR | SCHOOL_BREAK | ALL_YEAR
+  timing        String?
+  weeksPerYear  Int?
+  /// Concrete facts the student entered — outcomes, numbers, recognition.
+  /// Generated descriptions may draw outcomes only from student-entered text.
+  facts         String[] @default([])
 
   @@index([profileId])
   @@index([canonicalActivityId])
@@ -1703,4 +1730,136 @@ model ProgressArtifact {
 
   @@index([studentUserId, periodEnd])
   @@index([caseloadLinkId, generatedAt])
+}
+
+// ─── Application documents ────────────────────────────────────────────────────
+//
+// The document builder turns a student's profile into what an application
+// actually asks for: the Common App activities list, a brag sheet for
+// recommenders and a one-page resume. See lib/documents for the rules; the
+// short version is that code does everything except shortening a description,
+// and the model may rephrase what the student entered but never add to it.
+
+/// An honor or award for the Common App's Honors section.
+///
+/// Per PROFILE rather than per user, like every other part of the record — an
+/// account can hold more than one student.
+model Honor {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title            String
+  gradeLevels      Int[]  @default([])
+  /// SCHOOL | STATE_REGIONAL | NATIONAL | INTERNATIONAL
+  recognitionLevel String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+/// A generated application document: a working DRAFT, or an EXPORTED snapshot.
+///
+/// EXPORTED rows are never updated. Each pins the source data and the exact
+/// fields as they were when the student exported, so what they submitted in
+/// October can still be read in December after the profile has moved on.
+model ApplicationDocument {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// COMMON_APP_ACTIVITIES | BRAG_SHEET | RESUME_PDF
+  type   String
+  /// Application cycle, e.g. "2026-27" — the key into COMMON_APP_LIMITS.
+  cycle  String
+  /// DRAFT | EXPORTED
+  status String @default("DRAFT")
+
+  /// "<profileId>:<type>:<cycle>" on the one draft per document, null on
+  /// exports — exactly one draft, without needing a partial index.
+  draftKey String? @unique
+  /// For an export, the draft it was taken from.
+  draftId  String?
+
+  /// The profile data this was built from.
+  sourceSnapshot   Json
+  /// Generated and edited content. See lib/documents/store.ts for the shape.
+  fields           Json
+  /// Field keys the student has edited. Regeneration never overwrites these.
+  editedFieldKeys  String[]  @default([])
+  /// When the student confirmed the selection and order. Null = suggested only.
+  orderConfirmedAt DateTime?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  exportedAt DateTime?
+
+  inputTokens  Int   @default(0)
+  outputTokens Int   @default(0)
+  /// Fractional: a compression run costs well under a cent, and rounding each
+  /// run to whole cents would record most of them as free.
+  costCents    Float @default(0)
+
+  @@index([profileId, type, status])
+}
+
+/// A description the model already shortened, keyed by everything that went in.
+///
+/// An unchanged activity never costs a second call. Only outputs that passed
+/// the length and fidelity checks are stored.
+model CompressionCache {
+  id         String   @id @default(cuid())
+  /// sha256 of the source fields + the character limit + the prompt version.
+  sourceHash String   @unique
+  output     String
+  modelUsed  String
+  createdAt  DateTime @default(now())
+}
+
+/// One generation run, for the monthly caps and for watching fidelity.
+///
+/// fidelityFailures records every rejected attempt with the model that wrote
+/// it — the signal that a model change has started inflating descriptions.
+model DocumentGenerationLog {
+  id         String  @id @default(cuid())
+  profileId  String
+  profile    Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  documentId String?
+
+  /// LIST | ENTRY | GRAMMAR
+  scope    String
+  /// The entry regenerated, for ENTRY and GRAMMAR runs.
+  entryKey String?
+
+  modelUsed        String?
+  modelCalls       Int     @default(0)
+  cacheHits        Int     @default(0)
+  inputTokens      Int     @default(0)
+  outputTokens     Int     @default(0)
+  costCents        Float   @default(0)
+  flaggedEntries   Int     @default(0)
+  fidelityFailures Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId, scope, createdAt])
+}
+
+/// Resume contact details, kept ONLY when the student ticks "remember".
+///
+/// The default is that contact details are typed in at export, used to draw
+/// the PDF, and never written anywhere. Users are minors; a phone number and a
+/// home address are not something to hold between sessions without asking.
+model SavedResumeContact {
+  profileId String  @id
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name    String?
+  email   String?
+  phone   String?
+  address String?
+
+  updatedAt DateTime @updatedAt
 }

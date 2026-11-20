@@ -26,6 +26,12 @@ export default async function EditItemPage({
     hoursPerWeek: item.hoursPerWeek != null ? String(item.hoursPerWeek) : "",
     description: item.description ?? "",
     evidenceNotes: item.evidenceNotes ?? "",
+    commonAppType: item.commonAppType ?? "",
+    positionTitle: item.positionTitle ?? "",
+    gradeLevels: item.gradeLevels,
+    timing: item.timing ?? "",
+    weeksPerYear: item.weeksPerYear != null ? String(item.weeksPerYear) : "",
+    facts: item.facts.join("\n"),
   };
 
   return (

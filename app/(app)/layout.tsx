@@ -16,6 +16,8 @@ const NAV = [
   { href: "/targets", label: "Targets" },
   { href: "/plans", label: "Plans" },
   { href: "/evaluations", label: "Evaluations" },
+  // Shown to everyone: a free account sees a locked preview, not a gap.
+  { href: "/documents", label: "Documents" },
   { href: "/students", label: "Students", studentsOnly: true },
   { href: "/settings", label: "Settings" },
 ];

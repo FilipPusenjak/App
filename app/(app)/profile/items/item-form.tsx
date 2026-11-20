@@ -6,6 +6,13 @@ import type { FormResult } from "@/app/actions/profile";
 import { RESUME_ITEM_TYPES, RESUME_ITEM_TYPE_LABELS } from "@/lib/validation/enums";
 import { Field, Input, Textarea, Select, FormError } from "@/components/ui/form";
 import { SubmitButton } from "@/components/ui/submit-button";
+import {
+  COMMON_APP_ACTIVITY_TYPES,
+  GRADE_LEVELS,
+  gradeLabel,
+  TIMING_LABELS,
+  TIMINGS,
+} from "@/lib/documents/limits";
 
 export type ItemFormValues = {
   type: string;
@@ -16,6 +23,13 @@ export type ItemFormValues = {
   hoursPerWeek: string;
   description: string;
   evidenceNotes: string;
+  commonAppType: string;
+  positionTitle: string;
+  gradeLevels: number[];
+  timing: string;
+  weeksPerYear: string;
+  /** One fact per line. */
+  facts: string;
 };
 
 const empty: ItemFormValues = {
@@ -27,6 +41,12 @@ const empty: ItemFormValues = {
   hoursPerWeek: "",
   description: "",
   evidenceNotes: "",
+  commonAppType: "",
+  positionTitle: "",
+  gradeLevels: [],
+  timing: "",
+  weeksPerYear: "",
+  facts: "",
 };
 
 export function ItemForm({
@@ -140,6 +160,65 @@ export function ItemForm({
           defaultValue={values.evidenceNotes}
         />
       </Field>
+
+      {/* What the Common App asks for. Optional here; the application
+          document builder asks for whatever is missing when it is needed. */}
+      <details className="rounded-lg border border-black/10 p-4 dark:border-white/15" open={Boolean(values.commonAppType || values.facts || values.gradeLevels.length)}>
+        <summary className="cursor-pointer text-sm font-medium">
+          Common App details <span className="font-normal text-zinc-500">(optional)</span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Activity type" htmlFor="commonAppType" error={fe.commonAppType}>
+              <Select id="commonAppType" name="commonAppType" defaultValue={values.commonAppType}>
+                <option value="">Choose…</option>
+                {COMMON_APP_ACTIVITY_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Position or title"
+              htmlFor="positionTitle"
+              error={fe.positionTitle}
+              hint="Only if you held one. Leave blank otherwise."
+            >
+              <Input id="positionTitle" name="positionTitle" defaultValue={values.positionTitle} placeholder="e.g. Treasurer" />
+            </Field>
+            <Field label="When" htmlFor="timing" error={fe.timing}>
+              <Select id="timing" name="timing" defaultValue={values.timing}>
+                <option value="">Choose…</option>
+                {TIMINGS.map((t) => (
+                  <option key={t} value={t}>{TIMING_LABELS[t]}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Weeks per year" htmlFor="weeksPerYear" error={fe.weeksPerYear}>
+              <Input id="weeksPerYear" name="weeksPerYear" type="number" min="0" max="52" step="1" defaultValue={values.weeksPerYear} placeholder="e.g. 36" />
+            </Field>
+          </div>
+          <fieldset>
+            <legend className="mb-1.5 text-sm font-medium">Grades</legend>
+            <div className="flex flex-wrap gap-3">
+              {GRADE_LEVELS.map((g) => (
+                <label key={g} className="flex items-center gap-1.5 text-sm">
+                  <input type="checkbox" name="gradeLevels" value={g} defaultChecked={values.gradeLevels.includes(g)} />
+                  {g === 13 ? "Post-graduate" : gradeLabel(g)}
+                </label>
+              ))}
+            </div>
+            {fe.gradeLevels && <p className="mt-1 text-xs text-red-600">{fe.gradeLevels}</p>}
+          </fieldset>
+          <Field
+            label="Concrete facts"
+            htmlFor="facts"
+            error={fe.facts}
+            hint="One per line: results, numbers, things you made or presented. Generated descriptions only use what you write here and above."
+          >
+            <Textarea id="facts" name="facts" rows={3} defaultValue={values.facts} placeholder={"Grew the club from 11 to 34 members\nPresented at the spring science fair"} />
+          </Field>
+        </div>
+      </details>
 
       <div className="flex items-center gap-3">
         <SubmitButton pendingText="Saving…">{submitLabel}</SubmitButton>

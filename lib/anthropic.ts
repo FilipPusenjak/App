@@ -186,6 +186,17 @@ export const getProjectionModel = () =>
 export const getProjectionEffort = () =>
   process.env.ANTHROPIC_PROJECTION_EFFORT || DEFAULT_PROJECTION_EFFORT;
 
+/**
+ * The model that shortens application-document descriptions and fixes grammar.
+ *
+ * Sonnet by default: the task is compression under hard rules, with every
+ * output checked by code afterwards (lib/documents/fidelity.ts), so the larger
+ * model would cost more without the checks catching any less.
+ */
+export const DEFAULT_DOCUMENT_MODEL = "claude-sonnet-5";
+export const getDocumentModel = () =>
+  process.env.ANTHROPIC_DOCUMENT_MODEL || DEFAULT_DOCUMENT_MODEL;
+
 /** True when a real API key is configured. */
 export function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());

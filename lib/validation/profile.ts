@@ -11,6 +11,7 @@ import {
   TEST_SCORE_KINDS_REQUIRING_LABEL,
 } from "./enums";
 import { isValidCountryCode } from "@/lib/data/countries";
+import { COMMON_APP_ACTIVITY_TYPES, GRADE_LEVELS, TIMINGS } from "@/lib/documents/limits";
 
 export const profileSchema = z.object({
   /** What the account calls this student. Null/blank for a solo student. */
@@ -68,6 +69,16 @@ export const resumeItemSchema = z
     endDate: z.date().optional(),
     hoursPerWeek: z.number().min(0).max(168).optional(),
     evidenceNotes: z.string().trim().max(5000).optional(),
+    // Common App fields — all optional. See ResumeItem in schema.prisma.
+    commonAppType: z.enum(COMMON_APP_ACTIVITY_TYPES).optional(),
+    positionTitle: z.string().trim().max(200).optional(),
+    gradeLevels: z
+      .array(z.number().int().refine((g) => (GRADE_LEVELS as readonly number[]).includes(g)))
+      .max(GRADE_LEVELS.length)
+      .default([]),
+    timing: z.enum(TIMINGS).optional(),
+    weeksPerYear: z.number().int().min(0).max(52).optional(),
+    facts: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
   })
   .refine(
     (v) => !v.startDate || !v.endDate || v.endDate >= v.startDate,

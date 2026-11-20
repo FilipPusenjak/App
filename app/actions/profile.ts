@@ -12,6 +12,7 @@ import {
   profileSchema,
   resumeItemSchema,
   testScoreSchema,
+  type ResumeItemInput,
 } from "@/lib/validation/profile";
 
 export type FormResult =
@@ -161,7 +162,29 @@ function parseResumeItem(fd: FormData) {
     endDate: optDate(fd, "endDate"),
     hoursPerWeek: optNumber(fd, "hoursPerWeek"),
     evidenceNotes: optText(fd, "evidenceNotes"),
+    commonAppType: optText(fd, "commonAppType"),
+    positionTitle: optText(fd, "positionTitle"),
+    gradeLevels: fd.getAll("gradeLevels").map((g) => Number(g)),
+    timing: optText(fd, "timing"),
+    weeksPerYear: optNumber(fd, "weeksPerYear"),
+    // One fact per line, as typed. Blank lines are not facts.
+    facts: (optText(fd, "facts") ?? "")
+      .split("\n")
+      .map((f) => f.trim())
+      .filter(Boolean),
   });
+}
+
+/** The Common App columns, from a parsed item. */
+function commonAppColumns(d: ResumeItemInput) {
+  return {
+    commonAppType: d.commonAppType ?? null,
+    positionTitle: d.positionTitle ?? null,
+    gradeLevels: [...new Set(d.gradeLevels)].sort((a, b) => a - b),
+    timing: d.timing ?? null,
+    weeksPerYear: d.weeksPerYear ?? null,
+    facts: d.facts,
+  };
 }
 
 export async function createResumeItemAction(
@@ -186,6 +209,7 @@ export async function createResumeItemAction(
       endDate: d.endDate ?? null,
       hoursPerWeek: d.hoursPerWeek ?? null,
       evidenceNotes: d.evidenceNotes ?? null,
+      ...commonAppColumns(d),
     },
   });
 
@@ -217,6 +241,7 @@ export async function updateResumeItemAction(
       endDate: d.endDate ?? null,
       hoursPerWeek: d.hoursPerWeek ?? null,
       evidenceNotes: d.evidenceNotes ?? null,
+      ...commonAppColumns(d),
     },
   });
 
